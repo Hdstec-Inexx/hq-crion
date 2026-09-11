@@ -1,0 +1,104 @@
+:root {
+  --cyan: #5ec4be;
+  --ink: #2c3033;
+  --mute: #828487;
+  --canvas: #f3f7f6;
+  --paper: #ffffff;
+  --line: #d5e0dd;
+  --ok: #2f8f6b;
+  --danger: #c45b5b;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  color: var(--ink);
+  background: var(--canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+.health-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  background:
+    radial-gradient(900px 400px at 80% -10%, rgb(94 196 190 / 28%), transparent),
+    var(--canvas);
+}
+
+.health-card {
+  width: min(420px, 92vw);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  box-shadow: 0 16px 40px rgb(44 48 51 / 6%);
+}
+
+.health-card img {
+  height: 36px;
+  width: auto;
+  margin-bottom: 22px;
+}
+
+.health-card h1 {
+  font-size: 22px;
+  margin: 0 0 6px;
+  letter-spacing: -0.03em;
+}
+
+.health-card p {
+  margin: 0 0 22px;
+  color: var(--mute);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.health-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.health-status span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--mute);
+}
+
+.health-status-loading span {
+  background: var(--cyan);
+}
+
+.health-status-ready span {
+  background: var(--ok);
+}
+
+.health-status-error span {
+  background: var(--danger);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .health-status-loading span {
+    animation: health-pulse 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes health-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
