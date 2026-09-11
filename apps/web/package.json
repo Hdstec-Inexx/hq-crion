@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "predev": "corepack pnpm --filter @hq-crion/contracts build",
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite",
     "build": "tsc && vite build",
     "typecheck": "tsc"
   },

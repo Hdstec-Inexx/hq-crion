@@ -10,10 +10,16 @@ export async function buildApp() {
   await app.register(config);
   await app.register(cors, {
     origin: app.config.CORS_ORIGIN,
-    methods: ['GET', 'HEAD']
+    methods: ['GET', 'HEAD'],
+    credentials: false
   });
   await app.register(sensible);
   await app.register(modules);
+
+  app.addHook('onSend', async (_request, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    return payload;
+  });
 
   return app;
 }

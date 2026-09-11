@@ -2,7 +2,8 @@ import { healthResponseSchema, type HealthResponse } from '@hq-crion/contracts/h
 import type { FastifyPluginAsync } from 'fastify';
 
 const healthRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/health', async (): Promise<HealthResponse> => {
+  app.get('/health', async (_request, reply): Promise<HealthResponse> => {
+    reply.header('Cache-Control', 'no-store');
     return healthResponseSchema.parse({ status: 'ok' });
   });
 };

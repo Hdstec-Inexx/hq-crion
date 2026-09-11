@@ -12,6 +12,8 @@ test('GET /health responde sucesso pelo contrato HTTP, sem autenticação', asyn
     const response = await app.inject({ method: 'GET', url: '/health' });
 
     assert.equal(response.statusCode, 200);
+    assert.equal(response.headers['cache-control'], 'no-store');
+    assert.equal(response.headers['x-content-type-options'], 'nosniff');
     assert.deepEqual(healthResponseSchema.parse(response.json()), {
       status: 'ok'
     });

@@ -5,7 +5,10 @@ type HealthState = 'loading' | 'ready' | 'error';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
-const copy: Record<HealthState, { title: string; status: string }> = {
+const mensagensPorEstado: Record<
+  HealthState,
+  { title: string; status: string }
+> = {
   loading: {
     title: 'Verificando o HQ Crion',
     status: 'Consultando a API'
@@ -43,7 +46,7 @@ export function HealthPage() {
     return () => controller.abort();
   }, []);
 
-  const { title, status } = copy[state];
+  const { title, status } = mensagensPorEstado[state];
 
   return (
     <main className="health-page">
