@@ -1,0 +1,7 @@
+{
+  "name": "hq-crion",
+  "private": true,
+  "scripts": {
+    "prototype": "npx --yes serve prototype -p 4173"
+  }
+}
