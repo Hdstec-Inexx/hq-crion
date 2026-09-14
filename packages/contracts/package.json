@@ -15,6 +15,10 @@
     "./casca": {
       "types": "./src/casca.ts",
       "default": "./dist/casca.js"
+    },
+    "./regua": {
+      "types": "./src/regua.ts",
+      "default": "./dist/regua.js"
     }
   },
   "scripts": {

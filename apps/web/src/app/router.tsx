@@ -11,6 +11,8 @@ import { lerSessao, limparSessao } from '../features/auth/sessao';
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { HealthPage } from '../features/health/HealthPage';
 import { PaginaArea } from '../features/paginas/PaginaArea';
+import { buscarRegua } from '../features/regua/api';
+import { ReguaPage } from '../features/regua/ReguaPage';
 
 const papeis: Papel[] = ['Admin', 'Gestão', 'Curador'];
 const rotasDoInventario = [
@@ -40,6 +42,24 @@ async function carregarPerfil({ request }: LoaderFunctionArgs) {
   return perfil;
 }
 
+async function carregarRegua({ request }: LoaderFunctionArgs) {
+  const pathname = new URL(request.url).pathname;
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
+  }
+
+  const regua = await buscarRegua(sessao, request.signal);
+
+  if (!regua) {
+    limparSessao();
+    throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
+  }
+
+  return regua;
+}
+
 export const router = createBrowserRouter([
   { path: '/health', element: <HealthPage /> },
   { path: '/login', element: <LoginPage /> },
@@ -52,10 +72,13 @@ export const router = createBrowserRouter([
     element: <CascaAutenticada />,
     children: [
       { index: true, element: null },
-      ...rotasDoInventario.map((path) => ({
-        path,
-        element: <PaginaArea />
-      }))
+      { path: 'regua', loader: carregarRegua, element: <ReguaPage /> },
+      ...rotasDoInventario
+        .filter((path) => path !== 'regua')
+        .map((path) => ({
+          path,
+          element: <PaginaArea />
+        }))
     ]
   }
 ]);

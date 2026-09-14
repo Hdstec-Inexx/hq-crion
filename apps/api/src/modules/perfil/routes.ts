@@ -6,6 +6,11 @@ import {
 } from '@hq-crion/contracts/perfil';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import {
+  perfilDaAutorizacao,
+  sessoes,
+  tokenDaAutorizacao
+} from './sessoes.js';
 
 const perfisComSenha: Array<Perfil & { senha: string }> = [
   {
@@ -28,8 +33,6 @@ const perfisComSenha: Array<Perfil & { senha: string }> = [
   }
 ];
 
-const sessoes = new Map<string, Perfil>();
-
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
 }
@@ -44,17 +47,6 @@ function senhaConfere(guardada: string, recebida: string) {
   }
 
   return timingSafeEqual(esperada, informada);
-}
-
-function tokenDaAutorizacao(authorization: string | undefined) {
-  return authorization?.startsWith('Bearer ')
-    ? authorization.slice('Bearer '.length)
-    : undefined;
-}
-
-function perfilDaAutorizacao(authorization: string | undefined) {
-  const token = tokenDaAutorizacao(authorization);
-  return token ? sessoes.get(token) : undefined;
 }
 
 const perfilRoutes: FastifyPluginAsync = async (app) => {
