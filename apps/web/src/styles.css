@@ -315,3 +315,69 @@ a.login-cta {
   text-transform: uppercase;
   color: var(--danger);
 }
+
+.perfil-lista {
+  display: grid;
+  gap: 12px;
+}
+
+.perfil-cartao {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 12px 16px;
+  align-items: end;
+}
+
+.perfil-cartao h2 {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.perfil-novo {
+  margin-bottom: 18px;
+}
+
+.perfil-cartao .login-field {
+  margin-bottom: 0;
+}
+
+.perfil-cartao select {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 500;
+  background: var(--paper);
+}
+
+.perfil-salvar,
+.perfil-cartao .login-cta {
+  width: auto;
+  margin-top: 0;
+  padding: 10px 18px;
+  white-space: nowrap;
+}
+
+.perfil-salvar {
+  background: var(--cyan);
+  color: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.perfil-cartao .login-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .perfil-cartao {
+    grid-template-columns: 1fr;
+  }
+}
