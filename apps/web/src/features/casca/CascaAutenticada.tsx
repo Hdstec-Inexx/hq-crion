@@ -34,8 +34,11 @@ export function CascaAutenticada() {
   const areas = areasDaCasca(perfil.papel);
 
   async function onSair() {
-    await encerrarSessao();
-    navigate('/login', { replace: true });
+    try {
+      await encerrarSessao();
+    } finally {
+      navigate('/login', { replace: true });
+    }
   }
 
   return (
@@ -83,5 +86,22 @@ export function CascaAutenticada() {
         <Outlet />
       </main>
     </div>
+  );
+}
+
+export function FalhaAoCarregarPerfil() {
+  return (
+    <main className="login-page">
+      <section className="login-card">
+        <h1>Não foi possível confirmar o Perfil</h1>
+        <p>
+          A sessão pode estar inválida ou a API indisponível. Entre de novo
+          pela página de login.
+        </p>
+        <Link className="login-cta" to="/login">
+          Ir para o login
+        </Link>
+      </section>
+    </main>
   );
 }

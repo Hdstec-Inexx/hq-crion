@@ -76,6 +76,24 @@ test('GET /perfil sem sessão responde 401', async () => {
   try {
     const response = await app.inject({ method: 'GET', url: '/perfil' });
     assert.equal(response.statusCode, 401);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  } finally {
+    await app.close();
+  }
+});
+
+test('login recusado não fica em cache', async () => {
+  const app = await buildApp();
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'ana.souza@crion', senha: 'errada' }
+    });
+
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.headers['cache-control'], 'no-store');
   } finally {
     await app.close();
   }

@@ -4,8 +4,8 @@ import {
   perfilSchema,
   type Perfil
 } from '@hq-crion/contracts/perfil';
-import { randomUUID } from 'node:crypto';
-import type { FastifyPluginAsync } from 'fastify';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 
 const perfisComSenha: Array<Perfil & { senha: string }> = [
   {
@@ -30,6 +30,22 @@ const perfisComSenha: Array<Perfil & { senha: string }> = [
 
 const sessoes = new Map<string, Perfil>();
 
+function semCache(reply: FastifyReply) {
+  reply.header('Cache-Control', 'no-store');
+}
+
+function senhaConfere(guardada: string, recebida: string) {
+  const esperada = Buffer.from(guardada);
+  const informada = Buffer.from(recebida);
+
+  if (esperada.length !== informada.length) {
+    timingSafeEqual(esperada, esperada);
+    return false;
+  }
+
+  return timingSafeEqual(esperada, informada);
+}
+
 function tokenDaAutorizacao(authorization: string | undefined) {
   return authorization?.startsWith('Bearer ')
     ? authorization.slice('Bearer '.length)
@@ -43,15 +59,16 @@ function perfilDaAutorizacao(authorization: string | undefined) {
 
 const perfilRoutes: FastifyPluginAsync = async (app) => {
   app.post('/login', async (request, reply) => {
+    semCache(reply);
     const parsed = loginRequestSchema.safeParse(request.body);
 
     if (!parsed.success) {
       return reply.code(401).send({ statusCode: 401 });
     }
 
+    const email = parsed.data.email.trim();
     const encontrado = perfisComSenha.find(
-      (conta) =>
-        conta.email === parsed.data.email && conta.senha === parsed.data.senha
+      (registro) => registro.email === email && senhaConfere(registro.senha, parsed.data.senha)
     );
 
     if (!encontrado) {
@@ -65,7 +82,6 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
     };
     const sessao = randomUUID();
     sessoes.set(sessao, perfil);
-    reply.header('Cache-Control', 'no-store');
     return loginResponseSchema.parse({
       perfil,
       sessao
@@ -73,7 +89,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/perfil', async (request, reply) => {
-    reply.header('Cache-Control', 'no-store');
+    semCache(reply);
     const perfil = perfilDaAutorizacao(request.headers.authorization);
 
     if (!perfil) {
@@ -84,13 +100,13 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/sair', async (request, reply) => {
+    semCache(reply);
     const token = tokenDaAutorizacao(request.headers.authorization);
 
     if (token) {
       sessoes.delete(token);
     }
 
-    reply.header('Cache-Control', 'no-store');
     return reply.code(204).send();
   });
 };

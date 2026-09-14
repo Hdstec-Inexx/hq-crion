@@ -20,13 +20,20 @@ export function LoginPage() {
 
     const controller = new AbortController();
 
-    buscarPerfil(sessao)
+    buscarPerfil(sessao, controller.signal)
       .then((atual) => {
         if (!controller.signal.aborted) {
           setPerfil(atual);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        if (
+          controller.signal.aborted ||
+          (error instanceof DOMException && error.name === 'AbortError')
+        ) {
+          return;
+        }
+
         if (!controller.signal.aborted) {
           setPerfil(null);
         }

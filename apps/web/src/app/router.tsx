@@ -8,7 +8,7 @@ import {
 import { LoginPage } from '../features/auth/LoginPage';
 import { buscarPerfil } from '../features/auth/api';
 import { lerSessao, limparSessao } from '../features/auth/sessao';
-import { CascaAutenticada } from '../features/casca/CascaAutenticada';
+import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { HealthPage } from '../features/health/HealthPage';
 import { PaginaArea } from '../features/paginas/PaginaArea';
 
@@ -30,7 +30,7 @@ async function carregarPerfil({ request }: LoaderFunctionArgs) {
     throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
   }
 
-  const perfil = await buscarPerfil(sessao);
+  const perfil = await buscarPerfil(sessao, request.signal);
 
   if (!perfil) {
     limparSessao();
@@ -47,6 +47,8 @@ export const router = createBrowserRouter([
     id: 'casca',
     path: '/',
     loader: carregarPerfil,
+    shouldRevalidate: () => false,
+    errorElement: <FalhaAoCarregarPerfil />,
     element: <CascaAutenticada />,
     children: [
       { index: true, element: null },

@@ -29,8 +29,12 @@ export async function entrar(email: string, senha: string) {
   return body.perfil;
 }
 
-export async function buscarPerfil(sessao: string): Promise<Perfil | null> {
+export async function buscarPerfil(
+  sessao: string,
+  signal?: AbortSignal
+): Promise<Perfil | null> {
   const response = await fetch(`${apiUrl}/perfil`, {
+    signal,
     headers: {
       ...autorizacao(sessao),
       'Cache-Control': 'no-store'
@@ -51,16 +55,18 @@ export async function buscarPerfil(sessao: string): Promise<Perfil | null> {
 export async function encerrarSessao() {
   const sessao = lerSessao();
 
-  if (sessao) {
-    await fetch(`${apiUrl}/sair`, {
-      method: 'POST',
-      headers: {
-        ...autorizacao(sessao),
-        'Content-Type': 'application/json'
-      },
-      body: '{}'
-    });
+  try {
+    if (sessao) {
+      await fetch(`${apiUrl}/sair`, {
+        method: 'POST',
+        headers: {
+          ...autorizacao(sessao),
+          'Content-Type': 'application/json'
+        },
+        body: '{}'
+      });
+    }
+  } finally {
+    limparSessao();
   }
-
-  limparSessao();
 }

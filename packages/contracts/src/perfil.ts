@@ -9,7 +9,7 @@ export const perfilSchema = z.object({
 });
 
 export const loginRequestSchema = z.object({
-  email: z.string().regex(/^[^\s@]+@[^\s@]+$/, 'E-mail inválido'),
+  email: z.string().trim().regex(/^[^\s@]+@[^\s@]+$/, 'E-mail inválido'),
   senha: z.string().min(1)
 });
 
