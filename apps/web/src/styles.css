@@ -255,6 +255,15 @@ a.login-cta {
   padding: 28px 32px 96px;
 }
 
+.pagina-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
 .pagina-head h1 {
   margin: 0;
   font-size: 28px;
@@ -314,4 +323,128 @@ a.login-cta {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--danger);
+}
+
+.recorte {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.recorte label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mute);
+}
+
+.recorte select {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  min-width: 160px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.recorte select:disabled {
+  opacity: 0.45;
+}
+
+.listagem-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.listagem-filtros input,
+.listagem-filtros select,
+.listagem-filtros button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.listagem-filtros button {
+  background: var(--cyan);
+  border: 0;
+  font-weight: 700;
+}
+
+.listagem-painel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.listagem-linha {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.listagem-linha:last-child {
+  border-bottom: 0;
+}
+
+.listagem-link {
+  background: none;
+  border: 0;
+  font-weight: 700;
+  text-align: left;
+  padding: 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.badge-administradora {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  background: #fafcfb;
+}
+
+.listagem-meta {
+  color: var(--mute);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.listagem-erro {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.listagem-paginacao {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.listagem-paginacao button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.listagem-paginacao button:disabled {
+  opacity: 0.45;
 }

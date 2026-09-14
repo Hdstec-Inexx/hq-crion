@@ -1,0 +1,215 @@
+import {
+  listagemResponseSchema,
+  type AtendimentoListItem
+} from '@hq-crion/contracts/atendimento';
+import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import { perfilDaAutorizacao } from '../perfil/sessoes.js';
+
+function iniciadoNoMesCorrente(dia: number, hora: string) {
+  const { inicio } = periodoMesCivil(new Date());
+  const [ano, mes] = inicio.split('-');
+
+  return `${ano}-${mes}-${String(Math.min(dia, 28)).padStart(2, '0')}T${hora}-03:00`;
+}
+
+const catalogoBase: AtendimentoListItem[] = [
+  {
+    id: 'a1',
+    administradora: 'Affix',
+    agente: 'Clara Affix 0800',
+    agenteId: 'affix-0800',
+    iniciadoEm: iniciadoNoMesCorrente(11, '09:12:00'),
+    motivo: 'Rede credenciada',
+    nota: 8.5,
+    status: 'Concluído',
+    curadoria: false,
+    conversa: 'conv-a1',
+    custo: 'R$ 1,42'
+  },
+  {
+    id: 'a2',
+    administradora: 'Alter',
+    agente: 'Clara Alter',
+    agenteId: 'alter-1',
+    iniciadoEm: iniciadoNoMesCorrente(11, '10:03:00'),
+    motivo: 'Boleto',
+    nota: 6.0,
+    status: 'Concluído',
+    curadoria: true,
+    conversa: 'conv-a2',
+    custo: 'R$ 0,98'
+  },
+  {
+    id: 'a3',
+    administradora: 'Conectaplan',
+    agente: 'Clara Conectaplan',
+    agenteId: 'conecta-1',
+    iniciadoEm: iniciadoNoMesCorrente(11, '11:40:00'),
+    motivo: 'Não informado',
+    nota: 9.0,
+    status: 'Concluído',
+    curadoria: false,
+    conversa: 'conv-a3',
+    custo: 'R$ 1,10'
+  },
+  {
+    id: 'a4',
+    administradora: 'Affix',
+    agente: 'Clara Affix WhatsApp',
+    agenteId: 'affix-wa',
+    iniciadoEm: iniciadoNoMesCorrente(11, '12:15:00'),
+    motivo: 'Carência',
+    nota: 7.5,
+    status: 'Em andamento',
+    curadoria: false,
+    conversa: 'conv-a4',
+    custo: 'R$ 0,40'
+  },
+  {
+    id: 'a-fora',
+    administradora: 'Affix',
+    agente: 'Clara Affix 0800',
+    agenteId: 'affix-0800',
+    iniciadoEm: '2020-01-15T10:00:00-03:00',
+    motivo: 'Carência',
+    nota: 5,
+    status: 'Concluído',
+    curadoria: false,
+    conversa: 'conv-fora',
+    custo: 'R$ 0,10'
+  }
+];
+
+const extrasDoMes: AtendimentoListItem[] = Array.from({ length: 47 }, (_, index) => {
+  const { inicio } = periodoMesCivil(new Date());
+
+  return {
+    id: `extra-${index + 1}`,
+    administradora: 'Conectaplan',
+    agente: 'Clara Conectaplan',
+    agenteId: 'conecta-1',
+    iniciadoEm: `${inicio}T08:00:00-03:00`,
+    motivo: 'Extra',
+    nota: 8,
+    status: 'Concluído',
+    curadoria: false,
+    conversa: `conv-extra-${index + 1}`,
+    custo: 'R$ 0,01'
+  };
+});
+
+const atendimentos = [...catalogoBase, ...extrasDoMes];
+
+function semCache(reply: FastifyReply) {
+  reply.header('Cache-Control', 'no-store');
+}
+
+function diaNoFuso(iso: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(iso));
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+function periodoDaQuery(query: Record<string, string | undefined>) {
+  if (query.inicio && query.fim) {
+    return { inicio: query.inicio, fim: query.fim };
+  }
+
+  return periodoMesCivil(new Date());
+}
+
+const atendimentoRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/atendimentos', async (request, reply) => {
+    semCache(reply);
+    const perfil = perfilDaAutorizacao(request.headers.authorization);
+
+    if (!perfil) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    const query = request.query as Record<string, string | undefined>;
+    let recorte;
+
+    try {
+      recorte = lerRecorte({
+        admin: query.admin,
+        agente: query.agente
+      });
+    } catch {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    const periodo = periodoDaQuery(query);
+    const itens = atendimentos.filter((item) => {
+      const dia = diaNoFuso(item.iniciadoEm);
+
+      if (dia < periodo.inicio || dia > periodo.fim) {
+        return false;
+      }
+
+      if (recorte.administradora && item.administradora !== recorte.administradora) {
+        return false;
+      }
+
+      if (recorte.agente && item.agenteId !== recorte.agente) {
+        return false;
+      }
+
+      if (query.status && item.status !== query.status) {
+        return false;
+      }
+
+      if (query.nota && item.nota !== Number(query.nota)) {
+        return false;
+      }
+
+      if (query.motivo && item.motivo !== query.motivo) {
+        return false;
+      }
+
+      if (query.conversa && item.conversa !== query.conversa) {
+        return false;
+      }
+
+      if (query.curadoria === 'true' && !item.curadoria) {
+        return false;
+      }
+
+      if (query.curadoria === 'false' && item.curadoria) {
+        return false;
+      }
+
+      return true;
+    });
+    const pagina = Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1);
+    const tamanho = 50;
+    const total = itens.length;
+    const paginaItens = itens.slice((pagina - 1) * tamanho, pagina * tamanho).map((item) => {
+      if (perfil.papel !== 'Curador') {
+        return item;
+      }
+
+      const { custo: _custo, ...semCusto } = item;
+      return semCusto;
+    });
+
+    return listagemResponseSchema.parse({
+      recorte,
+      pagina,
+      tamanho,
+      total,
+      itens: paginaItens
+    });
+  });
+};
+
+export default atendimentoRoutes;
