@@ -260,3 +260,58 @@ a.login-cta {
   font-size: 28px;
   letter-spacing: -0.03em;
 }
+
+.regua-resumo {
+  margin: 0 0 18px;
+  color: var(--mute);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 42rem;
+}
+
+.regua-painel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 8px 16px;
+}
+
+.regua-criterio {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.regua-criterio:last-child {
+  border-bottom: 0;
+}
+
+.regua-criterio h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.regua-criterio strong {
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+.regua-criterio > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.regua-critico {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--danger);
+}

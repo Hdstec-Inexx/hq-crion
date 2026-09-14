@@ -11,7 +11,7 @@ export async function buildApp() {
   await app.register(cors, {
     origin: app.config.CORS_ORIGIN,
     methods: ['GET', 'HEAD', 'POST'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control'],
     credentials: false
   });
   await app.register(sensible);

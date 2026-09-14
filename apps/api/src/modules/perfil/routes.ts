@@ -6,6 +6,12 @@ import {
 } from '@hq-crion/contracts/perfil';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import {
+  invalidarSessao,
+  perfilDaAutorizacao,
+  registrarSessao,
+  tokenDaAutorizacao
+} from './sessoes.js';
 
 const perfisComSenha: Array<Perfil & { senha: string }> = [
   {
@@ -28,8 +34,6 @@ const perfisComSenha: Array<Perfil & { senha: string }> = [
   }
 ];
 
-const sessoes = new Map<string, Perfil>();
-
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
 }
@@ -44,17 +48,6 @@ function senhaConfere(guardada: string, recebida: string) {
   }
 
   return timingSafeEqual(esperada, informada);
-}
-
-function tokenDaAutorizacao(authorization: string | undefined) {
-  return authorization?.startsWith('Bearer ')
-    ? authorization.slice('Bearer '.length)
-    : undefined;
-}
-
-function perfilDaAutorizacao(authorization: string | undefined) {
-  const token = tokenDaAutorizacao(authorization);
-  return token ? sessoes.get(token) : undefined;
 }
 
 const perfilRoutes: FastifyPluginAsync = async (app) => {
@@ -81,7 +74,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
       papel: encontrado.papel
     };
     const sessao = randomUUID();
-    sessoes.set(sessao, perfil);
+    registrarSessao(sessao, perfil);
     return loginResponseSchema.parse({
       perfil,
       sessao
@@ -104,7 +97,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
     const token = tokenDaAutorizacao(request.headers.authorization);
 
     if (token) {
-      sessoes.delete(token);
+      invalidarSessao(token);
     }
 
     return reply.code(204).send();
