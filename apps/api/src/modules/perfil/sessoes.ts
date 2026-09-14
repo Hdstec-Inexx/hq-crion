@@ -1,11 +1,22 @@
 import type { Perfil } from '@hq-crion/contracts/perfil';
 
-export const sessoes = new Map<string, Perfil>();
+const sessoes = new Map<string, Perfil>();
 
 export function tokenDaAutorizacao(authorization: string | undefined) {
-  return authorization?.startsWith('Bearer ')
-    ? authorization.slice('Bearer '.length)
-    : undefined;
+  if (!authorization?.startsWith('Bearer ')) {
+    return undefined;
+  }
+
+  const token = authorization.slice('Bearer '.length).trim();
+  return token.length > 0 ? token : undefined;
+}
+
+export function registrarSessao(token: string, perfil: Perfil) {
+  sessoes.set(token, perfil);
+}
+
+export function invalidarSessao(token: string) {
+  sessoes.delete(token);
 }
 
 export function perfilDaAutorizacao(authorization: string | undefined) {

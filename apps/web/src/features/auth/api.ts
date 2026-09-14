@@ -8,7 +8,7 @@ import { gravarSessao, limparSessao, lerSessao } from './sessao';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
-function autorizacao(sessao: string) {
+export function autorizacao(sessao: string) {
   return { Authorization: `Bearer ${sessao}` };
 }
 

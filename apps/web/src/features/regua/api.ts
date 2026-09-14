@@ -1,4 +1,5 @@
 import { reguaDeAvaliacaoSchema, type ReguaDeAvaliacao } from '@hq-crion/contracts/regua';
+import { autorizacao } from '../auth/api';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -9,7 +10,7 @@ export async function buscarRegua(
   const response = await fetch(`${apiUrl}/regua`, {
     signal,
     headers: {
-      Authorization: `Bearer ${sessao}`,
+      ...autorizacao(sessao),
       'Cache-Control': 'no-store'
     }
   });

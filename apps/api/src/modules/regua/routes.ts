@@ -1,3 +1,4 @@
+import { reguaDeAvaliacaoSchema } from '@hq-crion/contracts/regua';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import { perfilDaAutorizacao } from '../perfil/sessoes.js';
 import { reguaUnica } from './regua-unica.js';
@@ -15,7 +16,7 @@ const reguaRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(401).send({ statusCode: 401 });
     }
 
-    return reguaUnica;
+    return reguaDeAvaliacaoSchema.parse(reguaUnica);
   });
 };
 

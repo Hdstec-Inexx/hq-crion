@@ -7,8 +7,9 @@ import {
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import {
+  invalidarSessao,
   perfilDaAutorizacao,
-  sessoes,
+  registrarSessao,
   tokenDaAutorizacao
 } from './sessoes.js';
 
@@ -73,7 +74,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
       papel: encontrado.papel
     };
     const sessao = randomUUID();
-    sessoes.set(sessao, perfil);
+    registrarSessao(sessao, perfil);
     return loginResponseSchema.parse({
       perfil,
       sessao
@@ -96,7 +97,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
     const token = tokenDaAutorizacao(request.headers.authorization);
 
     if (token) {
-      sessoes.delete(token);
+      invalidarSessao(token);
     }
 
     return reply.code(204).send();

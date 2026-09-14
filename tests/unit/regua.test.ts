@@ -7,6 +7,15 @@ import { reguaDeAvaliacaoSchema } from '../../packages/contracts/src/regua.js';
 
 process.env.NODE_ENV = 'test';
 
+test('contrato da Régua rejeita Critérios cuja soma não é 10', () => {
+  assert.throws(() =>
+    reguaDeAvaliacaoSchema.parse({
+      criterios: [{ nome: 'Saudação', valor: 1, critico: false }],
+      limiarDeAprovacao: 7
+    })
+  );
+});
+
 test('Régua está na casca de Admin, Gestão e Curador, com o termo de domínio no título', () => {
   for (const papel of ['Admin', 'Gestão', 'Curador'] as const) {
     const area = areasDaCasca(papel).find((item) => item.rota === '/regua');
