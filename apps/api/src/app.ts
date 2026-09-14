@@ -10,7 +10,8 @@ export async function buildApp() {
   await app.register(config);
   await app.register(cors, {
     origin: app.config.CORS_ORIGIN,
-    methods: ['GET', 'HEAD'],
+    methods: ['GET', 'HEAD', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: false
   });
   await app.register(sensible);

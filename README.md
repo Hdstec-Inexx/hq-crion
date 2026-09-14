@@ -9,7 +9,7 @@ corepack pnpm install
 corepack pnpm dev
 ```
 
-Sobe a API (`http://127.0.0.1:3000`) e o app web (`http://localhost:5173`) juntos. `GET /health` na API e a página pública `/health` confirmam que o serviço está no ar, fora da Casca autenticada.
+Sobe a API (`http://127.0.0.1:3000`) e o app web (`http://localhost:5173`) juntos. `GET /health` na API e a página pública `/health` confirmam que o serviço está no ar, fora da Casca autenticada. Login em `/login` (fora da casca). Perfis de desenvolvimento: `ana.souza@crion` (Gestão), `carla.mendes@crion` (Curador), `bruno.alves@crion` (Admin); senha `crion-hq`.
 
 O protótipo throwaway da face travada (Variant A) continua em:
 
