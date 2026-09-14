@@ -7,6 +7,14 @@
     "./health": {
       "types": "./src/health.ts",
       "default": "./dist/health.js"
+    },
+    "./perfil": {
+      "types": "./src/perfil.ts",
+      "default": "./dist/perfil.js"
+    },
+    "./casca": {
+      "types": "./src/casca.ts",
+      "default": "./dist/casca.js"
     }
   },
   "scripts": {
