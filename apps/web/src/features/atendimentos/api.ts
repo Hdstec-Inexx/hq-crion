@@ -171,6 +171,10 @@ export async function marcarComentarioResolvido(id: string) {
     throw new Error('resolucao-negada');
   }
 
+  if (response.status === 409) {
+    throw new Error('resolucao-conflito');
+  }
+
   if (!response.ok) {
     throw new Error('resolucao-indisponivel');
   }

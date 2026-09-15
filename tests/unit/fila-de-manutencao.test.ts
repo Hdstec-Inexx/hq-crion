@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
-import { destinoDaLista } from '../../packages/contracts/src/recorte.js';
+import { destinoDaLista, periodoMesCivil } from '../../packages/contracts/src/recorte.js';
 import { areasDaCasca } from '../../packages/contracts/src/casca.js';
 import { reguaUnica } from '../../apps/api/src/modules/regua/regua-unica.js';
 
@@ -202,6 +202,12 @@ test('GET /manutencao filtra Comentários por status e data', async () => {
       url: '/manutencao?inicio=2020-01-01&fim=2020-01-31',
       headers: { authorization: `Bearer ${sessao}` }
     });
+    const { inicio, fim } = periodoMesCivil(new Date());
+    const noPeriodo = await app.inject({
+      method: 'GET',
+      url: `/manutencao?inicio=${inicio}&fim=${fim}`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
 
     assert.ok(
       pendentes
@@ -215,6 +221,11 @@ test('GET /manutencao filtra Comentários por status e data', async () => {
       false
     );
     assert.equal(foraDoPeriodo.json().itens.length, 0);
+    assert.ok(
+      noPeriodo
+        .json()
+        .itens.some((item: { atendimentoId: string }) => item.atendimentoId === 'a2')
+    );
   } finally {
     await app.close();
   }
@@ -228,6 +239,11 @@ test('transição Pendente → Resolvido só como Admin', async () => {
     const sessaoGestao = await sessaoDe(app, 'ana.souza@crion');
     const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
 
+    const antes = await app.inject({
+      method: 'GET',
+      url: '/manutencao?status=Pendente',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
     const recusaGestao = await app.inject({
       method: 'POST',
       url: '/manutencao/a2/resolver',
@@ -238,23 +254,64 @@ test('transição Pendente → Resolvido só como Admin', async () => {
       url: '/manutencao/a2/resolver',
       headers: { authorization: `Bearer ${sessaoCurador}` }
     });
+    const recusaAnonima = await app.inject({
+      method: 'POST',
+      url: '/manutencao/a2/resolver'
+    });
+    const aindaPendente = await app.inject({
+      method: 'GET',
+      url: '/manutencao?status=Pendente',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
     const resolucao = await app.inject({
       method: 'POST',
       url: '/manutencao/a2/resolver',
       headers: { authorization: `Bearer ${sessaoAdmin}` }
     });
-    const depois = await app.inject({
+    const repetida = await app.inject({
+      method: 'POST',
+      url: '/manutencao/a2/resolver',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const pendentes = await app.inject({
+      method: 'GET',
+      url: '/manutencao?status=Pendente',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const resolvidos = await app.inject({
       method: 'GET',
       url: '/manutencao?status=Resolvido',
       headers: { authorization: `Bearer ${sessaoAdmin}` }
     });
 
+    assert.ok(
+      antes
+        .json()
+        .itens.some((item: { atendimentoId: string; status: string }) => {
+          return item.atendimentoId === 'a2' && item.status === 'Pendente';
+        })
+    );
     assert.equal(recusaGestao.statusCode, 403);
     assert.equal(recusaCurador.statusCode, 403);
+    assert.equal(recusaAnonima.statusCode, 401);
+    assert.ok(
+      aindaPendente
+        .json()
+        .itens.some((item: { atendimentoId: string; status: string }) => {
+          return item.atendimentoId === 'a2' && item.status === 'Pendente';
+        })
+    );
     assert.equal(resolucao.statusCode, 200);
     assert.equal(resolucao.json().status, 'Resolvido');
+    assert.equal(repetida.statusCode, 409);
+    assert.equal(
+      pendentes
+        .json()
+        .itens.some((item: { atendimentoId: string }) => item.atendimentoId === 'a2'),
+      false
+    );
     assert.ok(
-      depois
+      resolvidos
         .json()
         .itens.some((item: { atendimentoId: string; status: string }) => {
           return item.atendimentoId === 'a2' && item.status === 'Resolvido';

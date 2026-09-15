@@ -39,6 +39,7 @@ export function FilaDeManutencao() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [listagem, setListagem] = useState<FilaDeManutencaoResponse | null>(null);
   const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | 'resolucao' | null>(null);
+  const [resolvendo, setResolvendo] = useState<string | null>(null);
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
@@ -119,7 +120,12 @@ export function FilaDeManutencao() {
   }
 
   async function resolver(id: string) {
+    if (resolvendo) {
+      return;
+    }
+
     setErro(null);
+    setResolvendo(id);
 
     try {
       const gravado = await marcarComentarioResolvido(id);
@@ -129,16 +135,26 @@ export function FilaDeManutencao() {
         return;
       }
 
-      const atualizada = await buscarFilaDeManutencao(searchParams);
+      const statusFiltro = searchParams.get('status');
+      setListagem((atual) => {
+        if (!atual) {
+          return atual;
+        }
 
-      if (!atualizada) {
-        setErro('listagem');
-        return;
-      }
+        const itens = atual.itens
+          .map((item) => (item.id === gravado.id ? gravado : item))
+          .filter((item) => !statusFiltro || item.status === statusFiltro);
 
-      setListagem(atualizada);
+        return {
+          ...atual,
+          total: atual.total - (itens.length === atual.itens.length ? 0 : 1),
+          itens
+        };
+      });
     } catch {
       setErro('resolucao');
+    } finally {
+      setResolvendo(null);
     }
   }
 
@@ -242,11 +258,12 @@ export function FilaDeManutencao() {
                     <button
                       type="button"
                       className="listagem-resolver"
+                      disabled={resolvendo !== null}
                       onClick={() => {
                         void resolver(item.id);
                       }}
                     >
-                      Marcar resolvido
+                      Marcar Resolvido
                     </button>
                   ) : (
                     <strong>{item.status}</strong>

@@ -452,6 +452,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
+    const periodo = periodoDaQuery(query);
     const itens = atendimentos
       .map(itemDaFilaDeManutencao)
       .filter((item) => item !== null)
@@ -468,9 +469,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
           return false;
         }
 
-        const periodo = periodoDaQuery(query);
         const dia = diaNoFuso(item.data);
-
         return dia >= periodo.inicio && dia <= periodo.fim;
       });
     const tamanho = 50;
@@ -577,6 +576,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     if (!encontrado || !comentario) {
       return reply.code(404).send({ statusCode: 404 });
+    }
+
+    if (comentario.status !== 'Pendente') {
+      return reply.code(409).send({ statusCode: 409 });
     }
 
     encontrado.comentarioStatus = 'Resolvido';
