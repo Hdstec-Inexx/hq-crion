@@ -77,3 +77,9 @@ A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador e
 
 **Listagem de Atendimentos**:
 A lista operacional de Atendimentos. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo), com datas vazias na UI até o operador submeter um intervalo. Demais filtros seguem o GEAP (status, nota, motivo, id da conversa, curadoria feita), além do Recorte.
+
+**Fila de Manutenção**:
+A lista de Comentários da conferência — pendentes e resolvidos — da qual o Admin trabalha a manutenção dos Agentes de Voz. Filtro por status e data; cada item liga ao Atendimento de origem. Só o Admin opera a fila. Na casca: “Manutenção”. Recorte igual às outras listagens. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo).
+
+**Comentário**:
+O insumo escrito na conferência do Curador. Entra na Fila de Manutenção como Pendente; o Admin marca Resolvido. Gestão lê o texto no detalhe do Atendimento, sem operar a fila.

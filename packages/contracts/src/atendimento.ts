@@ -48,6 +48,28 @@ export const listagemResponseSchema = z.object({
   itens: z.array(atendimentoListItemSchema)
 });
 
+export const statusDoComentarioSchema = z.enum(['Pendente', 'Resolvido']);
+
+export const comentarioDaFilaSchema = z.object({
+  id: z.string().min(1),
+  atendimentoId: z.string().min(1),
+  administradora: administradoraSchema,
+  agente: z.string().min(1),
+  agenteId: z.string().min(1),
+  conversa: z.string().min(1),
+  data: z.string().min(1),
+  texto: z.string().min(1),
+  status: statusDoComentarioSchema
+});
+
+export const filaDeManutencaoResponseSchema = z.object({
+  recorte: recorteSchema,
+  pagina: z.number().int().min(1),
+  tamanho: z.literal(50),
+  total: z.number().int().min(0),
+  itens: z.array(comentarioDaFilaSchema)
+});
+
 export const estadoDoCriterioSchema = z.enum([
   'Atendido',
   'Não atendido',
@@ -95,6 +117,9 @@ export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
 
 export type AtendimentoListItem = z.infer<typeof atendimentoListItemSchema>;
 export type ListagemResponse = z.infer<typeof listagemResponseSchema>;
+export type StatusDoComentario = z.infer<typeof statusDoComentarioSchema>;
+export type ComentarioDaFila = z.infer<typeof comentarioDaFilaSchema>;
+export type FilaDeManutencaoResponse = z.infer<typeof filaDeManutencaoResponseSchema>;
 export type EstadoDoCriterio = z.infer<typeof estadoDoCriterioSchema>;
 export type CriterioAvaliado = z.infer<typeof criterioAvaliadoSchema>;
 export type Avaliacao = z.infer<typeof avaliacaoSchema>;

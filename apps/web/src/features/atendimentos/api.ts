@@ -1,5 +1,7 @@
 import {
   atendimentoDetalheSchema,
+  comentarioDaFilaSchema,
+  filaDeManutencaoResponseSchema,
   listagemResponseSchema,
   type ConferenciaRequest
 } from '@hq-crion/contracts/atendimento';
@@ -114,4 +116,64 @@ export async function gravarConferencia(id: string, conferencia: ConferenciaRequ
   }
 
   return atendimentoDetalheSchema.parse(await response.json());
+}
+
+export async function buscarFilaDeManutencao(query: URLSearchParams, signal?: AbortSignal) {
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    return null;
+  }
+
+  const response = await fetch(`${apiUrl}/manutencao?${queryDaListagem(query).toString()}`, {
+    signal,
+    headers: {
+      ...autorizacao(sessao),
+      'Cache-Control': 'no-store'
+    }
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (response.status === 400) {
+    throw new Error('recorte-invalido');
+  }
+
+  if (!response.ok) {
+    throw new Error('listagem-indisponivel');
+  }
+
+  return filaDeManutencaoResponseSchema.parse(await response.json());
+}
+
+export async function marcarComentarioResolvido(id: string) {
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    return null;
+  }
+
+  const response = await fetch(`${apiUrl}/manutencao/${encodeURIComponent(id)}/resolver`, {
+    method: 'POST',
+    headers: {
+      ...autorizacao(sessao),
+      'Cache-Control': 'no-store'
+    }
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (response.status === 403) {
+    throw new Error('resolucao-negada');
+  }
+
+  if (!response.ok) {
+    throw new Error('resolucao-indisponivel');
+  }
+
+  return comentarioDaFilaSchema.parse(await response.json());
 }

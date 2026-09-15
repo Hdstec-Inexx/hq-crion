@@ -3,7 +3,9 @@ import {
   conferenciaRequestSchema,
   custoVisivelPara,
   downloadVisivelPara,
+  filaDeManutencaoResponseSchema,
   listagemResponseSchema,
+  comentarioDaFilaSchema,
   type AtendimentoDetalhe,
   type AtendimentoListItem,
   type EstadoDoCriterio
@@ -17,6 +19,7 @@ import { reguaUnica } from '../regua/regua-unica.js';
 type RegistroDeAtendimento = AtendimentoDetalhe & {
   curadorId?: string;
   concluidoEm?: string;
+  comentarioStatus?: 'Pendente' | 'Resolvido';
 };
 
 type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas';
@@ -135,7 +138,9 @@ function criteriosDaAvaliacao(conferida: boolean) {
 function avaliacaoDe(nota: number, conferida: boolean) {
   return {
     nota,
-    aprovacao: nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado',
+    aprovacao: (nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado') as
+      | 'Aprovado'
+      | 'Reprovado',
     criterios: criteriosDaAvaliacao(conferida)
   };
 }
@@ -170,11 +175,35 @@ function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
       ? {
           avaliacaoDoCurador: {
             ...avaliacaoDe(6, true),
-            notaDaAvaliacaoDaIa: item.nota
+            notaDaAvaliacaoDaIa: item.nota,
+            ...(item.id === 'a2'
+              ? { comentario: 'Rever o prompt de boleto na Clara Alter.' }
+              : {})
           },
-          curadorId: 'perfil-carla'
+          curadorId: 'perfil-carla',
+          ...(item.id === 'a2' ? { comentarioStatus: 'Pendente' as const } : {})
         }
       : {})
+  };
+}
+
+function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
+  const texto = item.avaliacaoDoCurador?.comentario;
+
+  if (!texto) {
+    return null;
+  }
+
+  return {
+    id: item.id,
+    atendimentoId: item.id,
+    administradora: item.administradora,
+    agente: item.agente,
+    agenteId: item.agenteId,
+    conversa: item.conversa,
+    data: item.iniciadoEm,
+    texto,
+    status: item.comentarioStatus ?? 'Pendente'
   };
 }
 
@@ -399,6 +428,68 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     listar(request, reply, 'realizadas')
   );
 
+  app.get('/manutencao', async (request, reply) => {
+    semCache(reply);
+    const registro = registroDaAutorizacao(request.headers.authorization);
+
+    if (!registro) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    if (registro.papel !== 'Admin') {
+      return reply.code(403).send({ statusCode: 403 });
+    }
+
+    const query = request.query as Record<string, string | undefined>;
+    let recorte;
+
+    try {
+      recorte = lerRecorte({
+        administradora: query.administradora,
+        agente: query.agente
+      });
+    } catch {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    const itens = atendimentos
+      .map(itemDaFilaDeManutencao)
+      .filter((item) => item !== null)
+      .filter((item) => {
+        if (recorte.administradora && item.administradora !== recorte.administradora) {
+          return false;
+        }
+
+        if (recorte.agente && item.agenteId !== recorte.agente) {
+          return false;
+        }
+
+        if (query.status && item.status !== query.status) {
+          return false;
+        }
+
+        const periodo = periodoDaQuery(query);
+        const dia = diaNoFuso(item.data);
+
+        return dia >= periodo.inicio && dia <= periodo.fim;
+      });
+    const tamanho = 50;
+    const total = itens.length;
+    const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
+    const pagina = Math.min(
+      ultimaPagina,
+      Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
+    );
+
+    return filaDeManutencaoResponseSchema.parse({
+      recorte,
+      pagina,
+      tamanho,
+      total,
+      itens: itens.slice((pagina - 1) * tamanho, pagina * tamanho)
+    });
+  });
+
   app.get('/atendimentos/:id', async (request, reply) => {
     semCache(reply);
     const perfil = perfilDaAutorizacao(request.headers.authorization);
@@ -461,7 +552,41 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       ...(lido.data.comentario ? { comentario: lido.data.comentario } : {})
     };
 
+    if (lido.data.comentario) {
+      encontrado.comentarioStatus = 'Pendente';
+    }
+
     return responderDetalhe(encontrado, registro.papel);
+  });
+
+  app.post('/manutencao/:id/resolver', async (request, reply) => {
+    semCache(reply);
+    const registro = registroDaAutorizacao(request.headers.authorization);
+
+    if (!registro) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    if (registro.papel !== 'Admin') {
+      return reply.code(403).send({ statusCode: 403 });
+    }
+
+    const { id } = request.params as { id: string };
+    const encontrado = atendimentos.find((item) => item.id === id);
+    const comentario = encontrado ? itemDaFilaDeManutencao(encontrado) : null;
+
+    if (!encontrado || !comentario) {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    encontrado.comentarioStatus = 'Resolvido';
+    const atualizado = itemDaFilaDeManutencao(encontrado);
+
+    if (!atualizado) {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    return comentarioDaFilaSchema.parse(atualizado);
   });
 };
 

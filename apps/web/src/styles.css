@@ -515,6 +515,28 @@ a.login-cta {
   opacity: 0.45;
 }
 
+.listagem-linha-manutencao {
+  grid-template-columns: 1fr auto auto;
+  align-items: start;
+}
+
+.listagem-comentario {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.listagem-resolver {
+  border: 0;
+  background: var(--cyan);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .voltar-lista {
   display: inline-flex;
   align-items: center;
