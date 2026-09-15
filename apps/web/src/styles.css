@@ -514,3 +514,374 @@ a.login-cta {
 .listagem-paginacao button:disabled {
   opacity: 0.45;
 }
+
+.voltar-lista {
+  display: inline-flex;
+  align-items: center;
+  background: var(--cyan);
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.pagina-head .voltar-lista + h1 {
+  margin-top: 12px;
+}
+
+.detalhe-resumo {
+  margin: 0 0 16px;
+  color: var(--mute);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 42rem;
+}
+
+.detalhe-fatos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.detalhe-fatos div {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.detalhe-fatos dt {
+  font-size: 11px;
+  color: var(--mute);
+  font-weight: 700;
+}
+
+.detalhe-fatos dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+
+.audio-faixa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+.audio-player {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+}
+
+.audio-player audio {
+  display: none;
+}
+
+.audio-play {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: var(--ink);
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 0;
+}
+
+.audio-play svg {
+  display: block;
+}
+
+.audio-time {
+  font: 500 11px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color: var(--mute);
+  flex: none;
+}
+
+.audio-onda {
+  flex: 1;
+  height: 22px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(90deg, var(--cyan) 0 3px, transparent 3px 7px);
+  opacity: 0.85;
+  clip-path: polygon(
+    0 40%,
+    4% 20%,
+    8% 70%,
+    12% 30%,
+    16% 55%,
+    20% 15%,
+    24% 60%,
+    28% 35%,
+    32% 80%,
+    36% 25%,
+    40% 50%,
+    44% 18%,
+    48% 65%,
+    52% 40%,
+    56% 22%,
+    60% 70%,
+    64% 33%,
+    68% 48%,
+    72% 20%,
+    76% 62%,
+    80% 38%,
+    84% 55%,
+    88% 28%,
+    92% 45%,
+    96% 35%,
+    100% 50%,
+    100% 100%,
+    0 100%
+  );
+}
+
+.audio-download {
+  flex: none;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.audio-download:hover {
+  border-color: var(--cyan);
+}
+
+.avaliacao-workspace {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 12px;
+}
+
+.avaliacao-workspace.ia-only {
+  grid-template-columns: 1fr;
+}
+
+.avaliacao-painel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.avaliacao-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.avaliacao-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.avaliacao-score {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: #f3fbf9;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.avaliacao-score strong {
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.avaliacao-score span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ok);
+  text-transform: uppercase;
+}
+
+.avaliacao-score.is-fail {
+  background: #fdf4f3;
+}
+
+.avaliacao-score.is-fail span {
+  color: var(--danger);
+}
+
+.criterio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.criterio-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: #f7fbfa;
+  display: grid;
+  gap: 6px;
+}
+
+.criterio-card.is-ok {
+  border-color: #c5e8d9;
+}
+
+.criterio-card.is-no {
+  border-color: #f0c9c4;
+  background: #fdf7f6;
+}
+
+.criterio-card.is-na {
+  opacity: 0.78;
+}
+
+.criterio-card h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.criterio-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 8px;
+}
+
+.criterio-pontos {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.criterio-chip {
+  justify-self: start;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.criterio-chip.ok {
+  background: #d8f3e8;
+  color: var(--ok);
+}
+
+.criterio-chip.no {
+  background: #f8d9d4;
+  color: var(--danger);
+}
+
+.criterio-chip.na {
+  background: #eceff0;
+  color: var(--mute);
+}
+
+.criterio-critico {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+.transcricao {
+  margin-top: 12px;
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+}
+
+.transcricao h2 {
+  margin: 0 0 14px;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.transcricao-colunas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.transcricao-turno {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+
+.transcricao-celula {
+  display: grid;
+  grid-template-columns: 8px 1fr;
+  gap: 10px;
+  align-items: start;
+  background: #f3fbf9;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.transcricao-celula.is-cliente {
+  grid-template-columns: 1fr 8px;
+  background: #f4f6f6;
+}
+
+.transcricao-trilho {
+  width: 8px;
+  min-height: 36px;
+  border-radius: 99px;
+  background: var(--cyan);
+}
+
+.transcricao-celula.is-cliente .transcricao-trilho {
+  background: #b7c0bf;
+}
+
+.transcricao-meta {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mute);
+  margin-bottom: 4px;
+}
+
+.transcricao-celula.is-cliente .transcricao-meta,
+.transcricao-celula.is-cliente p {
+  text-align: right;
+}
+
+.transcricao-celula p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .detalhe-fatos,
+  .avaliacao-workspace {
+    grid-template-columns: 1fr;
+  }
+}

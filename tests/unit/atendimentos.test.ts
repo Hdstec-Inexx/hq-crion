@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
-import { custoVisivelPara } from '../../packages/contracts/src/atendimento.js';
 import {
+  caminhoDeMidiaPermitido,
+  custoVisivelPara,
+  downloadVisivelPara
+} from '../../packages/contracts/src/atendimento.js';
+import {
+  destinoDaLista,
   lerRecorte,
   periodoMesCivil,
   queryDoRecorte
@@ -23,6 +28,18 @@ async function sessaoDe(
 
   return loginResponseSchema.parse(login.json()).sessao;
 }
+
+test('voltar à lista preserva Recorte na URL', () => {
+  assert.equal(
+    destinoDaLista({ administradora: 'Affix', agente: 'affix-0800' }),
+    '/atendimentos?administradora=Affix&agente=affix-0800'
+  );
+  assert.equal(
+    destinoDaLista({ administradora: 'Alter', agente: null }),
+    '/atendimentos?administradora=Alter'
+  );
+  assert.equal(destinoDaLista({ administradora: null, agente: null }), '/atendimentos');
+});
 
 test('query de Recorte faz round-trip entre URL e contrato', () => {
   const recorte = { administradora: 'Affix' as const, agente: 'affix-0800' };
@@ -331,6 +348,12 @@ test('Custo é visível só para Admin e Gestão', () => {
   assert.equal(custoVisivelPara('Gestão'), true);
 });
 
+test('Download de Áudio é visível só para Admin e Gestão', () => {
+  assert.equal(downloadVisivelPara('Curador'), false);
+  assert.equal(downloadVisivelPara('Admin'), true);
+  assert.equal(downloadVisivelPara('Gestão'), true);
+});
+
 test('Gestão recebe Custo na listagem', async () => {
   const app = await buildApp();
 
@@ -371,4 +394,138 @@ test('Curador não recebe Custo na listagem', async () => {
   } finally {
     await app.close();
   }
+});
+
+test('GET /atendimentos/:id carrega o Atendimento certo', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const a1 = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const a2 = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a2',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(a1.statusCode, 200);
+    assert.equal(a1.json().id, 'a1');
+    assert.equal(a1.json().administradora, 'Affix');
+    assert.equal(a1.json().agente, 'Clara Affix 0800');
+    assert.equal(a1.json().motivo, 'Rede credenciada');
+    assert.equal(a2.statusCode, 200);
+    assert.equal(a2.json().id, 'a2');
+    assert.equal(a2.json().agente, 'Clara Alter');
+  } finally {
+    await app.close();
+  }
+});
+
+test('Gestão recebe Custo e Download no detalhe', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const body = response.json() as {
+      custo?: string;
+      downloadDeAudio?: string;
+    };
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(typeof body.custo, 'string');
+    assert.equal(typeof body.downloadDeAudio, 'string');
+  } finally {
+    await app.close();
+  }
+});
+
+test('Curador não recebe Custo nem Download no detalhe', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'carla.mendes@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const body = response.json() as Record<string, unknown>;
+
+    assert.equal(response.statusCode, 200);
+    assert.equal('custo' in body, false);
+    assert.equal('downloadDeAudio' in body, false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('detalhe sem conferência omite a Avaliação do Curador', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const semConferencia = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const comConferencia = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a2',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(semConferencia.statusCode, 200);
+    assert.equal('avaliacaoDoCurador' in semConferencia.json(), false);
+    assert.equal(comConferencia.statusCode, 200);
+    assert.equal(typeof comConferencia.json().avaliacaoDoCurador, 'object');
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos/:id sem sessão responde 401', async () => {
+  const app = await buildApp();
+
+  try {
+    const response = await app.inject({ method: 'GET', url: '/atendimentos/a1' });
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos/:id desconhecido responde 404', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/nao-existe',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 404);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  } finally {
+    await app.close();
+  }
+});
+
+test('caminho de mídia do detalhe só aceita path relativo do HQ', () => {
+  assert.equal(caminhoDeMidiaPermitido('/media/a1.wav'), true);
+  assert.equal(caminhoDeMidiaPermitido('javascript:alert(1)'), false);
+  assert.equal(caminhoDeMidiaPermitido('https://evil.example/a.wav'), false);
+  assert.equal(caminhoDeMidiaPermitido('//cdn.example/a.wav'), false);
 });
