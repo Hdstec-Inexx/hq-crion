@@ -68,11 +68,24 @@ export function lerRecorte(query: {
   };
 }
 
-export function destinoDaLista(recorte: Recorte): string {
+export const listasComRecorte = [
+  '/atendimentos',
+  '/fila-de-curadoria',
+  '/minhas-curadorias',
+  '/curadorias-realizadas'
+] as const;
+
+export type ListaComRecorte = (typeof listasComRecorte)[number];
+
+export function destinoDaLista(
+  recorte: Recorte,
+  lista: string = '/atendimentos'
+): string {
+  const caminho = listasComRecorte.find((item) => item === lista) ?? '/atendimentos';
   const query = queryDoRecorte(recorte);
   const qs = query.toString();
 
-  return qs ? `/atendimentos?${qs}` : '/atendimentos';
+  return qs ? `${caminho}?${qs}` : caminho;
 }
 
 export function periodoMesCivil(referencia: Date): { inicio: string; fim: string } {

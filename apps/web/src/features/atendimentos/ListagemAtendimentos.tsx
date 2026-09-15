@@ -29,7 +29,19 @@ function formatarNota(nota: number) {
   return nota.toFixed(1).replace('.', ',');
 }
 
-export function ListagemAtendimentos() {
+function destinoDoDetalhe(id: string, search: string, lista: string) {
+  const params = new URLSearchParams(search);
+  params.set('lista', lista);
+  const qs = params.toString();
+
+  return qs ? `/atendimentos/${id}?${qs}` : `/atendimentos/${id}`;
+}
+
+export function ListagemAtendimentos({
+  caminho = '/atendimentos'
+}: {
+  caminho?: string;
+}) {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -46,7 +58,7 @@ export function ListagemAtendimentos() {
   useEffect(() => {
     const controller = new AbortController();
 
-    buscarAtendimentos(searchParams, controller.signal)
+    buscarAtendimentos(caminho, searchParams, controller.signal)
       .then((resultado) => {
         if (controller.signal.aborted) {
           return;
@@ -69,7 +81,7 @@ export function ListagemAtendimentos() {
       });
 
     return () => controller.abort();
-  }, [searchParams]);
+  }, [searchParams, caminho]);
 
   function atualizarRecorte(administradora: string, agente: string) {
     const recorteQuery = queryDoRecorte({
@@ -210,7 +222,7 @@ export function ListagemAtendimentos() {
       ) : null}
       {erro === 'listagem' ? (
         <p className="listagem-erro" role="alert">
-          Não foi possível carregar a Listagem de Atendimentos.
+          Não foi possível carregar {tituloDaPagina(location.pathname, perfil.papel)}.
         </p>
       ) : null}
       {listagem ? (
@@ -224,7 +236,7 @@ export function ListagemAtendimentos() {
                   <div>
                     <Link
                       className="listagem-link"
-                      to={`/atendimentos/${item.id}${location.search}`}
+                      to={destinoDoDetalhe(item.id, location.search, location.pathname)}
                     >
                       {item.agente} · {formatarQuando(item.iniciadoEm)}
                     </Link>

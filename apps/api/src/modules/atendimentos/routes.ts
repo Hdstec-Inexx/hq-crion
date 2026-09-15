@@ -1,17 +1,25 @@
 import {
   atendimentoDetalheSchema,
+  conferenciaRequestSchema,
   custoVisivelPara,
   downloadVisivelPara,
   listagemResponseSchema,
   type AtendimentoDetalhe,
   type AtendimentoListItem,
-  type Avaliacao,
   type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
+import type { Papel } from '@hq-crion/contracts/perfil';
 import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
-import type { FastifyPluginAsync, FastifyReply } from 'fastify';
-import { perfilDaAutorizacao } from '../perfil/sessoes.js';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { reguaUnica } from '../regua/regua-unica.js';
+
+type RegistroDeAtendimento = AtendimentoDetalhe & {
+  curadorId?: string;
+  concluidoEm?: string;
+};
+
+type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas';
 
 function iniciadoNoMesCorrente(dia: number, hora: string) {
   const { inicio } = periodoMesCivil(new Date());
@@ -124,7 +132,7 @@ function criteriosDaAvaliacao(conferida: boolean) {
   });
 }
 
-function avaliacaoDe(nota: number, conferida: boolean): Avaliacao {
+function avaliacaoDe(nota: number, conferida: boolean) {
   return {
     nota,
     aprovacao: nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado',
@@ -132,7 +140,9 @@ function avaliacaoDe(nota: number, conferida: boolean): Avaliacao {
   };
 }
 
-function detalheDe(item: AtendimentoListItem): AtendimentoDetalhe {
+function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
+  const concluido = item.status === 'Concluído';
+
   return {
     ...item,
     audio: `/media/${item.id}.wav`,
@@ -155,7 +165,16 @@ function detalheDe(item: AtendimentoListItem): AtendimentoDetalhe {
       }
     ],
     avaliacaoDaIa: avaliacaoDe(item.nota, item.curadoria),
-    ...(item.curadoria ? { avaliacaoDoCurador: avaliacaoDe(6, true) } : {})
+    ...(concluido ? { concluidoEm: item.iniciadoEm } : {}),
+    ...(item.curadoria
+      ? {
+          avaliacaoDoCurador: {
+            ...avaliacaoDe(6, true),
+            notaDaAvaliacaoDaIa: item.nota
+          },
+          curadorId: 'perfil-carla'
+        }
+      : {})
   };
 }
 
@@ -175,7 +194,9 @@ function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
   };
 }
 
-const atendimentos = [...catalogoBase, ...extrasDoMes].map(detalheDe);
+function catalogoDeAtendimentos() {
+  return [...catalogoBase, ...extrasDoMes].map(detalheDe);
+}
 
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
@@ -215,13 +236,115 @@ function periodoDaQuery(query: Record<string, string | undefined>) {
   return periodoMesCivil(new Date());
 }
 
-const atendimentoRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/atendimentos', async (request, reply) => {
-    semCache(reply);
-    const perfil = perfilDaAutorizacao(request.headers.authorization);
+function passaNosFiltros(
+  item: RegistroDeAtendimento,
+  recorte: ReturnType<typeof lerRecorte>,
+  query: Record<string, string | undefined>,
+  modo: ModoDaListagem,
+  perfilId: string
+) {
+  const periodo = periodoDaQuery(query);
+  const dia = diaNoFuso(
+    modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm
+  );
 
-    if (!perfil) {
+  if (dia < periodo.inicio || dia > periodo.fim) {
+    return false;
+  }
+
+  if (recorte.administradora && item.administradora !== recorte.administradora) {
+    return false;
+  }
+
+  if (recorte.agente && item.agenteId !== recorte.agente) {
+    return false;
+  }
+
+  if (query.status && item.status !== query.status) {
+    return false;
+  }
+
+  if (query.nota && item.nota !== Number(query.nota)) {
+    return false;
+  }
+
+  if (query.motivo && item.motivo !== query.motivo) {
+    return false;
+  }
+
+  if (query.conversa && item.conversa !== query.conversa) {
+    return false;
+  }
+
+  if (query.curadoria === 'true' && !item.curadoria) {
+    return false;
+  }
+
+  if (query.curadoria === 'false' && item.curadoria) {
+    return false;
+  }
+
+  if (modo === 'fila') {
+    return (
+      item.status === 'Concluído' &&
+      Boolean(item.avaliacaoDaIa) &&
+      !item.curadoria
+    );
+  }
+
+  if (modo === 'minhas') {
+    return item.curadoria && item.curadorId === perfilId;
+  }
+
+  if (modo === 'realizadas') {
+    return item.curadoria;
+  }
+
+  return true;
+}
+
+function ordenarFila(itens: RegistroDeAtendimento[]) {
+  return [...itens].sort((a, b) => {
+    const quandoA = a.concluidoEm ?? a.iniciadoEm;
+    const quandoB = b.concluidoEm ?? b.iniciadoEm;
+    const porConclusao = quandoA.localeCompare(quandoB);
+
+    return porConclusao !== 0 ? porConclusao : a.id.localeCompare(b.id, 'en');
+  });
+}
+
+function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
+  const { custo, downloadDeAudio, curadorId: _curadorId, concluidoEm: _concluidoEm, ...resto } =
+    item;
+
+  return atendimentoDetalheSchema.parse({
+    ...resto,
+    ...(custoVisivelPara(papel) ? { custo } : {}),
+    ...(downloadVisivelPara(papel) ? { downloadDeAudio } : {})
+  });
+}
+
+const atendimentoRoutes: FastifyPluginAsync = async (app) => {
+  const atendimentos = catalogoDeAtendimentos();
+
+  async function listar(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    modo: ModoDaListagem
+  ) {
+    semCache(reply);
+    const registro = registroDaAutorizacao(request.headers.authorization);
+
+    if (!registro) {
       return reply.code(401).send({ statusCode: 401 });
+    }
+
+    if (modo === 'minhas' && registro.papel !== 'Curador') {
+      return reply.code(403).send({ statusCode: 403 });
+    }
+
+    if (modo === 'realizadas' && registro.papel === 'Curador') {
+      return reply.code(403).send({ statusCode: 403 });
     }
 
     const query = request.query as Record<string, string | undefined>;
@@ -236,48 +359,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
-    const periodo = periodoDaQuery(query);
-    const itens = atendimentos.filter((item) => {
-      const dia = diaNoFuso(item.iniciadoEm);
-
-      if (dia < periodo.inicio || dia > periodo.fim) {
-        return false;
-      }
-
-      if (recorte.administradora && item.administradora !== recorte.administradora) {
-        return false;
-      }
-
-      if (recorte.agente && item.agenteId !== recorte.agente) {
-        return false;
-      }
-
-      if (query.status && item.status !== query.status) {
-        return false;
-      }
-
-      if (query.nota && item.nota !== Number(query.nota)) {
-        return false;
-      }
-
-      if (query.motivo && item.motivo !== query.motivo) {
-        return false;
-      }
-
-      if (query.conversa && item.conversa !== query.conversa) {
-        return false;
-      }
-
-      if (query.curadoria === 'true' && !item.curadoria) {
-        return false;
-      }
-
-      if (query.curadoria === 'false' && item.curadoria) {
-        return false;
-      }
-
-      return true;
-    });
+    const filtrados = atendimentos.filter((item) =>
+      passaNosFiltros(item, recorte, query, modo, registro.id)
+    );
+    const itens = modo === 'fila' ? ordenarFila(filtrados) : filtrados;
     const tamanho = 50;
     const total = itens.length;
     const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
@@ -290,7 +375,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       .map((item) => {
         const listagem = itemDaListagem(item);
 
-        if (custoVisivelPara(perfil.papel)) {
+        if (custoVisivelPara(registro.papel)) {
           return listagem;
         }
 
@@ -305,7 +390,14 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       total,
       itens: paginaItens
     });
-  });
+  }
+
+  app.get('/atendimentos', (request, reply) => listar(request, reply, 'todos'));
+  app.get('/fila-de-curadoria', (request, reply) => listar(request, reply, 'fila'));
+  app.get('/minhas-curadorias', (request, reply) => listar(request, reply, 'minhas'));
+  app.get('/curadorias-realizadas', (request, reply) =>
+    listar(request, reply, 'realizadas')
+  );
 
   app.get('/atendimentos/:id', async (request, reply) => {
     semCache(reply);
@@ -322,13 +414,54 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    const { custo, downloadDeAudio, ...resto } = encontrado;
+    return responderDetalhe(encontrado, perfil.papel);
+  });
 
-    return atendimentoDetalheSchema.parse({
-      ...resto,
-      ...(custoVisivelPara(perfil.papel) ? { custo } : {}),
-      ...(downloadVisivelPara(perfil.papel) ? { downloadDeAudio } : {})
-    });
+  app.post('/atendimentos/:id/conferencia', async (request, reply) => {
+    semCache(reply);
+    const registro = registroDaAutorizacao(request.headers.authorization);
+
+    if (!registro) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    if (registro.papel !== 'Curador') {
+      return reply.code(403).send({ statusCode: 403 });
+    }
+
+    const lido = conferenciaRequestSchema.safeParse(request.body);
+
+    if (!lido.success) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    const { id } = request.params as { id: string };
+    const encontrado = atendimentos.find((item) => item.id === id);
+
+    if (!encontrado) {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    if (
+      encontrado.status !== 'Concluído' ||
+      encontrado.curadoria ||
+      !encontrado.avaliacaoDaIa
+    ) {
+      return reply.code(409).send({ statusCode: 409 });
+    }
+
+    encontrado.curadoria = true;
+    encontrado.curadorId = registro.id;
+    encontrado.avaliacaoDoCurador = {
+      nota: lido.data.notaDaRegua,
+      aprovacao:
+        lido.data.notaDaRegua >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado',
+      criterios: lido.data.checklist,
+      notaDaAvaliacaoDaIa: encontrado.avaliacaoDaIa.nota,
+      ...(lido.data.comentario ? { comentario: lido.data.comentario } : {})
+    };
+
+    return responderDetalhe(encontrado, registro.papel);
   });
 };
 

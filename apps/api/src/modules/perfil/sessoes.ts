@@ -20,9 +20,7 @@ export function invalidarSessao(token: string) {
   sessoes.delete(token);
 }
 
-export function perfilDaAutorizacao(
-  authorization: string | undefined
-): Perfil | undefined {
+export function registroDaAutorizacao(authorization: string | undefined) {
   const token = tokenDaAutorizacao(authorization);
 
   if (!token) {
@@ -35,6 +33,12 @@ export function perfilDaAutorizacao(
     return undefined;
   }
 
-  const registro = buscarPorId(perfilId);
+  return buscarPorId(perfilId);
+}
+
+export function perfilDaAutorizacao(
+  authorization: string | undefined
+): Perfil | undefined {
+  const registro = registroDaAutorizacao(authorization);
   return registro ? perfilDaSessao(registro) : undefined;
 }

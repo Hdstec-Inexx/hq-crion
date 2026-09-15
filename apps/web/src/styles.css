@@ -807,6 +807,81 @@ a.login-cta {
   color: var(--danger);
 }
 
+.avaliacao-snapshot,
+.avaliacao-comentario {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--mute);
+}
+
+.avaliacao-comentario {
+  margin-top: 12px;
+  color: var(--ink);
+}
+
+.conferencia-form {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.conferencia-form h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.conferencia-form p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+}
+
+.conferencia-form select,
+.conferencia-form input,
+.conferencia-form textarea,
+.conferencia-form button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.conferencia-form button {
+  justify-self: start;
+  background: var(--cyan);
+  border: 0;
+  font-weight: 700;
+}
+
+.conferencia-form button:disabled {
+  opacity: 0.6;
+}
+
+.conferencia-notas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+
+.conferencia-notas label,
+.conferencia-comentario {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mute);
+}
+
+.conferencia-comentario textarea {
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink);
+}
+
 .transcricao {
   margin-top: 12px;
   background: #fff;

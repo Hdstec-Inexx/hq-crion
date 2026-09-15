@@ -4,13 +4,15 @@ import {
   custoVisivelPara,
   downloadVisivelPara,
   type AtendimentoDetalhe,
-  type Avaliacao
+  type Avaliacao,
+  type AvaliacaoDoCurador,
+  type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { destinoDaLista, lerRecorte } from '@hq-crion/contracts/recorte';
-import { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
-import { buscarAtendimento } from './api';
+import { buscarAtendimento, gravarConferencia } from './api';
 
 function formatarNota(nota: number) {
   return nota.toFixed(1).replace('.', ',');
@@ -38,7 +40,8 @@ function listaComRecorte(searchParams: URLSearchParams) {
       lerRecorte({
         administradora: searchParams.get('administradora') ?? undefined,
         agente: searchParams.get('agente') ?? undefined
-      })
+      }),
+      searchParams.get('lista') ?? '/atendimentos'
     );
   } catch {
     return '/atendimentos';
@@ -139,8 +142,15 @@ function PlayerDeAudio({ src }: { src: string }) {
   );
 }
 
-function PainelAvaliacao({ titulo, avaliacao }: { titulo: string; avaliacao: Avaliacao }) {
+function PainelAvaliacao({
+  titulo,
+  avaliacao
+}: {
+  titulo: string;
+  avaliacao: Avaliacao | AvaliacaoDoCurador;
+}) {
   const aprovado = avaliacao.aprovacao === 'Aprovado';
+  const doCurador = 'notaDaAvaliacaoDaIa' in avaliacao;
 
   return (
     <section className="avaliacao-painel" aria-label={titulo}>
@@ -151,6 +161,11 @@ function PainelAvaliacao({ titulo, avaliacao }: { titulo: string; avaliacao: Ava
           <span>{avaliacao.aprovacao}</span>
         </div>
       </header>
+      {doCurador ? (
+        <p className="avaliacao-snapshot">
+          Nota da Avaliação da IA no snapshot: {formatarNota(avaliacao.notaDaAvaliacaoDaIa)}
+        </p>
+      ) : null}
       <div className="criterio-grid">
         {avaliacao.criterios.map((criterio) => {
           const estadoClasse = classeDoEstado(criterio.estado);
@@ -167,7 +182,115 @@ function PainelAvaliacao({ titulo, avaliacao }: { titulo: string; avaliacao: Ava
           );
         })}
       </div>
+      {doCurador && avaliacao.comentario ? (
+        <p className="avaliacao-comentario">{avaliacao.comentario}</p>
+      ) : null}
     </section>
+  );
+}
+
+const estadosDoCriterio: EstadoDoCriterio[] = ['Atendido', 'Não atendido', 'Não se aplica'];
+
+function FormularioConferencia({
+  atendimento,
+  onGravada
+}: {
+  atendimento: AtendimentoDetalhe;
+  onGravada: (detalhe: AtendimentoDetalhe) => void;
+}) {
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const checklist = atendimento.avaliacaoDaIa.criterios.map((criterio) => ({
+      nome: criterio.nome,
+      estado: String(data.get(`estado-${criterio.nome}`) ?? '') as EstadoDoCriterio,
+      pontos: criterio.pontos,
+      critico: criterio.critico
+    }));
+    const comentario = String(data.get('comentario') ?? '').trim();
+
+    setErro(null);
+    setEnviando(true);
+
+    try {
+      const gravado = await gravarConferencia(atendimento.id, {
+        checklist,
+        notaDaRegua: Number(data.get('notaDaRegua')),
+        notaDaAvaliacaoDaIa: atendimento.avaliacaoDaIa.nota,
+        ...(comentario ? { comentario } : {})
+      });
+
+      if (!gravado) {
+        setErro('A sessão expirou. Entre de novo.');
+        return;
+      }
+
+      onGravada(gravado);
+    } catch {
+      setErro('Não foi possível gravar a conferência.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <form className="conferencia-form" onSubmit={onSubmit} aria-label="Conferência">
+      <h2>Conferência da Avaliação da IA</h2>
+      <p>
+        Checklist da Régua, nota da Régua e snapshot da Nota da Avaliação da IA.
+        Comentário é opcional.
+      </p>
+      <div className="criterio-grid">
+        {atendimento.avaliacaoDaIa.criterios.map((criterio) => (
+          <label className="criterio-card" key={criterio.nome}>
+            <span className="criterio-top">
+              <strong>{criterio.nome}</strong>
+              <span className="criterio-pontos">{formatarPontos(criterio.pontos)}</span>
+            </span>
+            {criterio.critico ? <span className="criterio-critico">Crítico</span> : null}
+            <select name={`estado-${criterio.nome}`} defaultValue={criterio.estado} required>
+              {estadosDoCriterio.map((estado) => (
+                <option key={estado} value={estado}>
+                  {estado}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+      <div className="conferencia-notas">
+        <label>
+          Nota da Régua
+          <input
+            name="notaDaRegua"
+            type="number"
+            step="0.1"
+            min="0"
+            max="10"
+            defaultValue={atendimento.avaliacaoDaIa.nota}
+            required
+          />
+        </label>
+        <p>
+          Nota da Avaliação da IA: {formatarNota(atendimento.avaliacaoDaIa.nota)}
+        </p>
+      </div>
+      <label className="conferencia-comentario">
+        Comentário (opcional)
+        <textarea name="comentario" rows={3} />
+      </label>
+      {erro ? (
+        <p className="listagem-erro" role="alert">
+          {erro}
+        </p>
+      ) : null}
+      <button type="submit" disabled={enviando}>
+        Gravar conferência
+      </button>
+    </form>
   );
 }
 
@@ -270,6 +393,14 @@ export function DetalheAtendimento() {
               </a>
             ) : null}
           </div>
+          {perfil.papel === 'Curador' &&
+          atendimento.status === 'Concluído' &&
+          !atendimento.avaliacaoDoCurador ? (
+            <FormularioConferencia
+              atendimento={atendimento}
+              onGravada={setAtendimento}
+            />
+          ) : null}
           <div
             className={`avaliacao-workspace${atendimento.avaliacaoDoCurador ? '' : ' ia-only'}`}
           >

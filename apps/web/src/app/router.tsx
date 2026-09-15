@@ -106,12 +106,29 @@ export const router = createBrowserRouter([
       { index: true, element: null },
       { path: 'atendimentos', element: <ListagemAtendimentos /> },
       { path: 'atendimentos/:id', element: <DetalheAtendimento /> },
+      {
+        path: 'fila-de-curadoria',
+        element: <ListagemAtendimentos caminho="/fila-de-curadoria" />
+      },
+      {
+        path: 'minhas-curadorias',
+        element: <ListagemAtendimentos caminho="/minhas-curadorias" />
+      },
+      {
+        path: 'curadorias-realizadas',
+        element: <ListagemAtendimentos caminho="/curadorias-realizadas" />
+      },
       { path: 'regua', loader: carregarRegua, element: <ReguaPage /> },
       { path: 'usuarios', loader: carregarPerfis, element: <PerfisPage /> },
       ...rotasDoInventario
         .filter(
           (path) =>
-            path !== 'regua' && path !== 'usuarios' && path !== 'atendimentos'
+            path !== 'regua' &&
+            path !== 'usuarios' &&
+            path !== 'atendimentos' &&
+            path !== 'fila-de-curadoria' &&
+            path !== 'minhas-curadorias' &&
+            path !== 'curadorias-realizadas'
         )
         .map((path) => ({
           path,
