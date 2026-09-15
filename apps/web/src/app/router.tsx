@@ -8,6 +8,7 @@ import {
 import { LoginPage } from '../features/auth/LoginPage';
 import { buscarPerfil } from '../features/auth/api';
 import { lerSessao, limparSessao } from '../features/auth/sessao';
+import { ListagemAtendimentos } from '../features/atendimentos/ListagemAtendimentos';
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { HealthPage } from '../features/health/HealthPage';
 import { PaginaArea } from '../features/paginas/PaginaArea';
@@ -103,10 +104,14 @@ export const router = createBrowserRouter([
     element: <CascaAutenticada />,
     children: [
       { index: true, element: null },
+      { path: 'atendimentos', element: <ListagemAtendimentos /> },
       { path: 'regua', loader: carregarRegua, element: <ReguaPage /> },
       { path: 'usuarios', loader: carregarPerfis, element: <PerfisPage /> },
       ...rotasDoInventario
-        .filter((path) => path !== 'regua' && path !== 'usuarios')
+        .filter(
+          (path) =>
+            path !== 'regua' && path !== 'usuarios' && path !== 'atendimentos'
+        )
         .map((path) => ({
           path,
           element: <PaginaArea />

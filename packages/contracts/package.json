@@ -19,6 +19,14 @@
     "./regua": {
       "types": "./src/regua.ts",
       "default": "./dist/regua.js"
+    },
+    "./recorte": {
+      "types": "./src/recorte.ts",
+      "default": "./dist/recorte.js"
+    },
+    "./atendimento": {
+      "types": "./src/atendimento.ts",
+      "default": "./dist/atendimento.js"
     }
   },
   "scripts": {
