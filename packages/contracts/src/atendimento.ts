@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { administradoraSchema } from './recorte.js';
+import type { Papel } from './perfil.js';
+import { administradoraSchema, recorteSchema } from './recorte.js';
+
+export function custoVisivelPara(papel: Papel) {
+  return papel !== 'Curador';
+}
 
 export const atendimentoListItemSchema = z.object({
   id: z.string().min(1),
@@ -16,10 +21,7 @@ export const atendimentoListItemSchema = z.object({
 });
 
 export const listagemResponseSchema = z.object({
-  recorte: z.object({
-    administradora: administradoraSchema.nullable(),
-    agente: z.string().nullable()
-  }),
+  recorte: recorteSchema,
   pagina: z.number().int().min(1),
   tamanho: z.literal(50),
   total: z.number().int().min(0),

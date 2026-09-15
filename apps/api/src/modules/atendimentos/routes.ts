@@ -1,4 +1,5 @@
 import {
+  custoVisivelPara,
   listagemResponseSchema,
   type AtendimentoListItem
 } from '@hq-crion/contracts/atendimento';
@@ -81,15 +82,14 @@ const catalogoBase: AtendimentoListItem[] = [
   }
 ];
 
+const { inicio: inicioDoMes } = periodoMesCivil(new Date());
 const extrasDoMes: AtendimentoListItem[] = Array.from({ length: 47 }, (_, index) => {
-  const { inicio } = periodoMesCivil(new Date());
-
   return {
     id: `extra-${index + 1}`,
     administradora: 'Conectaplan',
     agente: 'Clara Conectaplan',
     agenteId: 'conecta-1',
-    iniciadoEm: `${inicio}T08:00:00-03:00`,
+    iniciadoEm: `${inicioDoMes}T08:00:00-03:00`,
     motivo: 'Extra',
     nota: 8,
     status: 'Concluído',
@@ -105,13 +105,16 @@ function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
 }
 
+const formatadorDia = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+const diaCivil = /^\d{4}-\d{2}-\d{2}$/;
+
 function diaNoFuso(iso: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(new Date(iso));
+  const parts = formatadorDia.formatToParts(new Date(iso));
   const year = parts.find((part) => part.type === 'year')?.value;
   const month = parts.find((part) => part.type === 'month')?.value;
   const day = parts.find((part) => part.type === 'day')?.value;
@@ -120,8 +123,17 @@ function diaNoFuso(iso: string) {
 }
 
 function periodoDaQuery(query: Record<string, string | undefined>) {
-  if (query.inicio && query.fim) {
-    return { inicio: query.inicio, fim: query.fim };
+  const inicio = query.inicio;
+  const fim = query.fim;
+
+  if (
+    inicio &&
+    fim &&
+    diaCivil.test(inicio) &&
+    diaCivil.test(fim) &&
+    inicio <= fim
+  ) {
+    return { inicio, fim };
   }
 
   return periodoMesCivil(new Date());
@@ -141,7 +153,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     try {
       recorte = lerRecorte({
-        admin: query.admin,
+        administradora: query.administradora,
         agente: query.agente
       });
     } catch {
@@ -190,11 +202,15 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
       return true;
     });
-    const pagina = Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1);
     const tamanho = 50;
     const total = itens.length;
+    const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
+    const pagina = Math.min(
+      ultimaPagina,
+      Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
+    );
     const paginaItens = itens.slice((pagina - 1) * tamanho, pagina * tamanho).map((item) => {
-      if (perfil.papel !== 'Curador') {
+      if (custoVisivelPara(perfil.papel)) {
         return item;
       }
 

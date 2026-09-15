@@ -6,10 +6,12 @@ export const administradoraSchema = z.enum(administradoras);
 
 export type Administradora = z.infer<typeof administradoraSchema>;
 
-export type Recorte = {
-  administradora: Administradora | null;
-  agente: string | null;
-};
+export const recorteSchema = z.object({
+  administradora: administradoraSchema.nullable(),
+  agente: z.string().nullable()
+});
+
+export type Recorte = z.infer<typeof recorteSchema>;
 
 export type AgenteDeVoz = {
   id: string;
@@ -28,7 +30,7 @@ export function queryDoRecorte(recorte: Recorte): URLSearchParams {
   const query = new URLSearchParams();
 
   if (recorte.administradora) {
-    query.set('admin', recorte.administradora);
+    query.set('administradora', recorte.administradora);
   }
 
   if (recorte.agente) {
@@ -39,12 +41,14 @@ export function queryDoRecorte(recorte: Recorte): URLSearchParams {
 }
 
 export function lerRecorte(query: {
-  admin?: string;
+  administradora?: string;
   agente?: string;
 }): Recorte {
-  const admin = query.admin?.trim() || undefined;
+  const administradoraBruta = query.administradora?.trim() || undefined;
   const agente = query.agente?.trim() || undefined;
-  const administradora = admin ? administradoraSchema.parse(admin) : null;
+  const administradora = administradoraBruta
+    ? administradoraSchema.parse(administradoraBruta)
+    : null;
 
   if (agente && !administradora) {
     throw new Error('Recorte inválido');
@@ -64,12 +68,9 @@ export function lerRecorte(query: {
   };
 }
 
-export function periodoMesCivil(
-  referencia: Date,
-  fuso = 'America/Sao_Paulo'
-): { inicio: string; fim: string } {
+export function periodoMesCivil(referencia: Date): { inicio: string; fim: string } {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: fuso,
+    timeZone: 'America/Sao_Paulo',
     year: 'numeric',
     month: '2-digit'
   }).formatToParts(referencia);

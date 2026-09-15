@@ -1,5 +1,5 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
-import type { ListagemResponse } from '@hq-crion/contracts/atendimento';
+import { custoVisivelPara, type ListagemResponse } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import {
   administradoraSchema,
@@ -36,7 +36,7 @@ export function ListagemAtendimentos() {
   const [listagem, setListagem] = useState<ListagemResponse | null>(null);
   const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | null>(null);
 
-  const administradoraNaUrl = searchParams.get('admin') ?? '';
+  const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
   const administradoraLida = administradoraSchema.safeParse(administradoraNaUrl);
   const agentes = administradoraLida.success
@@ -71,13 +71,13 @@ export function ListagemAtendimentos() {
     return () => controller.abort();
   }, [searchParams]);
 
-  function atualizarRecorte(admin: string, agente: string) {
+  function atualizarRecorte(administradora: string, agente: string) {
     const recorteQuery = queryDoRecorte({
-      administradora: administradoraSchema.safeParse(admin).data ?? null,
-      agente: admin && agente ? agente : null
+      administradora: administradoraSchema.safeParse(administradora).data ?? null,
+      agente: administradora && agente ? agente : null
     });
     const proxima = new URLSearchParams(searchParams);
-    proxima.delete('admin');
+    proxima.delete('administradora');
     proxima.delete('agente');
     proxima.delete('pagina');
 
@@ -230,7 +230,7 @@ export function ListagemAtendimentos() {
                     </Link>
                     <div className="listagem-meta">
                       {item.motivo} · {item.status}
-                      {item.custo ? ` · ${item.custo}` : ''}
+                      {custoVisivelPara(perfil.papel) && item.custo ? ` · ${item.custo}` : ''}
                     </div>
                   </div>
                   <span className="badge-administradora">{item.administradora}</span>

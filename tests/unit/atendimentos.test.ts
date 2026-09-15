@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
+import { custoVisivelPara } from '../../packages/contracts/src/atendimento.js';
 import {
   lerRecorte,
   periodoMesCivil,
@@ -27,13 +28,19 @@ test('query de Recorte faz round-trip entre URL e contrato', () => {
   const recorte = { administradora: 'Affix' as const, agente: 'affix-0800' };
   const query = queryDoRecorte(recorte);
 
-  assert.equal(query.get('admin'), 'Affix');
+  assert.equal(query.get('administradora'), 'Affix');
+  assert.equal(query.has('admin'), false);
   assert.equal(query.get('agente'), 'affix-0800');
-  assert.deepEqual(lerRecorte({ admin: 'Affix', agente: 'affix-0800' }), recorte);
+  assert.deepEqual(
+    lerRecorte({ administradora: 'Affix', agente: 'affix-0800' }),
+    recorte
+  );
 });
 
 test('par Administradora + Agente inválido é rejeitado', () => {
-  assert.throws(() => lerRecorte({ admin: 'Affix', agente: 'alter-1' }));
+  assert.throws(() =>
+    lerRecorte({ administradora: 'Affix', agente: 'alter-1' })
+  );
 });
 
 test('GET /atendimentos devolve o Recorte da query e filtra a lista', async () => {
@@ -43,7 +50,7 @@ test('GET /atendimentos devolve o Recorte da query e filtra a lista', async () =
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
-      url: '/atendimentos?admin=Affix&agente=affix-0800',
+      url: '/atendimentos?administradora=Affix&agente=affix-0800',
       headers: { authorization: `Bearer ${sessao}` }
     });
 
@@ -70,7 +77,7 @@ test('GET /atendimentos rejeita par Administradora + Agente inválido', async ()
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
-      url: '/atendimentos?admin=Affix&agente=alter-1',
+      url: '/atendimentos?administradora=Affix&agente=alter-1',
       headers: { authorization: `Bearer ${sessao}` }
     });
 
@@ -261,6 +268,84 @@ test('listagem pagina de 50 em 50', async () => {
       new Set([...pagina1.itens, ...pagina2.itens].map((item: { id: string }) => item.id)).size,
       pagina1.total
     );
+  } finally {
+    await app.close();
+  }
+});
+
+test('período malformado não substitui o mês civil', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?inicio=2020-01-01&fim=nao-e-data',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    const ids = response.json().itens.map((item: { id: string }) => item.id);
+    assert.ok(ids.includes('a1'));
+    assert.equal(ids.includes('a-fora'), false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('página além do total fica na última página', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?pagina=99',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const body = response.json();
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(body.pagina, Math.ceil(body.total / body.tamanho));
+    assert.ok(body.itens.length > 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos sem sessão responde 401', async () => {
+  const app = await buildApp();
+
+  try {
+    const response = await app.inject({ method: 'GET', url: '/atendimentos' });
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  } finally {
+    await app.close();
+  }
+});
+
+test('Custo é visível só para Admin e Gestão', () => {
+  assert.equal(custoVisivelPara('Curador'), false);
+  assert.equal(custoVisivelPara('Admin'), true);
+  assert.equal(custoVisivelPara('Gestão'), true);
+});
+
+test('Gestão recebe Custo na listagem', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    const itens = response.json().itens as Array<{ custo?: string }>;
+    assert.ok(itens.length > 0);
+    assert.ok(itens.every((item) => typeof item.custo === 'string'));
   } finally {
     await app.close();
   }
