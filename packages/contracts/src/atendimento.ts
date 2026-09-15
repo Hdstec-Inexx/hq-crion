@@ -10,6 +10,22 @@ export function downloadVisivelPara(papel: Papel) {
   return papel !== 'Curador';
 }
 
+export const caminhoDeMidiaSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (caminho) =>
+      caminho.startsWith('/') &&
+      !caminho.startsWith('//') &&
+      !caminho.includes('\\') &&
+      !caminho.includes(':'),
+    { message: 'Caminho de mídia deve ser relativo ao HQ' }
+  );
+
+export function caminhoDeMidiaPermitido(caminho: string) {
+  return caminhoDeMidiaSchema.safeParse(caminho).success;
+}
+
 export const atendimentoListItemSchema = z.object({
   id: z.string().min(1),
   administradora: administradoraSchema,
@@ -58,8 +74,8 @@ export const turnoDaTranscricaoSchema = z.object({
 });
 
 export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
-  audio: z.string().min(1),
-  downloadDeAudio: z.string().min(1).optional(),
+  audio: caminhoDeMidiaSchema,
+  downloadDeAudio: caminhoDeMidiaSchema.optional(),
   transcricao: z.array(turnoDaTranscricaoSchema),
   avaliacaoDaIa: avaliacaoSchema,
   avaliacaoDoCurador: avaliacaoSchema.optional()

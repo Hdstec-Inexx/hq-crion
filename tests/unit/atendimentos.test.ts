@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
-import { custoVisivelPara, downloadVisivelPara } from '../../packages/contracts/src/atendimento.js';
+import {
+  caminhoDeMidiaPermitido,
+  custoVisivelPara,
+  downloadVisivelPara
+} from '../../packages/contracts/src/atendimento.js';
 import {
   destinoDaLista,
   lerRecorte,
@@ -499,4 +503,29 @@ test('GET /atendimentos/:id sem sessão responde 401', async () => {
   } finally {
     await app.close();
   }
+});
+
+test('GET /atendimentos/:id desconhecido responde 404', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/nao-existe',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 404);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  } finally {
+    await app.close();
+  }
+});
+
+test('caminho de mídia do detalhe só aceita path relativo do HQ', () => {
+  assert.equal(caminhoDeMidiaPermitido('/media/a1.wav'), true);
+  assert.equal(caminhoDeMidiaPermitido('javascript:alert(1)'), false);
+  assert.equal(caminhoDeMidiaPermitido('https://evil.example/a.wav'), false);
+  assert.equal(caminhoDeMidiaPermitido('//cdn.example/a.wav'), false);
 });

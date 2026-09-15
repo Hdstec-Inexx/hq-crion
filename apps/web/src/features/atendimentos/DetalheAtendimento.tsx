@@ -1,5 +1,6 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import {
+  caminhoDeMidiaPermitido,
   custoVisivelPara,
   downloadVisivelPara,
   type AtendimentoDetalhe,
@@ -7,7 +8,7 @@ import {
 } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { destinoDaLista, lerRecorte } from '@hq-crion/contracts/recorte';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { buscarAtendimento } from './api';
 
@@ -42,6 +43,100 @@ function listaComRecorte(searchParams: URLSearchParams) {
   } catch {
     return '/atendimentos';
   }
+}
+
+function formatarTempo(segundos: number) {
+  if (!Number.isFinite(segundos) || segundos < 0) {
+    return '0:00';
+  }
+
+  const total = Math.floor(segundos);
+  const minutos = Math.floor(total / 60);
+  const resto = String(total % 60).padStart(2, '0');
+
+  return `${minutos}:${resto}`;
+}
+
+function PlayerDeAudio({ src }: { src: string }) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [tocando, setTocando] = useState(false);
+  const [atual, setAtual] = useState(12);
+  const [duracao, setDuracao] = useState(161);
+
+  async function onReproduzir() {
+    const elemento = audio.current;
+
+    if (!elemento) {
+      return;
+    }
+
+    if (tocando) {
+      elemento.pause();
+      setTocando(false);
+      return;
+    }
+
+    try {
+      await elemento.play();
+      setTocando(true);
+    } catch {
+      setTocando(false);
+    }
+  }
+
+  return (
+    <div className="audio-player" title="Player de áudio">
+      {caminhoDeMidiaPermitido(src) ? (
+        <audio
+          ref={audio}
+          src={src}
+          onTimeUpdate={(event) => {
+            const segundos = Math.floor(event.currentTarget.currentTime);
+            setAtual((anterior) =>
+              Math.floor(anterior) === segundos ? anterior : event.currentTarget.currentTime
+            );
+          }}
+          onLoadedMetadata={(event) => {
+            const media = event.currentTarget;
+
+            if (Number.isFinite(media.duration) && media.duration > 0) {
+              setDuracao(media.duration);
+              setAtual(media.currentTime);
+            }
+          }}
+          onEnded={() => {
+            setTocando(false);
+            setAtual(duracao);
+          }}
+          onPause={() => setTocando(false)}
+          onPlay={() => setTocando(true)}
+        />
+      ) : null}
+      <button
+        className="audio-play"
+        type="button"
+        aria-label={tocando ? 'Pausar' : 'Reproduzir'}
+        onClick={() => {
+          void onReproduzir();
+        }}
+      >
+        {tocando ? (
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <rect x="6" y="5" width="4" height="14" rx="0.8" fill="currentColor" />
+            <rect x="14" y="5" width="4" height="14" rx="0.8" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d="M8 5v14l11-7z" fill="currentColor" />
+          </svg>
+        )}
+      </button>
+      <span className="audio-time">
+        {formatarTempo(atual)} / {formatarTempo(duracao)}
+      </span>
+      <div className="audio-onda" aria-hidden="true" />
+    </div>
+  );
 }
 
 function PainelAvaliacao({ titulo, avaliacao }: { titulo: string; avaliacao: Avaliacao }) {
@@ -166,12 +261,10 @@ export function DetalheAtendimento() {
             ) : null}
           </dl>
           <div className="audio-faixa">
-            <div className="audio-player">
-              <audio controls src={atendimento.audio} aria-label="Player de áudio">
-                Player de áudio
-              </audio>
-            </div>
-            {downloadVisivelPara(perfil.papel) && atendimento.downloadDeAudio ? (
+            <PlayerDeAudio src={atendimento.audio} />
+            {downloadVisivelPara(perfil.papel) &&
+            atendimento.downloadDeAudio &&
+            caminhoDeMidiaPermitido(atendimento.downloadDeAudio) ? (
               <a className="audio-download" href={atendimento.downloadDeAudio} download>
                 Download de Áudio
               </a>

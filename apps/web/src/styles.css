@@ -508,16 +508,80 @@ a.login-cta {
 .audio-player {
   flex: 1;
   min-width: 0;
+  height: 52px;
   border-radius: 16px;
   background: #fff;
   border: 1px solid var(--line);
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 0 12px;
 }
 
 .audio-player audio {
-  width: 100%;
+  display: none;
+}
+
+.audio-play {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: var(--ink);
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 0;
+}
+
+.audio-play svg {
+  display: block;
+}
+
+.audio-time {
+  font: 500 11px/1 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color: var(--mute);
+  flex: none;
+}
+
+.audio-onda {
+  flex: 1;
+  height: 22px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(90deg, var(--cyan) 0 3px, transparent 3px 7px);
+  opacity: 0.85;
+  clip-path: polygon(
+    0 40%,
+    4% 20%,
+    8% 70%,
+    12% 30%,
+    16% 55%,
+    20% 15%,
+    24% 60%,
+    28% 35%,
+    32% 80%,
+    36% 25%,
+    40% 50%,
+    44% 18%,
+    48% 65%,
+    52% 40%,
+    56% 22%,
+    60% 70%,
+    64% 33%,
+    68% 48%,
+    72% 20%,
+    76% 62%,
+    80% 38%,
+    84% 55%,
+    88% 28%,
+    92% 45%,
+    96% 35%,
+    100% 50%,
+    100% 100%,
+    0 100%
+  );
 }
 
 .audio-download {
@@ -533,6 +597,10 @@ a.login-cta {
   text-decoration: none;
   display: inline-flex;
   align-items: center;
+}
+
+.audio-download:hover {
+  border-color: var(--cyan);
 }
 
 .avaliacao-workspace {
