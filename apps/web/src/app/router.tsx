@@ -9,6 +9,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { buscarPerfil } from '../features/auth/api';
 import { lerSessao, limparSessao } from '../features/auth/sessao';
 import { DetalheAtendimento } from '../features/atendimentos/DetalheAtendimento';
+import { FilaDeManutencao } from '../features/atendimentos/FilaDeManutencao';
 import { ListagemAtendimentos } from '../features/atendimentos/ListagemAtendimentos';
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { HealthPage } from '../features/health/HealthPage';
@@ -118,6 +119,7 @@ export const router = createBrowserRouter([
         path: 'curadorias-realizadas',
         element: <ListagemAtendimentos caminho="/curadorias-realizadas" />
       },
+      { path: 'manutencao', element: <FilaDeManutencao /> },
       { path: 'regua', loader: carregarRegua, element: <ReguaPage /> },
       { path: 'usuarios', loader: carregarPerfis, element: <PerfisPage /> },
       ...rotasDoInventario
@@ -128,7 +130,8 @@ export const router = createBrowserRouter([
             path !== 'atendimentos' &&
             path !== 'fila-de-curadoria' &&
             path !== 'minhas-curadorias' &&
-            path !== 'curadorias-realizadas'
+            path !== 'curadorias-realizadas' &&
+            path !== 'manutencao'
         )
         .map((path) => ({
           path,

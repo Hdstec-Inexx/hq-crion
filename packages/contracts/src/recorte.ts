@@ -72,7 +72,8 @@ export const listasComRecorte = [
   '/atendimentos',
   '/fila-de-curadoria',
   '/minhas-curadorias',
-  '/curadorias-realizadas'
+  '/curadorias-realizadas',
+  '/manutencao'
 ] as const;
 
 export type ListaComRecorte = (typeof listasComRecorte)[number];

@@ -45,7 +45,7 @@ const minhasCuradorias: AreaDaCasca = {
 const manutencao: AreaDaCasca = {
   rota: '/manutencao',
   rotulo: 'Manutenção',
-  titulo: 'Manutenção'
+  titulo: 'Fila de Manutenção'
 };
 
 const usuarios: AreaDaCasca = {
