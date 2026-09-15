@@ -1,4 +1,4 @@
-import { areasDaCasca, destinoDaNavegacao } from '@hq-crion/contracts/casca';
+import { areasDaCasca, destinoDaNavegacao, destinoInicial } from '@hq-crion/contracts/casca';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   createBrowserRouter,
@@ -12,6 +12,8 @@ import { ListagemAtendimentos } from '../features/atendimentos/ListagemAtendimen
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { HealthPage } from '../features/health/HealthPage';
 import { PaginaArea } from '../features/paginas/PaginaArea';
+import { PerfisPage } from '../features/perfis/PerfisPage';
+import { listarPerfis } from '../features/perfis/api';
 import { buscarRegua } from '../features/regua/api';
 import { ReguaPage } from '../features/regua/ReguaPage';
 
@@ -61,6 +63,35 @@ async function carregarRegua({ request }: LoaderFunctionArgs) {
   return regua;
 }
 
+async function carregarPerfis({ request }: LoaderFunctionArgs) {
+  const pathname = new URL(request.url).pathname;
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
+  }
+
+  const lista = await listarPerfis(sessao, request.signal);
+
+  if (lista === null) {
+    limparSessao();
+    throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
+  }
+
+  if (lista === 'negado') {
+    const perfil = await buscarPerfil(sessao, request.signal);
+
+    if (!perfil) {
+      limparSessao();
+      throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
+    }
+
+    throw redirect(destinoInicial(perfil.papel));
+  }
+
+  return lista;
+}
+
 export const router = createBrowserRouter([
   { path: '/health', element: <HealthPage /> },
   { path: '/login', element: <LoginPage /> },
@@ -75,8 +106,12 @@ export const router = createBrowserRouter([
       { index: true, element: null },
       { path: 'atendimentos', element: <ListagemAtendimentos /> },
       { path: 'regua', loader: carregarRegua, element: <ReguaPage /> },
+      { path: 'usuarios', loader: carregarPerfis, element: <PerfisPage /> },
       ...rotasDoInventario
-        .filter((path) => path !== 'regua' && path !== 'atendimentos')
+        .filter(
+          (path) =>
+            path !== 'regua' && path !== 'usuarios' && path !== 'atendimentos'
+        )
         .map((path) => ({
           path,
           element: <PaginaArea />
