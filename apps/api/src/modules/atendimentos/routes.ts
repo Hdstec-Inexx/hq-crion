@@ -1,11 +1,17 @@
 import {
+  atendimentoDetalheSchema,
   custoVisivelPara,
+  downloadVisivelPara,
   listagemResponseSchema,
-  type AtendimentoListItem
+  type AtendimentoDetalhe,
+  type AtendimentoListItem,
+  type Avaliacao,
+  type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
 import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import { perfilDaAutorizacao } from '../perfil/sessoes.js';
+import { reguaUnica } from '../regua/regua-unica.js';
 
 function iniciadoNoMesCorrente(dia: number, hora: string) {
   const { inicio } = periodoMesCivil(new Date());
@@ -99,7 +105,77 @@ const extrasDoMes: AtendimentoListItem[] = Array.from({ length: 47 }, (_, index)
   };
 });
 
-const atendimentos = [...catalogoBase, ...extrasDoMes];
+function criteriosDaAvaliacao(conferida: boolean) {
+  return reguaUnica.criterios.map((criterio) => {
+    let estado: EstadoDoCriterio = 'Atendido';
+
+    if (criterio.nome === 'Validação de e-mail') {
+      estado = 'Não se aplica';
+    } else if (conferida && criterio.nome === 'Informação de Protocolo') {
+      estado = 'Não atendido';
+    }
+
+    return {
+      nome: criterio.nome,
+      estado,
+      pontos: criterio.valor,
+      critico: criterio.critico
+    };
+  });
+}
+
+function avaliacaoDe(nota: number, conferida: boolean): Avaliacao {
+  return {
+    nota,
+    aprovacao: nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado',
+    criterios: criteriosDaAvaliacao(conferida)
+  };
+}
+
+function detalheDe(item: AtendimentoListItem): AtendimentoDetalhe {
+  return {
+    ...item,
+    audio: `/media/${item.id}.wav`,
+    downloadDeAudio: `/media/${item.id}.wav`,
+    transcricao: [
+      {
+        locutor: 'Agente de Voz',
+        quando: '0:04',
+        texto: `Olá, aqui é a ${item.agente} da ${item.administradora}. Em que posso ajudar?`
+      },
+      {
+        locutor: 'Cliente',
+        quando: '0:12',
+        texto: `Preciso falar sobre ${item.motivo.toLowerCase()}.`
+      },
+      {
+        locutor: 'Agente de Voz',
+        quando: '0:18',
+        texto: 'Claro. Me confirma o CPF do titular para eu localizar o contrato.'
+      }
+    ],
+    avaliacaoDaIa: avaliacaoDe(item.nota, item.curadoria),
+    ...(item.curadoria ? { avaliacaoDoCurador: avaliacaoDe(6, true) } : {})
+  };
+}
+
+function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
+  return {
+    id: detalhe.id,
+    administradora: detalhe.administradora,
+    agente: detalhe.agente,
+    agenteId: detalhe.agenteId,
+    iniciadoEm: detalhe.iniciadoEm,
+    motivo: detalhe.motivo,
+    nota: detalhe.nota,
+    status: detalhe.status,
+    curadoria: detalhe.curadoria,
+    conversa: detalhe.conversa,
+    ...(detalhe.custo ? { custo: detalhe.custo } : {})
+  };
+}
+
+const atendimentos = [...catalogoBase, ...extrasDoMes].map(detalheDe);
 
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
@@ -209,14 +285,18 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       ultimaPagina,
       Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
     );
-    const paginaItens = itens.slice((pagina - 1) * tamanho, pagina * tamanho).map((item) => {
-      if (custoVisivelPara(perfil.papel)) {
-        return item;
-      }
+    const paginaItens = itens
+      .slice((pagina - 1) * tamanho, pagina * tamanho)
+      .map((item) => {
+        const listagem = itemDaListagem(item);
 
-      const { custo: _custo, ...semCusto } = item;
-      return semCusto;
-    });
+        if (custoVisivelPara(perfil.papel)) {
+          return listagem;
+        }
+
+        const { custo: _custo, ...semCusto } = listagem;
+        return semCusto;
+      });
 
     return listagemResponseSchema.parse({
       recorte,
@@ -224,6 +304,30 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       tamanho,
       total,
       itens: paginaItens
+    });
+  });
+
+  app.get('/atendimentos/:id', async (request, reply) => {
+    semCache(reply);
+    const perfil = perfilDaAutorizacao(request.headers.authorization);
+
+    if (!perfil) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    const { id } = request.params as { id: string };
+    const encontrado = atendimentos.find((item) => item.id === id);
+
+    if (!encontrado) {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    const { custo, downloadDeAudio, ...resto } = encontrado;
+
+    return atendimentoDetalheSchema.parse({
+      ...resto,
+      ...(custoVisivelPara(perfil.papel) ? { custo } : {}),
+      ...(downloadVisivelPara(perfil.papel) ? { downloadDeAudio } : {})
     });
   });
 };

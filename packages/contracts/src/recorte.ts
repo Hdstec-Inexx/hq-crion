@@ -68,6 +68,13 @@ export function lerRecorte(query: {
   };
 }
 
+export function destinoDaLista(recorte: Recorte): string {
+  const query = queryDoRecorte(recorte);
+  const qs = query.toString();
+
+  return qs ? `/atendimentos?${qs}` : '/atendimentos';
+}
+
 export function periodoMesCivil(referencia: Date): { inicio: string; fim: string } {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',

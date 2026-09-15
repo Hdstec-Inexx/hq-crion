@@ -8,6 +8,7 @@ import {
 import { LoginPage } from '../features/auth/LoginPage';
 import { buscarPerfil } from '../features/auth/api';
 import { lerSessao, limparSessao } from '../features/auth/sessao';
+import { DetalheAtendimento } from '../features/atendimentos/DetalheAtendimento';
 import { ListagemAtendimentos } from '../features/atendimentos/ListagemAtendimentos';
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { HealthPage } from '../features/health/HealthPage';
@@ -21,8 +22,7 @@ const rotasDoInventario = [
     papeis.flatMap((papel) =>
       areasDaCasca(papel).map((area) => area.rota.replace(/^\//, ''))
     )
-  ),
-  'atendimentos/:id'
+  )
 ];
 
 async function carregarPerfil({ request }: LoaderFunctionArgs) {
@@ -74,6 +74,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: null },
       { path: 'atendimentos', element: <ListagemAtendimentos /> },
+      { path: 'atendimentos/:id', element: <DetalheAtendimento /> },
       { path: 'regua', loader: carregarRegua, element: <ReguaPage /> },
       ...rotasDoInventario
         .filter((path) => path !== 'regua' && path !== 'atendimentos')
