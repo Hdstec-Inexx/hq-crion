@@ -61,8 +61,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(401).send({ statusCode: 401 });
     }
 
-    const email = parsed.data.email.trim();
-    const encontrado = buscarPorEmail(email);
+    const encontrado = buscarPorEmail(parsed.data.email);
 
     if (!encontrado || !senhaConfere(encontrado.senha, parsed.data.senha)) {
       return reply.code(401).send({ statusCode: 401 });

@@ -377,7 +377,47 @@ test('Admin não cria Perfil com e-mail já usado', async () => {
   }
 });
 
-test('só Admin acede a Usuários na casca; o h1 usa Perfil', () => {
+test('Admin não cria Perfil com e-mail já usado em outra capitalização', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Outra Ana',
+        email: 'Ana.Souza@crion',
+        papel: 'Curador'
+      }
+    });
+
+    assert.equal(response.statusCode, 409);
+  } finally {
+    await app.close();
+  }
+});
+
+test('login encontra o Perfil mesmo com e-mail em outra capitalização', async () => {
+  const app = await buildApp();
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'Bruno.Alves@crion', senha: 'crion-hq' }
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = loginResponseSchema.parse(response.json());
+    assert.equal(body.perfil.email, 'bruno.alves@crion');
+    assert.equal(body.perfil.papel, 'Admin');
+  } finally {
+    await app.close();
+  }
+});
+
+test('só Admin acede a Usuários na casca; o h1 usa Perfis', () => {
   assert.equal(
     destinoDaNavegacao({
       perfil: { papel: 'Curador' },

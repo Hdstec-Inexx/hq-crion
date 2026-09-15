@@ -2,14 +2,20 @@ import { z } from 'zod';
 
 export const papelSchema = z.enum(['Admin', 'Gestão', 'Curador']);
 
+const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[^\s@]+@[^\s@]+$/, 'E-mail inválido');
+
 export const perfilSchema = z.object({
   nome: z.string().min(1),
-  email: z.string().regex(/^[^\s@]+@[^\s@]+$/, 'E-mail inválido'),
+  email: emailSchema,
   papel: papelSchema
 });
 
 export const loginRequestSchema = z.object({
-  email: z.string().trim().regex(/^[^\s@]+@[^\s@]+$/, 'E-mail inválido'),
+  email: emailSchema,
   senha: z.string().min(1)
 });
 

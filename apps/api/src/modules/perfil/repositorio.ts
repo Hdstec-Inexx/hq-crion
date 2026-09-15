@@ -58,7 +58,8 @@ export function buscarPorId(id: string) {
 }
 
 export function buscarPorEmail(email: string) {
-  return registros.find((registro) => registro.email === email);
+  const normalizado = email.trim().toLowerCase();
+  return registros.find((registro) => registro.email === normalizado);
 }
 
 export function criarPerfil(identidade: Perfil) {
