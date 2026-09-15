@@ -67,6 +67,18 @@ export const avaliacaoSchema = z.object({
   criterios: z.array(criterioAvaliadoSchema).min(1)
 });
 
+export const avaliacaoDoCuradorSchema = avaliacaoSchema.extend({
+  notaDaAvaliacaoDaIa: z.number(),
+  comentario: z.string().min(1).optional()
+});
+
+export const conferenciaRequestSchema = z.object({
+  checklist: z.array(criterioAvaliadoSchema).min(1),
+  notaDaRegua: z.number(),
+  notaDaAvaliacaoDaIa: z.number(),
+  comentario: z.string().trim().min(1).optional()
+});
+
 export const turnoDaTranscricaoSchema = z.object({
   locutor: z.enum(['Agente de Voz', 'Cliente']),
   quando: z.string().min(1),
@@ -78,7 +90,7 @@ export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
   downloadDeAudio: caminhoDeMidiaSchema.optional(),
   transcricao: z.array(turnoDaTranscricaoSchema),
   avaliacaoDaIa: avaliacaoSchema,
-  avaliacaoDoCurador: avaliacaoSchema.optional()
+  avaliacaoDoCurador: avaliacaoDoCuradorSchema.optional()
 });
 
 export type AtendimentoListItem = z.infer<typeof atendimentoListItemSchema>;
@@ -86,5 +98,7 @@ export type ListagemResponse = z.infer<typeof listagemResponseSchema>;
 export type EstadoDoCriterio = z.infer<typeof estadoDoCriterioSchema>;
 export type CriterioAvaliado = z.infer<typeof criterioAvaliadoSchema>;
 export type Avaliacao = z.infer<typeof avaliacaoSchema>;
+export type AvaliacaoDoCurador = z.infer<typeof avaliacaoDoCuradorSchema>;
+export type ConferenciaRequest = z.infer<typeof conferenciaRequestSchema>;
 export type TurnoDaTranscricao = z.infer<typeof turnoDaTranscricaoSchema>;
 export type AtendimentoDetalhe = z.infer<typeof atendimentoDetalheSchema>;
