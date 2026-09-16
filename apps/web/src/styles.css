@@ -86,11 +86,19 @@ button {
   font-weight: 600;
 }
 
-.login-field input {
+.login-field input,
+.login-field textarea {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 12px;
   font-weight: 500;
+}
+
+.login-field textarea {
+  font: inherit;
+  font-weight: 500;
+  resize: vertical;
+  min-height: 8rem;
 }
 
 .login-error {
@@ -385,8 +393,17 @@ a.login-cta {
   margin: 0;
 }
 
+.ia-avaliadora-form {
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+}
+
+.ia-avaliadora-form .login-field:first-child {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 900px) {
-  .perfil-cartao {
+  .perfil-cartao,
+  .ia-avaliadora-form {
     grid-template-columns: 1fr;
   }
 }

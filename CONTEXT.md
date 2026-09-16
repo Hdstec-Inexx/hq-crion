@@ -57,7 +57,7 @@ A exportação do áudio do Atendimento. Só Admin e Gestão. O Curador reproduz
 ### Avaliação
 
 **IA Avaliadora**:
-A avaliadora primária (LLM) que avalia automaticamente todo Atendimento concluído. Há uma única configuração (prompt, modelo) para todas as Claras.
+A avaliadora primária (LLM) que avalia automaticamente todo Atendimento concluído. Há uma única configuração (prompt, modelo, temperatura) para todas as Claras.
 
 **Régua de Avaliação**:
 O conjunto único de critérios contra o qual todo Atendimento é medido, em todas as Administradoras. Uma Régua só — o dashboard consolidado compara a mesma escala.
