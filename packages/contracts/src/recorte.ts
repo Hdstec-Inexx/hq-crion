@@ -70,6 +70,7 @@ export function lerRecorte(query: {
 
 export const listasComRecorte = [
   '/atendimentos',
+  '/monitoramento',
   '/fila-de-curadoria',
   '/minhas-curadorias',
   '/curadorias-realizadas',

@@ -5,10 +5,13 @@ import {
   downloadVisivelPara,
   filaDeManutencaoResponseSchema,
   listagemResponseSchema,
+  monitoramentoDetalheSchema,
+  monitoramentoListagemResponseSchema,
   comentarioDaFilaSchema,
   type AtendimentoDetalhe,
   type AtendimentoListItem,
-  type EstadoDoCriterio
+  type EstadoDoCriterio,
+  type MonitoramentoDetalhe
 } from '@hq-crion/contracts/atendimento';
 import { dashboardResponseSchema } from '@hq-crion/contracts/dashboard';
 import type { Papel } from '@hq-crion/contracts/perfil';
@@ -23,7 +26,7 @@ type RegistroDeAtendimento = AtendimentoDetalhe & {
   comentarioStatus?: 'Pendente' | 'Resolvido';
 };
 
-type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas';
+type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas' | 'monitoramento';
 
 function iniciadoNoMesCorrente(dia: number, hora: string) {
   const { inicio } = periodoMesCivil(new Date());
@@ -266,6 +269,21 @@ function periodoDaQuery(query: Record<string, string | undefined>) {
   return periodoMesCivil(new Date());
 }
 
+function passaNoRecorte(
+  item: { administradora: string; agenteId: string },
+  recorte: ReturnType<typeof lerRecorte>
+) {
+  if (recorte.administradora && item.administradora !== recorte.administradora) {
+    return false;
+  }
+
+  if (recorte.agente && item.agenteId !== recorte.agente) {
+    return false;
+  }
+
+  return true;
+}
+
 function passaNoRecorteEPeriodo(
   item: RegistroDeAtendimento,
   recorte: ReturnType<typeof lerRecorte>,
@@ -279,15 +297,7 @@ function passaNoRecorteEPeriodo(
     return false;
   }
 
-  if (recorte.administradora && item.administradora !== recorte.administradora) {
-    return false;
-  }
-
-  if (recorte.agente && item.agenteId !== recorte.agente) {
-    return false;
-  }
-
-  return true;
+  return passaNoRecorte(item, recorte);
 }
 
 function passaNosFiltros(
@@ -297,6 +307,10 @@ function passaNosFiltros(
   modo: ModoDaListagem,
   perfilId: string
 ) {
+  if (modo === 'monitoramento') {
+    return passaNoRecorte(item, recorte) && item.status === 'Em andamento';
+  }
+
   const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
 
   if (!passaNoRecorteEPeriodo(item, recorte, query, quando)) {
@@ -383,6 +397,25 @@ function ordenarFila(itens: RegistroDeAtendimento[]) {
   });
 }
 
+function itemDoMonitoramento(item: RegistroDeAtendimento) {
+  return {
+    id: item.id,
+    administradora: item.administradora,
+    agente: item.agente,
+    agenteId: item.agenteId,
+    iniciadoEm: item.iniciadoEm,
+    motivo: item.motivo,
+    status: 'Em andamento' as const
+  };
+}
+
+function responderMonitoramento(item: RegistroDeAtendimento): MonitoramentoDetalhe {
+  return monitoramentoDetalheSchema.parse({
+    ...itemDoMonitoramento(item),
+    transcricao: item.transcricao
+  });
+}
+
 function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
   const { custo, downloadDeAudio, curadorId: _curadorId, concluidoEm: _concluidoEm, ...resto } =
     item;
@@ -440,9 +473,24 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       ultimaPagina,
       Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
     );
-    const paginaItens = itens
-      .slice((pagina - 1) * tamanho, pagina * tamanho)
-      .map((item) => {
+    const paginaItens = itens.slice((pagina - 1) * tamanho, pagina * tamanho);
+
+    if (modo === 'monitoramento') {
+      return monitoramentoListagemResponseSchema.parse({
+        recorte,
+        pagina,
+        tamanho,
+        total,
+        itens: paginaItens.map(itemDoMonitoramento)
+      });
+    }
+
+    return listagemResponseSchema.parse({
+      recorte,
+      pagina,
+      tamanho,
+      total,
+      itens: paginaItens.map((item) => {
         const listagem = itemDaListagem(item);
 
         if (custoVisivelPara(registro.papel)) {
@@ -451,14 +499,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
         const { custo: _custo, ...semCusto } = listagem;
         return semCusto;
-      });
-
-    return listagemResponseSchema.parse({
-      recorte,
-      pagina,
-      tamanho,
-      total,
-      itens: paginaItens
+      })
     });
   }
 
@@ -498,6 +539,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/atendimentos', (request, reply) => listar(request, reply, 'todos'));
+  app.get('/monitoramento', (request, reply) => listar(request, reply, 'monitoramento'));
   app.get('/fila-de-curadoria', (request, reply) => listar(request, reply, 'fila'));
   app.get('/minhas-curadorias', (request, reply) => listar(request, reply, 'minhas'));
   app.get('/curadorias-realizadas', (request, reply) =>
@@ -563,6 +605,24 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       total,
       itens: itens.slice((pagina - 1) * tamanho, pagina * tamanho)
     });
+  });
+
+  app.get('/monitoramento/:id', async (request, reply) => {
+    semCache(reply);
+    const perfil = perfilDaAutorizacao(request.headers.authorization);
+
+    if (!perfil) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    const { id } = request.params as { id: string };
+    const encontrado = atendimentos.find((item) => item.id === id);
+
+    if (!encontrado || encontrado.status !== 'Em andamento') {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    return responderMonitoramento(encontrado);
   });
 
   app.get('/atendimentos/:id', async (request, reply) => {
