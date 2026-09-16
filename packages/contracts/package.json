@@ -31,6 +31,10 @@
     "./dashboard": {
       "types": "./src/dashboard.ts",
       "default": "./dist/dashboard.js"
+    },
+    "./ia-avaliadora": {
+      "types": "./src/ia-avaliadora.ts",
+      "default": "./dist/ia-avaliadora.js"
     }
   },
   "scripts": {

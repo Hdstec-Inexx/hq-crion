@@ -18,6 +18,8 @@ import { PaginaArea } from '../features/paginas/PaginaArea';
 import { PerfisPage } from '../features/perfis/PerfisPage';
 import { MonitoramentoPage } from '../features/monitoramento/MonitoramentoPage';
 import { DetalheMonitoramento } from '../features/monitoramento/DetalheMonitoramento';
+import { IaAvaliadoraPage } from '../features/ia-avaliadora/IaAvaliadoraPage';
+import { buscarIaAvaliadora } from '../features/ia-avaliadora/api';
 import { listarPerfis } from '../features/perfis/api';
 import { buscarRegua } from '../features/regua/api';
 import { ReguaPage } from '../features/regua/ReguaPage';
@@ -65,6 +67,35 @@ async function carregarRegua({ request }: LoaderFunctionArgs) {
   }
 
   return regua;
+}
+
+async function carregarIaAvaliadora({ request }: LoaderFunctionArgs) {
+  const pathname = new URL(request.url).pathname;
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
+  }
+
+  const configuracao = await buscarIaAvaliadora(sessao, request.signal);
+
+  if (configuracao === null) {
+    limparSessao();
+    throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
+  }
+
+  if (configuracao === 'negado') {
+    const perfil = await buscarPerfil(sessao, request.signal);
+
+    if (!perfil) {
+      limparSessao();
+      throw redirect(destinoDaNavegacao({ perfil: null, pathname }));
+    }
+
+    throw redirect(destinoInicial(perfil.papel));
+  }
+
+  return configuracao;
 }
 
 async function carregarPerfis({ request }: LoaderFunctionArgs) {
@@ -128,11 +159,17 @@ export const router = createBrowserRouter([
       { path: 'manutencao', element: <FilaDeManutencao /> },
       { path: 'regua', loader: carregarRegua, element: <ReguaPage /> },
       { path: 'usuarios', loader: carregarPerfis, element: <PerfisPage /> },
+      {
+        path: 'ia-avaliadora',
+        loader: carregarIaAvaliadora,
+        element: <IaAvaliadoraPage />
+      },
       ...rotasDoInventario
         .filter(
           (path) =>
             path !== 'regua' &&
             path !== 'usuarios' &&
+            path !== 'ia-avaliadora' &&
             path !== 'dashboard' &&
             path !== 'atendimentos' &&
             path !== 'monitoramento' &&
