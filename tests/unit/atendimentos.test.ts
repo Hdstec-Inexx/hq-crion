@@ -9,6 +9,7 @@ import {
 } from '../../packages/contracts/src/atendimento.js';
 import {
   destinoDaLista,
+  destinoDoBadge,
   lerRecorte,
   periodoMesCivil,
   queryDoRecorte
@@ -39,6 +40,17 @@ test('voltar à lista preserva Recorte na URL', () => {
     '/atendimentos?administradora=Alter'
   );
   assert.equal(destinoDaLista({ administradora: null, agente: null }), '/atendimentos');
+});
+
+test('badge da Administradora recorta a lista atual sem Agente', () => {
+  assert.equal(
+    destinoDoBadge('Affix'),
+    '/atendimentos?administradora=Affix'
+  );
+  assert.equal(
+    destinoDoBadge('Alter', '/monitoramento'),
+    '/monitoramento?administradora=Alter'
+  );
 });
 
 test('query de Recorte faz round-trip entre URL e contrato', () => {

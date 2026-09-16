@@ -12,6 +12,7 @@ import type { Perfil } from '@hq-crion/contracts/perfil';
 import { destinoDaLista, lerRecorte } from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { buscarAtendimento, gravarConferencia } from './api';
 
 function formatarNota(nota: number) {
@@ -63,8 +64,8 @@ function formatarTempo(segundos: number) {
 function PlayerDeAudio({ src }: { src: string }) {
   const audio = useRef<HTMLAudioElement>(null);
   const [tocando, setTocando] = useState(false);
-  const [atual, setAtual] = useState(12);
-  const [duracao, setDuracao] = useState(161);
+  const [atual, setAtual] = useState(0);
+  const [duracao, setDuracao] = useState(0);
 
   async function onReproduzir() {
     const elemento = audio.current;
@@ -107,9 +108,9 @@ function PlayerDeAudio({ src }: { src: string }) {
               setAtual(media.currentTime);
             }
           }}
-          onEnded={() => {
+          onEnded={(event) => {
             setTocando(false);
-            setAtual(duracao);
+            setAtual(event.currentTarget.duration);
           }}
           onPause={() => setTocando(false)}
           onPlay={() => setTocando(true)}
@@ -365,7 +366,10 @@ export function DetalheAtendimento() {
             <div>
               <dt>Administradora</dt>
               <dd>
-                <span className="badge-administradora">{atendimento.administradora}</span>
+                <BadgeAdministradora
+                  administradora={atendimento.administradora}
+                  lista={searchParams.get('lista') ?? '/atendimentos'}
+                />
               </dd>
             </div>
             <div>
@@ -402,7 +406,7 @@ export function DetalheAtendimento() {
             />
           ) : null}
           <div
-            className={`avaliacao-workspace${atendimento.avaliacaoDoCurador ? '' : ' ia-only'}`}
+            className={`avaliacao-paineis${atendimento.avaliacaoDoCurador ? '' : ' ia-only'}`}
           >
             <PainelAvaliacao titulo="Avaliação da IA" avaliacao={atendimento.avaliacaoDaIa} />
             {atendimento.avaliacaoDoCurador ? (

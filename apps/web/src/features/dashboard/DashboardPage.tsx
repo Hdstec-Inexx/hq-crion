@@ -1,9 +1,8 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import {
-  administradoraSchema,
   destinoDoKpi,
-  queryDoRecorte
+  escreverRecorteNaQuery
 } from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
@@ -70,19 +69,9 @@ export function DashboardPage() {
   }, [searchParams]);
 
   function atualizarRecorte(administradora: string, agente: string) {
-    const recorteQuery = queryDoRecorte({
-      administradora: administradoraSchema.safeParse(administradora).data ?? null,
-      agente: administradora && agente ? agente : null
+    setSearchParams(escreverRecorteNaQuery(searchParams, administradora, agente), {
+      replace: true
     });
-    const proxima = new URLSearchParams(searchParams);
-    proxima.delete('administradora');
-    proxima.delete('agente');
-
-    for (const [chave, valor] of recorteQuery) {
-      proxima.set(chave, valor);
-    }
-
-    setSearchParams(proxima, { replace: true });
   }
 
   function onFiltrar(event: FormEvent<HTMLFormElement>) {

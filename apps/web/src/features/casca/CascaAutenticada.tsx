@@ -65,7 +65,7 @@ export function CascaAutenticada() {
           ))}
         </nav>
         <div className="casca-foot">
-          <strong>
+          <strong title={`${perfil.nome} · ${perfil.papel}`}>
             {perfil.nome} · {perfil.papel}
           </strong>
           <div>
@@ -76,7 +76,12 @@ export function CascaAutenticada() {
             >
               {recolhida ? '▸' : '◂'}
             </button>
-            <button className="casca-sair" type="button" onClick={onSair}>
+            <button
+              className="casca-sair"
+              type="button"
+              onClick={onSair}
+              aria-label={`Sair de ${perfil.nome}`}
+            >
               Sair
             </button>
           </div>

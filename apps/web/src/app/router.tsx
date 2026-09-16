@@ -1,5 +1,4 @@
-import { areasDaCasca, destinoDaNavegacao, destinoInicial } from '@hq-crion/contracts/casca';
-import type { Papel } from '@hq-crion/contracts/perfil';
+import { destinoDaNavegacao, destinoInicial } from '@hq-crion/contracts/casca';
 import {
   createBrowserRouter,
   redirect,
@@ -14,7 +13,6 @@ import { ListagemAtendimentos } from '../features/atendimentos/ListagemAtendimen
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { HealthPage } from '../features/health/HealthPage';
-import { PaginaArea } from '../features/paginas/PaginaArea';
 import { PerfisPage } from '../features/perfis/PerfisPage';
 import { MonitoramentoPage } from '../features/monitoramento/MonitoramentoPage';
 import { DetalheMonitoramento } from '../features/monitoramento/DetalheMonitoramento';
@@ -23,15 +21,6 @@ import { buscarIaAvaliadora } from '../features/ia-avaliadora/api';
 import { listarPerfis } from '../features/perfis/api';
 import { buscarRegua } from '../features/regua/api';
 import { ReguaPage } from '../features/regua/ReguaPage';
-
-const papeis: Papel[] = ['Admin', 'Gestão', 'Curador'];
-const rotasDoInventario = [
-  ...new Set(
-    papeis.flatMap((papel) =>
-      areasDaCasca(papel).map((area) => area.rota.replace(/^\//, ''))
-    )
-  )
-];
 
 async function carregarPerfil({ request }: LoaderFunctionArgs) {
   const pathname = new URL(request.url).pathname;
@@ -163,25 +152,7 @@ export const router = createBrowserRouter([
         path: 'ia-avaliadora',
         loader: carregarIaAvaliadora,
         element: <IaAvaliadoraPage />
-      },
-      ...rotasDoInventario
-        .filter(
-          (path) =>
-            path !== 'regua' &&
-            path !== 'usuarios' &&
-            path !== 'ia-avaliadora' &&
-            path !== 'dashboard' &&
-            path !== 'atendimentos' &&
-            path !== 'monitoramento' &&
-            path !== 'fila-de-curadoria' &&
-            path !== 'minhas-curadorias' &&
-            path !== 'curadorias-realizadas' &&
-            path !== 'manutencao'
-        )
-        .map((path) => ({
-          path,
-          element: <PaginaArea />
-        }))
+      }
     ]
   }
 ]);

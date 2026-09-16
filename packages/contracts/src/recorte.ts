@@ -40,6 +40,31 @@ export function queryDoRecorte(recorte: Recorte): URLSearchParams {
   return query;
 }
 
+export function escreverRecorteNaQuery(
+  atual: URLSearchParams,
+  administradora: string,
+  agente: string,
+  opcoes?: { resetarPagina?: boolean }
+): URLSearchParams {
+  const recorteQuery = queryDoRecorte({
+    administradora: administradoraSchema.safeParse(administradora).data ?? null,
+    agente: administradora && agente ? agente : null
+  });
+  const proxima = new URLSearchParams(atual);
+  proxima.delete('administradora');
+  proxima.delete('agente');
+
+  if (opcoes?.resetarPagina) {
+    proxima.delete('pagina');
+  }
+
+  for (const [chave, valor] of recorteQuery) {
+    proxima.set(chave, valor);
+  }
+
+  return proxima;
+}
+
 export function lerRecorte(query: {
   administradora?: string;
   agente?: string;
@@ -88,6 +113,13 @@ export function destinoDaLista(
   const qs = query.toString();
 
   return qs ? `${caminho}?${qs}` : caminho;
+}
+
+export function destinoDoBadge(
+  administradora: Administradora,
+  lista: string = '/atendimentos'
+): string {
+  return destinoDaLista({ administradora, agente: null }, lista);
 }
 
 export function destinoDoKpi(

@@ -53,10 +53,7 @@ export function HealthPage() {
       <section className="health-card" aria-live="polite">
         <img src="/logo-crion.png" alt="Crion" width={132} height={36} />
         <h1>{title}</h1>
-        <p>
-          Página pública, fora da Casca autenticada. Quem chega aqui vê se o
-          serviço de qualidade das Claras está no ar, sem login.
-        </p>
+        <p>Página pública, fora da Casca autenticada.</p>
         <p className={`health-status health-status-${state}`}>
           <span aria-hidden="true" />
           {status}

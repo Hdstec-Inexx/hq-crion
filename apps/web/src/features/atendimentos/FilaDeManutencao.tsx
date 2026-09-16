@@ -1,12 +1,10 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { FilaDeManutencaoResponse } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
-import {
-  administradoraSchema,
-  queryDoRecorte
-} from '@hq-crion/contracts/recorte';
+import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { buscarFilaDeManutencao, marcarComentarioResolvido } from './api';
 
@@ -72,20 +70,9 @@ export function FilaDeManutencao() {
   }, [searchParams]);
 
   function atualizarRecorte(administradora: string, agente: string) {
-    const recorteQuery = queryDoRecorte({
-      administradora: administradoraSchema.safeParse(administradora).data ?? null,
-      agente: administradora && agente ? agente : null
-    });
-    const proxima = new URLSearchParams(searchParams);
-    proxima.delete('administradora');
-    proxima.delete('agente');
-    proxima.delete('pagina');
-
-    for (const [chave, valor] of recorteQuery) {
-      proxima.set(chave, valor);
-    }
-
-    setSearchParams(proxima, { replace: true });
+    setSearchParams(escreverRecorteNaQuery(searchParams, administradora, agente, {
+      resetarPagina: true
+    }), { replace: true });
   }
 
   function onFiltrar(event: FormEvent<HTMLFormElement>) {
@@ -222,7 +209,7 @@ export function FilaDeManutencao() {
                     </div>
                     <p className="listagem-comentario">{item.texto}</p>
                   </div>
-                  <span className="badge-administradora">{item.administradora}</span>
+                  <BadgeAdministradora administradora={item.administradora} lista="/manutencao" />
                   {item.status === 'Pendente' ? (
                     <button
                       type="button"

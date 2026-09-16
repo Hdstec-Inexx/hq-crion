@@ -4,6 +4,7 @@ import type { Perfil } from '@hq-crion/contracts/perfil';
 import { destinoDaLista, lerRecorte } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { buscarDetalheDoMonitoramento } from './api';
 
 function listaComRecorte(searchParams: URLSearchParams) {
@@ -88,7 +89,10 @@ export function DetalheMonitoramento() {
             <div>
               <dt>Administradora</dt>
               <dd>
-                <span className="badge-administradora">{atendimento.administradora}</span>
+                <BadgeAdministradora
+                  administradora={atendimento.administradora}
+                  lista={searchParams.get('lista') ?? '/monitoramento'}
+                />
               </dd>
             </div>
             <div>
