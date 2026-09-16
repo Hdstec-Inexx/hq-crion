@@ -4,6 +4,20 @@ import { lerSessao } from '../auth/sessao';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
+function queryDoDashboard(query: URLSearchParams) {
+  const limpa = new URLSearchParams();
+
+  for (const chave of ['administradora', 'agente', 'inicio', 'fim'] as const) {
+    const valor = query.get(chave)?.trim();
+
+    if (valor) {
+      limpa.set(chave, valor);
+    }
+  }
+
+  return limpa;
+}
+
 export async function buscarDashboard(query: URLSearchParams, signal?: AbortSignal) {
   const sessao = lerSessao();
 
@@ -11,7 +25,7 @@ export async function buscarDashboard(query: URLSearchParams, signal?: AbortSign
     return null;
   }
 
-  const response = await fetch(`${apiUrl}/dashboard?${query.toString()}`, {
+  const response = await fetch(`${apiUrl}/dashboard?${queryDoDashboard(query).toString()}`, {
     signal,
     headers: {
       ...autorizacao(sessao),

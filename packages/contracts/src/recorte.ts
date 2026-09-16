@@ -93,17 +93,16 @@ export function destinoDoKpi(
   recorte: Recorte,
   periodo?: { inicio: string; fim: string } | null
 ): string {
-  const destino = destinoDaLista(recorte);
+  const query = queryDoRecorte(recorte);
 
-  if (!periodo?.inicio || !periodo.fim) {
-    return destino;
+  if (periodo?.inicio && periodo.fim) {
+    query.set('inicio', periodo.inicio);
+    query.set('fim', periodo.fim);
   }
 
-  const query = new URLSearchParams(destino.split('?')[1] ?? '');
-  query.set('inicio', periodo.inicio);
-  query.set('fim', periodo.fim);
+  const qs = query.toString();
 
-  return `/atendimentos?${query.toString()}`;
+  return qs ? `/atendimentos?${qs}` : '/atendimentos';
 }
 
 export function periodoMesCivil(referencia: Date): { inicio: string; fim: string } {

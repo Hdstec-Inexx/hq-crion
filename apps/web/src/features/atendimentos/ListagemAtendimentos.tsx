@@ -3,12 +3,11 @@ import { custoVisivelPara, type ListagemResponse } from '@hq-crion/contracts/ate
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import {
   administradoraSchema,
-  administradoras,
-  agentesDeVoz,
   queryDoRecorte
 } from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { RecorteCascata } from '../recorte/RecorteCascata';
 import { buscarAtendimentos } from './api';
 
 function formatarQuando(iso: string) {
@@ -50,10 +49,6 @@ export function ListagemAtendimentos({
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
-  const administradoraLida = administradoraSchema.safeParse(administradoraNaUrl);
-  const agentes = administradoraLida.success
-    ? agentesDeVoz.filter((agente) => agente.administradora === administradoraLida.data)
-    : [];
 
   useEffect(() => {
     const controller = new AbortController();
@@ -132,37 +127,11 @@ export function ListagemAtendimentos({
     <div>
       <div className="pagina-head">
         <h1>{tituloDaPagina(location.pathname, perfil.papel)}</h1>
-        <div className="recorte">
-          <label>
-            Administradora
-            <select
-              value={administradoraNaUrl}
-              onChange={(event) => atualizarRecorte(event.target.value, '')}
-            >
-              <option value="">Todas</option>
-              {administradoras.map((administradora) => (
-                <option key={administradora} value={administradora}>
-                  {administradora}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Agente de Voz
-            <select
-              value={agenteNaUrl}
-              disabled={!administradoraNaUrl}
-              onChange={(event) => atualizarRecorte(administradoraNaUrl, event.target.value)}
-            >
-              <option value="">Todos os agentes</option>
-              {agentes.map((agente) => (
-                <option key={agente.id} value={agente.id}>
-                  {agente.nome}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <RecorteCascata
+          administradora={administradoraNaUrl}
+          agente={agenteNaUrl}
+          onChange={atualizarRecorte}
+        />
       </div>
       <form className="listagem-filtros" onSubmit={onFiltrar}>
         <input

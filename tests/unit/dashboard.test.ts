@@ -5,6 +5,7 @@ import { areasDaCasca, destinoDaNavegacao } from '../../packages/contracts/src/c
 import { dashboardResponseSchema } from '../../packages/contracts/src/dashboard.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import { destinoDoKpi } from '../../packages/contracts/src/recorte.js';
+import { reguaDeAvaliacaoSchema } from '../../packages/contracts/src/regua.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -72,6 +73,18 @@ test('Curador não tem Dashboard na casca e é recusado na rota', () => {
   );
 });
 
+test('GET /dashboard sem sessão responde 401', async () => {
+  const app = await buildApp();
+
+  try {
+    const response = await app.inject({ method: 'GET', url: '/dashboard' });
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /dashboard recusa Curador', async () => {
   const app = await buildApp();
 
@@ -84,6 +97,7 @@ test('GET /dashboard recusa Curador', async () => {
     });
 
     assert.equal(response.statusCode, 403);
+    assert.equal(response.headers['cache-control'], 'no-store');
   } finally {
     await app.close();
   }
@@ -195,6 +209,68 @@ test('período submetido recorta agregados e o deep link do KPI', async () => {
       destinoDoKpi(body.recorte, body.periodo),
       `/atendimentos?${query}`
     );
+  } finally {
+    await app.close();
+  }
+});
+
+test('filtros da listagem não entram no agregado do Dashboard', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const dashboard = await app.inject({
+      method: 'GET',
+      url: '/dashboard',
+      headers
+    });
+    const comFiltroDaLista = await app.inject({
+      method: 'GET',
+      url: '/dashboard?status=Em%20andamento',
+      headers
+    });
+
+    assert.equal(dashboard.statusCode, 200);
+    assert.deepEqual(
+      dashboardResponseSchema.parse(dashboard.json()).kpis,
+      dashboardResponseSchema.parse(comFiltroDaLista.json()).kpis
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test('aprovação do Dashboard usa o limiar da Régua única', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const recorte = 'administradora=Affix';
+    const regua = await app.inject({
+      method: 'GET',
+      url: '/regua',
+      headers
+    });
+    const dashboard = await app.inject({
+      method: 'GET',
+      url: `/dashboard?${recorte}`,
+      headers
+    });
+    const lista = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?${recorte}`,
+      headers
+    });
+
+    const limiar = reguaDeAvaliacaoSchema.parse(regua.json()).limiarDeAprovacao;
+    const itens = lista.json().itens as { nota: number }[];
+    const esperada = (itens.filter((item) => item.nota >= limiar).length / itens.length) * 100;
+    const body = dashboardResponseSchema.parse(dashboard.json());
+
+    assert.equal(kpi(body, 'aprovacao').valor, esperada);
+    assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
   } finally {
     await app.close();
   }

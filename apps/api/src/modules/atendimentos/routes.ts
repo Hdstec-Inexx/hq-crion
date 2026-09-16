@@ -266,17 +266,14 @@ function periodoDaQuery(query: Record<string, string | undefined>) {
   return periodoMesCivil(new Date());
 }
 
-function passaNosFiltros(
+function passaNoRecorteEPeriodo(
   item: RegistroDeAtendimento,
   recorte: ReturnType<typeof lerRecorte>,
   query: Record<string, string | undefined>,
-  modo: ModoDaListagem,
-  perfilId: string
+  quando: string
 ) {
   const periodo = periodoDaQuery(query);
-  const dia = diaNoFuso(
-    modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm
-  );
+  const dia = diaNoFuso(quando);
 
   if (dia < periodo.inicio || dia > periodo.fim) {
     return false;
@@ -287,6 +284,22 @@ function passaNosFiltros(
   }
 
   if (recorte.agente && item.agenteId !== recorte.agente) {
+    return false;
+  }
+
+  return true;
+}
+
+function passaNosFiltros(
+  item: RegistroDeAtendimento,
+  recorte: ReturnType<typeof lerRecorte>,
+  query: Record<string, string | undefined>,
+  modo: ModoDaListagem,
+  perfilId: string
+) {
+  const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
+
+  if (!passaNoRecorteEPeriodo(item, recorte, query, quando)) {
     return false;
   }
 
@@ -338,22 +351,7 @@ function passaNoDashboard(
   recorte: ReturnType<typeof lerRecorte>,
   query: Record<string, string | undefined>
 ) {
-  const periodo = periodoDaQuery(query);
-  const dia = diaNoFuso(item.iniciadoEm);
-
-  if (dia < periodo.inicio || dia > periodo.fim) {
-    return false;
-  }
-
-  if (recorte.administradora && item.administradora !== recorte.administradora) {
-    return false;
-  }
-
-  if (recorte.agente && item.agenteId !== recorte.agente) {
-    return false;
-  }
-
-  return true;
+  return passaNoRecorteEPeriodo(item, recorte, query, item.iniciadoEm);
 }
 
 function kpisDoPeriodo(itens: RegistroDeAtendimento[]) {
