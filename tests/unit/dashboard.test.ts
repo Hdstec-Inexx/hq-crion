@@ -1,0 +1,201 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { buildApp } from '../../apps/api/src/app.js';
+import { areasDaCasca, destinoDaNavegacao } from '../../packages/contracts/src/casca.js';
+import { dashboardResponseSchema } from '../../packages/contracts/src/dashboard.js';
+import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
+import { destinoDoKpi } from '../../packages/contracts/src/recorte.js';
+
+process.env.NODE_ENV = 'test';
+
+async function sessaoDe(
+  app: Awaited<ReturnType<typeof buildApp>>,
+  email: string
+) {
+  const login = await app.inject({
+    method: 'POST',
+    url: '/login',
+    payload: { email, senha: 'crion-hq' }
+  });
+
+  return loginResponseSchema.parse(login.json()).sessao;
+}
+
+function kpi(
+  body: ReturnType<typeof dashboardResponseSchema.parse>,
+  id: 'atendimentos' | 'notaMedia' | 'aprovacao'
+) {
+  const encontrado = body.kpis.find((item) => item.id === id);
+  assert.ok(encontrado, `KPI ${id} ausente`);
+  return encontrado;
+}
+
+test('deep link do KPI bate com a query da lista', () => {
+  assert.equal(
+    destinoDoKpi({ administradora: 'Affix', agente: 'affix-0800' }),
+    '/atendimentos?administradora=Affix&agente=affix-0800'
+  );
+  assert.equal(
+    destinoDoKpi({ administradora: 'Alter', agente: null }),
+    '/atendimentos?administradora=Alter'
+  );
+  assert.equal(destinoDoKpi({ administradora: null, agente: null }), '/atendimentos');
+});
+
+test('KPI com período leva o mesmo intervalo para a lista', () => {
+  assert.equal(
+    destinoDoKpi(
+      { administradora: 'Affix', agente: null },
+      { inicio: '2026-09-01', fim: '2026-09-30' }
+    ),
+    '/atendimentos?administradora=Affix&inicio=2026-09-01&fim=2026-09-30'
+  );
+});
+
+test('casca da Gestão e do Admin abre Dashboard consolidado, sem Recorte na rota', () => {
+  const gestao = areasDaCasca('Gestão').find((area) => area.rota === '/dashboard');
+  const admin = areasDaCasca('Admin').find((area) => area.rota === '/dashboard');
+  assert.equal(gestao?.rota, '/dashboard');
+  assert.equal(gestao?.titulo, 'Dashboard');
+  assert.equal(admin?.rota, '/dashboard');
+  assert.equal(admin?.titulo, 'Dashboard');
+});
+
+test('Curador não tem Dashboard na casca e é recusado na rota', () => {
+  assert.equal(
+    areasDaCasca('Curador').some((area) => area.rota === '/dashboard'),
+    false
+  );
+  assert.equal(
+    destinoDaNavegacao({ perfil: { papel: 'Curador' }, pathname: '/dashboard' }),
+    '/atendimentos'
+  );
+});
+
+test('GET /dashboard recusa Curador', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'carla.mendes@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/dashboard',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 403);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /dashboard rejeita par Administradora + Agente inválido', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/dashboard?administradora=Affix&agente=alter-1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
+test('agregados do Dashboard respeitam Recorte e batem com a lista', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const recorte = 'administradora=Affix&agente=affix-0800';
+    const dashboard = await app.inject({
+      method: 'GET',
+      url: `/dashboard?${recorte}`,
+      headers
+    });
+    const lista = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?${recorte}`,
+      headers
+    });
+
+    assert.equal(dashboard.statusCode, 200);
+    const body = dashboardResponseSchema.parse(dashboard.json());
+    assert.deepEqual(body.recorte, {
+      administradora: 'Affix',
+      agente: 'affix-0800'
+    });
+    assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
+    assert.equal(kpi(body, 'notaMedia').valor, 8.5);
+    assert.equal(kpi(body, 'aprovacao').valor, 100);
+    assert.equal(destinoDoKpi(body.recorte), `/atendimentos?${recorte}`);
+  } finally {
+    await app.close();
+  }
+});
+
+test('sem Recorte o Dashboard soma todas as Claras do período', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'bruno.alves@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const dashboard = await app.inject({
+      method: 'GET',
+      url: '/dashboard',
+      headers
+    });
+    const lista = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers
+    });
+
+    assert.equal(dashboard.statusCode, 200);
+    const body = dashboardResponseSchema.parse(dashboard.json());
+    assert.deepEqual(body.recorte, { administradora: null, agente: null });
+    assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
+    assert.ok((kpi(body, 'atendimentos').valor ?? 0) > 1);
+    assert.equal(destinoDoKpi(body.recorte), '/atendimentos');
+  } finally {
+    await app.close();
+  }
+});
+
+test('período submetido recorta agregados e o deep link do KPI', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const query = 'administradora=Affix&inicio=2020-01-01&fim=2020-01-31';
+    const dashboard = await app.inject({
+      method: 'GET',
+      url: `/dashboard?${query}`,
+      headers
+    });
+    const lista = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?${query}`,
+      headers
+    });
+
+    assert.equal(dashboard.statusCode, 200);
+    const body = dashboardResponseSchema.parse(dashboard.json());
+    assert.deepEqual(body.periodo, { inicio: '2020-01-01', fim: '2020-01-31' });
+    assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
+    assert.equal(kpi(body, 'atendimentos').valor, 1);
+    assert.equal(kpi(body, 'notaMedia').valor, 5);
+    assert.equal(
+      destinoDoKpi(body.recorte, body.periodo),
+      `/atendimentos?${query}`
+    );
+  } finally {
+    await app.close();
+  }
+});

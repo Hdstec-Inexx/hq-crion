@@ -441,6 +441,38 @@ a.login-cta {
   font-weight: 700;
 }
 
+.dashboard-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dashboard-kpi {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-kpi small {
+  color: var(--mute);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-kpi strong {
+  display: block;
+  font-size: 28px;
+  margin-top: 6px;
+  letter-spacing: -0.03em;
+}
+
 .listagem-painel {
   background: #fff;
   border: 1px solid var(--line);
@@ -978,7 +1010,8 @@ a.login-cta {
 
 @media (max-width: 900px) {
   .detalhe-fatos,
-  .avaliacao-workspace {
+  .avaliacao-workspace,
+  .dashboard-kpis {
     grid-template-columns: 1fr;
   }
 }

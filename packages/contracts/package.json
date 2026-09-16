@@ -27,6 +27,10 @@
     "./atendimento": {
       "types": "./src/atendimento.ts",
       "default": "./dist/atendimento.js"
+    },
+    "./dashboard": {
+      "types": "./src/dashboard.ts",
+      "default": "./dist/dashboard.js"
     }
   },
   "scripts": {

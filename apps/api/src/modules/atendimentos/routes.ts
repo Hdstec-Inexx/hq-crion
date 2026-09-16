@@ -10,6 +10,7 @@ import {
   type AtendimentoListItem,
   type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
+import { dashboardResponseSchema } from '@hq-crion/contracts/dashboard';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
@@ -332,6 +333,48 @@ function passaNosFiltros(
   return true;
 }
 
+function passaNoDashboard(
+  item: RegistroDeAtendimento,
+  recorte: ReturnType<typeof lerRecorte>,
+  query: Record<string, string | undefined>
+) {
+  const periodo = periodoDaQuery(query);
+  const dia = diaNoFuso(item.iniciadoEm);
+
+  if (dia < periodo.inicio || dia > periodo.fim) {
+    return false;
+  }
+
+  if (recorte.administradora && item.administradora !== recorte.administradora) {
+    return false;
+  }
+
+  if (recorte.agente && item.agenteId !== recorte.agente) {
+    return false;
+  }
+
+  return true;
+}
+
+function kpisDoPeriodo(itens: RegistroDeAtendimento[]) {
+  const atendimentos = itens.length;
+  const notaMedia =
+    atendimentos === 0
+      ? null
+      : itens.reduce((soma, item) => soma + item.nota, 0) / atendimentos;
+  const aprovados = itens.filter(
+    (item) => item.nota >= reguaUnica.limiarDeAprovacao
+  ).length;
+  const aprovacao =
+    atendimentos === 0 ? null : (aprovados / atendimentos) * 100;
+
+  return [
+    { id: 'atendimentos' as const, rotulo: 'Atendimentos', valor: atendimentos },
+    { id: 'notaMedia' as const, rotulo: 'Nota média', valor: notaMedia },
+    { id: 'aprovacao' as const, rotulo: 'Aprovação', valor: aprovacao }
+  ];
+}
+
 function ordenarFila(itens: RegistroDeAtendimento[]) {
   return [...itens].sort((a, b) => {
     const quandoA = a.concluidoEm ?? a.iniciadoEm;
@@ -420,6 +463,41 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       itens: paginaItens
     });
   }
+
+  app.get('/dashboard', async (request, reply) => {
+    semCache(reply);
+    const registro = registroDaAutorizacao(request.headers.authorization);
+
+    if (!registro) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    if (registro.papel === 'Curador') {
+      return reply.code(403).send({ statusCode: 403 });
+    }
+
+    const query = request.query as Record<string, string | undefined>;
+    let recorte;
+
+    try {
+      recorte = lerRecorte({
+        administradora: query.administradora,
+        agente: query.agente
+      });
+    } catch {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    const filtrados = atendimentos.filter((item) =>
+      passaNoDashboard(item, recorte, query)
+    );
+
+    return dashboardResponseSchema.parse({
+      recorte,
+      periodo: periodoDaQuery(query),
+      kpis: kpisDoPeriodo(filtrados)
+    });
+  });
 
   app.get('/atendimentos', (request, reply) => listar(request, reply, 'todos'));
   app.get('/fila-de-curadoria', (request, reply) => listar(request, reply, 'fila'));

@@ -89,6 +89,23 @@ export function destinoDaLista(
   return qs ? `${caminho}?${qs}` : caminho;
 }
 
+export function destinoDoKpi(
+  recorte: Recorte,
+  periodo?: { inicio: string; fim: string } | null
+): string {
+  const destino = destinoDaLista(recorte);
+
+  if (!periodo?.inicio || !periodo.fim) {
+    return destino;
+  }
+
+  const query = new URLSearchParams(destino.split('?')[1] ?? '');
+  query.set('inicio', periodo.inicio);
+  query.set('fim', periodo.fim);
+
+  return `/atendimentos?${query.toString()}`;
+}
+
 export function periodoMesCivil(referencia: Date): { inicio: string; fim: string } {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
