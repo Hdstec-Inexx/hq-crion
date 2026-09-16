@@ -115,6 +115,18 @@ export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
   avaliacaoDoCurador: avaliacaoDoCuradorSchema.optional()
 });
 
+export const monitoramentoDetalheSchema = z.object({
+  id: z.string().min(1),
+  administradora: administradoraSchema,
+  agente: z.string().min(1),
+  agenteId: z.string().min(1),
+  iniciadoEm: z.string().min(1),
+  motivo: z.string().min(1),
+  status: z.literal('Em andamento'),
+  conversa: z.string().min(1),
+  transcricao: z.array(turnoDaTranscricaoSchema)
+});
+
 export type AtendimentoListItem = z.infer<typeof atendimentoListItemSchema>;
 export type ListagemResponse = z.infer<typeof listagemResponseSchema>;
 export type StatusDoComentario = z.infer<typeof statusDoComentarioSchema>;
@@ -127,3 +139,4 @@ export type AvaliacaoDoCurador = z.infer<typeof avaliacaoDoCuradorSchema>;
 export type ConferenciaRequest = z.infer<typeof conferenciaRequestSchema>;
 export type TurnoDaTranscricao = z.infer<typeof turnoDaTranscricaoSchema>;
 export type AtendimentoDetalhe = z.infer<typeof atendimentoDetalheSchema>;
+export type MonitoramentoDetalhe = z.infer<typeof monitoramentoDetalheSchema>;

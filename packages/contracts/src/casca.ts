@@ -107,6 +107,10 @@ function isDetalheDeAtendimento(pathname: string) {
   return /^\/atendimentos\/.+/.test(pathname);
 }
 
+function isDetalheDeMonitoramento(pathname: string) {
+  return /^\/monitoramento\/.+/.test(pathname);
+}
+
 export function destinoDaNavegacao(input: {
   perfil: { papel: Papel } | null;
   pathname: string;
@@ -139,12 +143,20 @@ function areaLiberada(papel: Papel, pathname: string) {
     return areasDaCasca(papel).some((area) => area.rota === '/atendimentos');
   }
 
+  if (isDetalheDeMonitoramento(pathname)) {
+    return areasDaCasca(papel).some((area) => area.rota === '/monitoramento');
+  }
+
   return areasDaCasca(papel).some((area) => area.rota === pathname);
 }
 
 export function tituloDaPagina(pathname: string, papel: Papel): string {
   if (isDetalheDeAtendimento(pathname)) {
     return 'Atendimento';
+  }
+
+  if (isDetalheDeMonitoramento(pathname)) {
+    return 'Monitoramento ao Vivo';
   }
 
   return areasDaCasca(papel).find((area) => area.rota === pathname)?.titulo ?? '';

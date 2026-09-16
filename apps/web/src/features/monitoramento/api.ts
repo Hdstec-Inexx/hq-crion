@@ -1,0 +1,74 @@
+import { monitoramentoDetalheSchema, listagemResponseSchema } from '@hq-crion/contracts/atendimento';
+import { autorizacao } from '../auth/api';
+import { lerSessao } from '../auth/sessao';
+
+const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+
+function queryDaListagem(query: URLSearchParams) {
+  const limpa = new URLSearchParams(query);
+  limpa.delete('lista');
+  return limpa;
+}
+
+export async function buscarMonitoramento(query: URLSearchParams, signal?: AbortSignal) {
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    return null;
+  }
+
+  const response = await fetch(
+    `${apiUrl}/monitoramento?${queryDaListagem(query).toString()}`,
+    {
+      signal,
+      headers: {
+        ...autorizacao(sessao),
+        'Cache-Control': 'no-store'
+      }
+    }
+  );
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (response.status === 400) {
+    throw new Error('recorte-invalido');
+  }
+
+  if (!response.ok) {
+    throw new Error('listagem-indisponivel');
+  }
+
+  return listagemResponseSchema.parse(await response.json());
+}
+
+export async function buscarDetalheDoMonitoramento(id: string, signal?: AbortSignal) {
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    return null;
+  }
+
+  const response = await fetch(`${apiUrl}/monitoramento/${encodeURIComponent(id)}`, {
+    signal,
+    headers: {
+      ...autorizacao(sessao),
+      'Cache-Control': 'no-store'
+    }
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (response.status === 404) {
+    throw new Error('atendimento-nao-encontrado');
+  }
+
+  if (!response.ok) {
+    throw new Error('detalhe-indisponivel');
+  }
+
+  return monitoramentoDetalheSchema.parse(await response.json());
+}

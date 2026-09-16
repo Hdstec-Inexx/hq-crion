@@ -5,10 +5,12 @@ import {
   downloadVisivelPara,
   filaDeManutencaoResponseSchema,
   listagemResponseSchema,
+  monitoramentoDetalheSchema,
   comentarioDaFilaSchema,
   type AtendimentoDetalhe,
   type AtendimentoListItem,
-  type EstadoDoCriterio
+  type EstadoDoCriterio,
+  type MonitoramentoDetalhe
 } from '@hq-crion/contracts/atendimento';
 import { dashboardResponseSchema } from '@hq-crion/contracts/dashboard';
 import type { Papel } from '@hq-crion/contracts/perfil';
@@ -23,7 +25,7 @@ type RegistroDeAtendimento = AtendimentoDetalhe & {
   comentarioStatus?: 'Pendente' | 'Resolvido';
 };
 
-type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas';
+type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas' | 'monitoramento';
 
 function iniciadoNoMesCorrente(dia: number, hora: string) {
   const { inicio } = periodoMesCivil(new Date());
@@ -297,6 +299,18 @@ function passaNosFiltros(
   modo: ModoDaListagem,
   perfilId: string
 ) {
+  if (modo === 'monitoramento') {
+    if (recorte.administradora && item.administradora !== recorte.administradora) {
+      return false;
+    }
+
+    if (recorte.agente && item.agenteId !== recorte.agente) {
+      return false;
+    }
+
+    return item.status === 'Em andamento';
+  }
+
   const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
 
   if (!passaNoRecorteEPeriodo(item, recorte, query, quando)) {
@@ -380,6 +394,20 @@ function ordenarFila(itens: RegistroDeAtendimento[]) {
     const porConclusao = quandoA.localeCompare(quandoB);
 
     return porConclusao !== 0 ? porConclusao : a.id.localeCompare(b.id, 'en');
+  });
+}
+
+function responderMonitoramento(item: RegistroDeAtendimento): MonitoramentoDetalhe {
+  return monitoramentoDetalheSchema.parse({
+    id: item.id,
+    administradora: item.administradora,
+    agente: item.agente,
+    agenteId: item.agenteId,
+    iniciadoEm: item.iniciadoEm,
+    motivo: item.motivo,
+    status: item.status,
+    conversa: item.conversa,
+    transcricao: item.transcricao
   });
 }
 
@@ -498,6 +526,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/atendimentos', (request, reply) => listar(request, reply, 'todos'));
+  app.get('/monitoramento', (request, reply) => listar(request, reply, 'monitoramento'));
   app.get('/fila-de-curadoria', (request, reply) => listar(request, reply, 'fila'));
   app.get('/minhas-curadorias', (request, reply) => listar(request, reply, 'minhas'));
   app.get('/curadorias-realizadas', (request, reply) =>
@@ -563,6 +592,24 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       total,
       itens: itens.slice((pagina - 1) * tamanho, pagina * tamanho)
     });
+  });
+
+  app.get('/monitoramento/:id', async (request, reply) => {
+    semCache(reply);
+    const perfil = perfilDaAutorizacao(request.headers.authorization);
+
+    if (!perfil) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    const { id } = request.params as { id: string };
+    const encontrado = atendimentos.find((item) => item.id === id);
+
+    if (!encontrado || encontrado.status !== 'Em andamento') {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    return responderMonitoramento(encontrado);
   });
 
   app.get('/atendimentos/:id', async (request, reply) => {

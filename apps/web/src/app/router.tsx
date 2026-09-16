@@ -16,6 +16,8 @@ import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { HealthPage } from '../features/health/HealthPage';
 import { PaginaArea } from '../features/paginas/PaginaArea';
 import { PerfisPage } from '../features/perfis/PerfisPage';
+import { MonitoramentoPage } from '../features/monitoramento/MonitoramentoPage';
+import { DetalheMonitoramento } from '../features/monitoramento/DetalheMonitoramento';
 import { listarPerfis } from '../features/perfis/api';
 import { buscarRegua } from '../features/regua/api';
 import { ReguaPage } from '../features/regua/ReguaPage';
@@ -109,6 +111,8 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'atendimentos', element: <ListagemAtendimentos /> },
       { path: 'atendimentos/:id', element: <DetalheAtendimento /> },
+      { path: 'monitoramento', element: <MonitoramentoPage /> },
+      { path: 'monitoramento/:id', element: <DetalheMonitoramento /> },
       {
         path: 'fila-de-curadoria',
         element: <ListagemAtendimentos caminho="/fila-de-curadoria" />
@@ -131,6 +135,7 @@ export const router = createBrowserRouter([
             path !== 'usuarios' &&
             path !== 'dashboard' &&
             path !== 'atendimentos' &&
+            path !== 'monitoramento' &&
             path !== 'fila-de-curadoria' &&
             path !== 'minhas-curadorias' &&
             path !== 'curadorias-realizadas' &&
