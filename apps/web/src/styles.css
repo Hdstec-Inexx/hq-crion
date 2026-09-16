@@ -1,7 +1,10 @@
-@import "./styles/casca.css";
-@import "./styles/dashboard.css";
-@import "./styles/listagens.css";
+@layer tokens, casca, dashboard, listagens, rest;
 
+@import "./styles/casca.css" layer(casca);
+@import "./styles/dashboard.css" layer(dashboard);
+@import "./styles/listagens.css" layer(listagens);
+
+@layer tokens {
 :root {
   --cyan: #5ec4be;
   --ink: #2c3033;
@@ -173,7 +176,9 @@ a.login-cta {
     opacity: 0.35;
   }
 }
+}
 
+@layer rest {
 .pagina-head {
   display: flex;
   flex-wrap: wrap;
@@ -805,4 +810,5 @@ a.login-cta {
   .avaliacao-paineis {
     grid-template-columns: 1fr;
   }
+}
 }
