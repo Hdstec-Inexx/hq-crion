@@ -12,6 +12,7 @@ import { DetalheAtendimento } from '../features/atendimentos/DetalheAtendimento'
 import { FilaDeManutencao } from '../features/atendimentos/FilaDeManutencao';
 import { ListagemAtendimentos } from '../features/atendimentos/ListagemAtendimentos';
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
+import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { HealthPage } from '../features/health/HealthPage';
 import { PaginaArea } from '../features/paginas/PaginaArea';
 import { PerfisPage } from '../features/perfis/PerfisPage';
@@ -105,6 +106,7 @@ export const router = createBrowserRouter([
     element: <CascaAutenticada />,
     children: [
       { index: true, element: null },
+      { path: 'dashboard', element: <DashboardPage /> },
       { path: 'atendimentos', element: <ListagemAtendimentos /> },
       { path: 'atendimentos/:id', element: <DetalheAtendimento /> },
       {
@@ -127,6 +129,7 @@ export const router = createBrowserRouter([
           (path) =>
             path !== 'regua' &&
             path !== 'usuarios' &&
+            path !== 'dashboard' &&
             path !== 'atendimentos' &&
             path !== 'fila-de-curadoria' &&
             path !== 'minhas-curadorias' &&
