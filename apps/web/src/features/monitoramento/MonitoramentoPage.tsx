@@ -1,5 +1,5 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
-import type { ListagemResponse } from '@hq-crion/contracts/atendimento';
+import type { MonitoramentoListagemResponse } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { administradoraSchema, queryDoRecorte } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
@@ -33,7 +33,7 @@ export function MonitoramentoPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [listagem, setListagem] = useState<ListagemResponse | null>(null);
+  const [listagem, setListagem] = useState<MonitoramentoListagemResponse | null>(null);
   const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | null>(null);
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
@@ -75,19 +75,12 @@ export function MonitoramentoPage() {
     const proxima = new URLSearchParams(searchParams);
     proxima.delete('administradora');
     proxima.delete('agente');
-    proxima.delete('pagina');
 
     for (const [chave, valor] of recorteQuery) {
       proxima.set(chave, valor);
     }
 
     setSearchParams(proxima, { replace: true });
-  }
-
-  function irPara(pagina: number) {
-    const proxima = new URLSearchParams(searchParams);
-    proxima.set('pagina', String(pagina));
-    setSearchParams(proxima);
   }
 
   return (
@@ -134,27 +127,6 @@ export function MonitoramentoPage() {
               ))
             )}
           </div>
-          {listagem.total > listagem.tamanho ? (
-            <div className="listagem-paginacao">
-              <button
-                type="button"
-                disabled={listagem.pagina <= 1}
-                onClick={() => irPara(listagem.pagina - 1)}
-              >
-                Anterior
-              </button>
-              <span>
-                Página {listagem.pagina} de {Math.ceil(listagem.total / listagem.tamanho)}
-              </span>
-              <button
-                type="button"
-                disabled={listagem.pagina * listagem.tamanho >= listagem.total}
-                onClick={() => irPara(listagem.pagina + 1)}
-              >
-                Próxima
-              </button>
-            </div>
-          ) : null}
         </>
       ) : null}
     </div>

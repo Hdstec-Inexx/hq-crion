@@ -6,6 +6,7 @@ import {
   filaDeManutencaoResponseSchema,
   listagemResponseSchema,
   monitoramentoDetalheSchema,
+  monitoramentoListagemResponseSchema,
   comentarioDaFilaSchema,
   type AtendimentoDetalhe,
   type AtendimentoListItem,
@@ -268,6 +269,21 @@ function periodoDaQuery(query: Record<string, string | undefined>) {
   return periodoMesCivil(new Date());
 }
 
+function passaNoRecorte(
+  item: { administradora: string; agenteId: string },
+  recorte: ReturnType<typeof lerRecorte>
+) {
+  if (recorte.administradora && item.administradora !== recorte.administradora) {
+    return false;
+  }
+
+  if (recorte.agente && item.agenteId !== recorte.agente) {
+    return false;
+  }
+
+  return true;
+}
+
 function passaNoRecorteEPeriodo(
   item: RegistroDeAtendimento,
   recorte: ReturnType<typeof lerRecorte>,
@@ -281,15 +297,7 @@ function passaNoRecorteEPeriodo(
     return false;
   }
 
-  if (recorte.administradora && item.administradora !== recorte.administradora) {
-    return false;
-  }
-
-  if (recorte.agente && item.agenteId !== recorte.agente) {
-    return false;
-  }
-
-  return true;
+  return passaNoRecorte(item, recorte);
 }
 
 function passaNosFiltros(
@@ -300,15 +308,7 @@ function passaNosFiltros(
   perfilId: string
 ) {
   if (modo === 'monitoramento') {
-    if (recorte.administradora && item.administradora !== recorte.administradora) {
-      return false;
-    }
-
-    if (recorte.agente && item.agenteId !== recorte.agente) {
-      return false;
-    }
-
-    return item.status === 'Em andamento';
+    return passaNoRecorte(item, recorte) && item.status === 'Em andamento';
   }
 
   const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
@@ -397,16 +397,21 @@ function ordenarFila(itens: RegistroDeAtendimento[]) {
   });
 }
 
-function responderMonitoramento(item: RegistroDeAtendimento): MonitoramentoDetalhe {
-  return monitoramentoDetalheSchema.parse({
+function itemDoMonitoramento(item: RegistroDeAtendimento) {
+  return {
     id: item.id,
     administradora: item.administradora,
     agente: item.agente,
     agenteId: item.agenteId,
     iniciadoEm: item.iniciadoEm,
     motivo: item.motivo,
-    status: item.status,
-    conversa: item.conversa,
+    status: 'Em andamento' as const
+  };
+}
+
+function responderMonitoramento(item: RegistroDeAtendimento): MonitoramentoDetalhe {
+  return monitoramentoDetalheSchema.parse({
+    ...itemDoMonitoramento(item),
     transcricao: item.transcricao
   });
 }
@@ -468,9 +473,24 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       ultimaPagina,
       Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
     );
-    const paginaItens = itens
-      .slice((pagina - 1) * tamanho, pagina * tamanho)
-      .map((item) => {
+    const paginaItens = itens.slice((pagina - 1) * tamanho, pagina * tamanho);
+
+    if (modo === 'monitoramento') {
+      return monitoramentoListagemResponseSchema.parse({
+        recorte,
+        pagina,
+        tamanho,
+        total,
+        itens: paginaItens.map(itemDoMonitoramento)
+      });
+    }
+
+    return listagemResponseSchema.parse({
+      recorte,
+      pagina,
+      tamanho,
+      total,
+      itens: paginaItens.map((item) => {
         const listagem = itemDaListagem(item);
 
         if (custoVisivelPara(registro.papel)) {
@@ -479,14 +499,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
         const { custo: _custo, ...semCusto } = listagem;
         return semCusto;
-      });
-
-    return listagemResponseSchema.parse({
-      recorte,
-      pagina,
-      tamanho,
-      total,
-      itens: paginaItens
+      })
     });
   }
 

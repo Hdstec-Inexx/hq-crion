@@ -108,14 +108,14 @@ export function DetalheMonitoramento() {
             <h2>Transcrição</h2>
             <div className="transcricao-colunas">
               {atendimento.transcricao.map((turno, index) => {
-                const agente = turno.locutor === 'Agente de Voz';
+                const doAgente = turno.locutor === 'Agente de Voz';
 
                 return (
                   <article
-                    className={`transcricao-turno ${agente ? 'is-agente' : 'is-cliente'}`}
+                    className={`transcricao-turno ${doAgente ? 'is-agente' : 'is-cliente'}`}
                     key={`${turno.quando}-${index}`}
                   >
-                    {agente ? (
+                    {doAgente ? (
                       <div className="transcricao-celula">
                         <span className="transcricao-trilho" aria-hidden="true" />
                         <div>
@@ -128,7 +128,7 @@ export function DetalheMonitoramento() {
                     ) : (
                       <div />
                     )}
-                    {agente ? (
+                    {doAgente ? (
                       <div />
                     ) : (
                       <div className="transcricao-celula is-cliente">

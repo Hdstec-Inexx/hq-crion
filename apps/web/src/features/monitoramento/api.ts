@@ -1,12 +1,20 @@
-import { monitoramentoDetalheSchema, listagemResponseSchema } from '@hq-crion/contracts/atendimento';
+import { monitoramentoDetalheSchema, monitoramentoListagemResponseSchema } from '@hq-crion/contracts/atendimento';
 import { autorizacao } from '../auth/api';
 import { lerSessao } from '../auth/sessao';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 function queryDaListagem(query: URLSearchParams) {
-  const limpa = new URLSearchParams(query);
-  limpa.delete('lista');
+  const limpa = new URLSearchParams();
+
+  for (const chave of ['administradora', 'agente'] as const) {
+    const valor = query.get(chave);
+
+    if (valor) {
+      limpa.set(chave, valor);
+    }
+  }
+
   return limpa;
 }
 
@@ -40,7 +48,7 @@ export async function buscarMonitoramento(query: URLSearchParams, signal?: Abort
     throw new Error('listagem-indisponivel');
   }
 
-  return listagemResponseSchema.parse(await response.json());
+  return monitoramentoListagemResponseSchema.parse(await response.json());
 }
 
 export async function buscarDetalheDoMonitoramento(id: string, signal?: AbortSignal) {

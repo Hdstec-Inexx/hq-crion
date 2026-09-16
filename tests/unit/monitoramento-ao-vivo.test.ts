@@ -9,7 +9,7 @@ import {
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import { destinoDaLista } from '../../packages/contracts/src/recorte.js';
 import {
-  listagemResponseSchema,
+  monitoramentoListagemResponseSchema,
   monitoramentoDetalheSchema
 } from '../../packages/contracts/src/atendimento.js';
 
@@ -100,11 +100,16 @@ test('recurso ao vivo autentica qualquer Perfil', async () => {
       });
 
       assert.equal(response.statusCode, 200);
-      const body = listagemResponseSchema.parse(response.json());
-      assert.ok(body.itens.length > 0);
-      for (const item of body.itens) {
+      const bruto = response.json() as { itens: Array<Record<string, unknown>> };
+      assert.ok(bruto.itens.length > 0);
+      for (const item of bruto.itens) {
         assert.equal(item.status, 'Em andamento');
+        assert.equal('nota' in item, false);
+        assert.equal('custo' in item, false);
+        assert.equal('curadoria' in item, false);
+        assert.equal('audio' in item, false);
       }
+      monitoramentoListagemResponseSchema.parse(bruto);
     }
   } finally {
     await app.close();
@@ -135,7 +140,12 @@ test('Recorte filtra a lista ao vivo', async () => {
 
     assert.equal(consolidada.statusCode, 200);
     assert.equal(recortada.statusCode, 200);
-    const lista = listagemResponseSchema.parse(recortada.json());
+    const bruto = recortada.json() as { itens: Array<Record<string, unknown>> };
+    for (const item of bruto.itens) {
+      assert.equal('nota' in item, false);
+      assert.equal('custo' in item, false);
+    }
+    const lista = monitoramentoListagemResponseSchema.parse(bruto);
     assert.deepEqual(lista.recorte, {
       administradora: 'Affix',
       agente: 'affix-wa'
@@ -147,9 +157,9 @@ test('Recorte filtra a lista ao vivo', async () => {
       assert.equal(item.status, 'Em andamento');
     }
     assert.equal(outroAgente.statusCode, 200);
-    assert.equal(listagemResponseSchema.parse(outroAgente.json()).itens.length, 0);
+    assert.equal(monitoramentoListagemResponseSchema.parse(outroAgente.json()).itens.length, 0);
     assert.ok(
-      listagemResponseSchema.parse(consolidada.json()).itens.length >= lista.itens.length
+      monitoramentoListagemResponseSchema.parse(consolidada.json()).itens.length >= lista.itens.length
     );
   } finally {
     await app.close();
@@ -168,7 +178,7 @@ test('Monitoramento ao Vivo ignora período da listagem', async () => {
     });
 
     assert.equal(response.statusCode, 200);
-    const ids = listagemResponseSchema
+    const ids = monitoramentoListagemResponseSchema
       .parse(response.json())
       .itens.map((item) => item.id);
     assert.ok(ids.includes('a4'));
@@ -194,6 +204,18 @@ test('GET /monitoramento rejeita par Administradora + Agente inválido', async (
   }
 });
 
+test('GET /monitoramento/:id sem sessão responde 401', async () => {
+  const app = await buildApp();
+
+  try {
+    const response = await app.inject({ method: 'GET', url: '/monitoramento/a4' });
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  } finally {
+    await app.close();
+  }
+});
+
 test('detalhe ao vivo é observacional: texto, sem áudio e sem ação no contato', async () => {
   const app = await buildApp();
 
@@ -213,13 +235,15 @@ test('detalhe ao vivo é observacional: texto, sem áudio e sem ação no contat
     });
 
     assert.equal(response.statusCode, 200);
-    const body = monitoramentoDetalheSchema.parse(response.json());
+    const bruto = response.json() as Record<string, unknown>;
+    assert.equal('conversa' in bruto, false);
+    assert.equal('audio' in bruto, false);
+    assert.equal('downloadDeAudio' in bruto, false);
+    assert.equal('avaliacaoDaIa' in bruto, false);
+    assert.equal('avaliacaoDoCurador' in bruto, false);
+    const body = monitoramentoDetalheSchema.parse(bruto);
     assert.equal(body.status, 'Em andamento');
     assert.ok(body.transcricao.length > 0);
-    assert.equal('audio' in body, false);
-    assert.equal('downloadDeAudio' in body, false);
-    assert.equal('avaliacaoDaIa' in body, false);
-    assert.equal('avaliacaoDoCurador' in body, false);
     assert.notEqual(conferencia.statusCode, 200);
   } finally {
     await app.close();
