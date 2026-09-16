@@ -33,22 +33,26 @@ const iaAvaliadoraRoutes: FastifyPluginAsync = async (app) => {
     return lerConfiguracao();
   });
 
-  app.put('/ia-avaliadora', async (request, reply) => {
-    semCache(reply);
-    const recusa = recusarSeNaoForAdmin(request, reply);
+  app.put(
+    '/ia-avaliadora',
+    { bodyLimit: 32_768 },
+    async (request, reply) => {
+      semCache(reply);
+      const recusa = recusarSeNaoForAdmin(request, reply);
 
-    if (recusa) {
-      return recusa;
+      if (recusa) {
+        return recusa;
+      }
+
+      const parsed = configuracaoDaIaAvaliadoraSchema.safeParse(request.body);
+
+      if (!parsed.success) {
+        return reply.code(400).send({ statusCode: 400 });
+      }
+
+      return gravarConfiguracao(parsed.data);
     }
-
-    const parsed = configuracaoDaIaAvaliadoraSchema.safeParse(request.body);
-
-    if (!parsed.success) {
-      return reply.code(400).send({ statusCode: 400 });
-    }
-
-    return gravarConfiguracao(parsed.data);
-  });
+  );
 };
 
 export default iaAvaliadoraRoutes;

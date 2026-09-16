@@ -8,7 +8,7 @@ const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 export type ResultadoDaIaAvaliadora =
   | { ok: true; configuracao: ConfiguracaoDaIaAvaliadora }
-  | { ok: false; motivo: 'negado' | 'invalido' | 'indisponivel' };
+  | { ok: false; motivo: 'sessao' | 'negado' | 'invalido' | 'indisponivel' };
 
 async function pedir(
   sessao: string,
@@ -62,6 +62,10 @@ export async function gravarIaAvaliadora(
     method: 'PUT',
     body: JSON.stringify(parsed.data)
   });
+
+  if (response.status === 401) {
+    return { ok: false, motivo: 'sessao' };
+  }
 
   if (response.status === 403) {
     return { ok: false, motivo: 'negado' };

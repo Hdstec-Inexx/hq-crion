@@ -62,6 +62,46 @@ test('contrato da IA Avaliadora rejeita temperatura fora de 0 a 2', () => {
   );
 });
 
+test('contrato da IA Avaliadora rejeita prompt vazio ou só com espaços', () => {
+  assert.throws(() =>
+    configuracaoDaIaAvaliadoraSchema.parse({
+      prompt: '   ',
+      modelo: 'gpt-4o',
+      temperatura: 0
+    })
+  );
+});
+
+test('contrato da IA Avaliadora rejeita prompt com mais de 20000 caracteres', () => {
+  assert.throws(() =>
+    configuracaoDaIaAvaliadoraSchema.parse({
+      prompt: 'A'.repeat(20_001),
+      modelo: 'gpt-4o',
+      temperatura: 0
+    })
+  );
+});
+
+test('PUT /ia-avaliadora sem sessão responde 401', async () => {
+  const app = await buildApp();
+
+  try {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/ia-avaliadora',
+      payload: {
+        prompt: 'Não grave isto.',
+        modelo: 'gpt-4o',
+        temperatura: 0
+      }
+    });
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /ia-avaliadora sem sessão responde 401', async () => {
   const app = await buildApp();
 

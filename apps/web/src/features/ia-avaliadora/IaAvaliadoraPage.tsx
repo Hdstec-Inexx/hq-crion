@@ -11,7 +11,13 @@ import {
 import { lerSessao } from '../auth/sessao';
 import { gravarIaAvaliadora } from './api';
 
-function mensagemDoMotivo(motivo: 'negado' | 'invalido' | 'indisponivel') {
+function mensagemDoMotivo(
+  motivo: 'sessao' | 'negado' | 'invalido' | 'indisponivel'
+) {
+  if (motivo === 'sessao') {
+    return 'A sessão expirou. Entre de novo.';
+  }
+
   if (motivo === 'negado') {
     return 'Só o Admin configura a IA Avaliadora.';
   }
@@ -74,11 +80,23 @@ export function IaAvaliadoraPage() {
       <form className="perfil-cartao ia-avaliadora-form" onSubmit={onSubmit}>
         <label className="login-field">
           Prompt
-          <textarea name="prompt" defaultValue={configuracao.prompt} required rows={8} />
+          <textarea
+            name="prompt"
+            defaultValue={configuracao.prompt}
+            required
+            rows={8}
+            maxLength={20_000}
+          />
         </label>
         <label className="login-field">
           Modelo
-          <input name="modelo" type="text" defaultValue={configuracao.modelo} required />
+          <input
+            name="modelo"
+            type="text"
+            defaultValue={configuracao.modelo}
+            required
+            maxLength={200}
+          />
         </label>
         <label className="login-field">
           Temperatura
