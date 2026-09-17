@@ -4,7 +4,10 @@ import type {
   PaineisDoDashboard
 } from '@hq-crion/contracts/dashboard';
 import { reguaUnica } from '../regua/regua-unica.js';
-import type { RegistroDeAtendimento } from '../atendimentos/registro.js';
+import {
+  avaliacaoDaIaTemVeredito,
+  type RegistroDeAtendimento
+} from '../atendimentos/registro.js';
 
 const slaMaximoEmSegundos = 150;
 const slaMeta = 80;
@@ -45,8 +48,8 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
       item.tempoDeEsperaEmSegundos <= slaMaximoEmSegundos
   ).length;
   const notasIa = itens
-    .map((item) => item.avaliacaoDaIa?.nota)
-    .filter((valor): valor is number => valor !== undefined);
+    .filter(avaliacaoDaIaTemVeredito)
+    .map((item) => item.avaliacaoDaIa.nota);
   const notasCurador = itens
     .map((item) => item.avaliacaoDoCurador?.nota)
     .filter((valor): valor is number => valor !== undefined);
@@ -122,6 +125,7 @@ function paineisDoPeriodo(itens: RegistroDeAtendimento[]): PaineisDoDashboard {
   const motivos = new Map<string, number>();
   const conferidos: RegistroDeAtendimento[] = [];
   const piores = concluidos(itens)
+    .filter(avaliacaoDaIaTemVeredito)
     .slice()
     .sort((a, b) => a.avaliacaoDaIa.nota - b.avaliacaoDaIa.nota)
     .slice(0, limiteDePiores)

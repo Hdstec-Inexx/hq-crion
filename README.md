@@ -17,6 +17,14 @@ O protótipo throwaway da face travada (Variant A) continua em:
 corepack pnpm prototype
 ```
 
+## EasyPanel
+
+Compose de referência em `deploy/easypanel/compose.yaml`: serviços `api` e `web`, Postgres **externo** via `DATABASE_URL` (banco Crion, nunca o do HQ GEAP), só `expose`. Variáveis em `.env.example` (`DATABASE_URL`, `CORS_ORIGIN`, `VITE_API_URL`, `SESSION_SECRET`, `SKIP_SEED`, ElevenLabs e armazenamento).
+
+Com `DATABASE_URL`, listagens e Dashboard leem o Postgres. Seed de verificação no primeiro boot; `SKIP_SEED=true` pula. Depois a fonte é o DB + ingestão mínima ElevenLabs, se houver chave.
+
+Healthcheck da API: `GET /health` sem sessão. A web só sobe com a API saudável e expõe `/healthz`.
+
 ## Testes
 
 ```bash

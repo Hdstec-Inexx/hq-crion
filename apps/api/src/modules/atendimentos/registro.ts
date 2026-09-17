@@ -15,6 +15,12 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
   ferramentas?: FerramentasDoAtendimento;
 };
 
+export function avaliacaoDaIaTemVeredito(item: RegistroDeAtendimento) {
+  return item.avaliacaoDaIa.criterios.some(
+    (criterio) => criterio.estado === 'Atendido' || criterio.estado === 'Não atendido'
+  );
+}
+
 export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe {
   const {
     curadorId: _curadorId,

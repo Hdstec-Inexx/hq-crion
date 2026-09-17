@@ -1,10 +1,6 @@
 import { dashboardResponseSchema } from '@hq-crion/contracts/dashboard';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
-import {
-  passaNoDashboard,
-  periodoDaQuery,
-  recorteDaQuery
-} from '../atendimentos/filtros.js';
+import { periodoDaQuery, recorteDaQuery } from '../atendimentos/filtros.js';
 import { registroDaAutorizacao } from '../perfil/sessoes.js';
 import { pulsoDoDashboard } from './agregacao.js';
 
@@ -32,9 +28,7 @@ const dashboardRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
-    const filtrados = app.atendimentos
-      .listar()
-      .filter((item) => passaNoDashboard(item, recorte, query));
+    const filtrados = await app.atendimentos.consultarDashboard(recorte, query);
 
     return dashboardResponseSchema.parse(
       pulsoDoDashboard(filtrados, recorte, periodoDaQuery(query))
