@@ -10,186 +10,20 @@ import {
   comentarioDaFilaSchema,
   type AtendimentoDetalhe,
   type AtendimentoListItem,
-  type EstadoDoCriterio,
   type MonitoramentoDetalhe
 } from '@hq-crion/contracts/atendimento';
-import { dashboardResponseSchema } from '@hq-crion/contracts/dashboard';
 import type { Papel } from '@hq-crion/contracts/perfil';
-import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { reguaUnica } from '../regua/regua-unica.js';
-
-type RegistroDeAtendimento = AtendimentoDetalhe & {
-  curadorId?: string;
-  concluidoEm?: string;
-  comentarioStatus?: 'Pendente' | 'Resolvido';
-};
-
-type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas' | 'monitoramento';
-
-function iniciadoNoMesCorrente(dia: number, hora: string) {
-  const { inicio } = periodoMesCivil(new Date());
-  const [ano, mes] = inicio.split('-');
-
-  return `${ano}-${mes}-${String(Math.min(dia, 28)).padStart(2, '0')}T${hora}-03:00`;
-}
-
-const catalogoBase: AtendimentoListItem[] = [
-  {
-    id: 'a1',
-    administradora: 'Affix',
-    agente: 'Clara Affix 0800',
-    agenteId: 'affix-0800',
-    iniciadoEm: iniciadoNoMesCorrente(11, '09:12:00'),
-    motivo: 'Rede credenciada',
-    nota: 8.5,
-    status: 'Concluído',
-    curadoria: false,
-    conversa: 'conv-a1',
-    custo: 'R$ 1,42'
-  },
-  {
-    id: 'a2',
-    administradora: 'Alter',
-    agente: 'Clara Alter',
-    agenteId: 'alter-1',
-    iniciadoEm: iniciadoNoMesCorrente(11, '10:03:00'),
-    motivo: 'Boleto',
-    nota: 6.0,
-    status: 'Concluído',
-    curadoria: true,
-    conversa: 'conv-a2',
-    custo: 'R$ 0,98'
-  },
-  {
-    id: 'a3',
-    administradora: 'Conectaplan',
-    agente: 'Clara Conectaplan',
-    agenteId: 'conecta-1',
-    iniciadoEm: iniciadoNoMesCorrente(11, '11:40:00'),
-    motivo: 'Não informado',
-    nota: 9.0,
-    status: 'Concluído',
-    curadoria: false,
-    conversa: 'conv-a3',
-    custo: 'R$ 1,10'
-  },
-  {
-    id: 'a4',
-    administradora: 'Affix',
-    agente: 'Clara Affix WhatsApp',
-    agenteId: 'affix-wa',
-    iniciadoEm: iniciadoNoMesCorrente(11, '12:15:00'),
-    motivo: 'Carência',
-    nota: 7.5,
-    status: 'Em andamento',
-    curadoria: false,
-    conversa: 'conv-a4',
-    custo: 'R$ 0,40'
-  },
-  {
-    id: 'a-fora',
-    administradora: 'Affix',
-    agente: 'Clara Affix 0800',
-    agenteId: 'affix-0800',
-    iniciadoEm: '2020-01-15T10:00:00-03:00',
-    motivo: 'Carência',
-    nota: 5,
-    status: 'Concluído',
-    curadoria: false,
-    conversa: 'conv-fora',
-    custo: 'R$ 0,10'
-  }
-];
-
-const { inicio: inicioDoMes } = periodoMesCivil(new Date());
-const extrasDoMes: AtendimentoListItem[] = Array.from({ length: 47 }, (_, index) => {
-  return {
-    id: `extra-${index + 1}`,
-    administradora: 'Conectaplan',
-    agente: 'Clara Conectaplan',
-    agenteId: 'conecta-1',
-    iniciadoEm: `${inicioDoMes}T08:00:00-03:00`,
-    motivo: 'Extra',
-    nota: 8,
-    status: 'Concluído',
-    curadoria: false,
-    conversa: `conv-extra-${index + 1}`,
-    custo: 'R$ 0,01'
-  };
-});
-
-function criteriosDaAvaliacao(conferida: boolean) {
-  return reguaUnica.criterios.map((criterio) => {
-    let estado: EstadoDoCriterio = 'Atendido';
-
-    if (criterio.nome === 'Validação de e-mail') {
-      estado = 'Não se aplica';
-    } else if (conferida && criterio.nome === 'Informação de Protocolo') {
-      estado = 'Não atendido';
-    }
-
-    return {
-      nome: criterio.nome,
-      estado,
-      pontos: criterio.valor,
-      critico: criterio.critico
-    };
-  });
-}
-
-function avaliacaoDe(nota: number, conferida: boolean) {
-  return {
-    nota,
-    aprovacao: (nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado') as
-      | 'Aprovado'
-      | 'Reprovado',
-    criterios: criteriosDaAvaliacao(conferida)
-  };
-}
-
-function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
-  const concluido = item.status === 'Concluído';
-
-  return {
-    ...item,
-    audio: `/media/${item.id}.wav`,
-    downloadDeAudio: `/media/${item.id}.wav`,
-    transcricao: [
-      {
-        locutor: 'Agente de Voz',
-        quando: '0:04',
-        texto: `Olá, aqui é a ${item.agente} da ${item.administradora}. Em que posso ajudar?`
-      },
-      {
-        locutor: 'Cliente',
-        quando: '0:12',
-        texto: `Preciso falar sobre ${item.motivo.toLowerCase()}.`
-      },
-      {
-        locutor: 'Agente de Voz',
-        quando: '0:18',
-        texto: 'Claro. Me confirma o CPF do titular para eu localizar o contrato.'
-      }
-    ],
-    avaliacaoDaIa: avaliacaoDe(item.nota, item.curadoria),
-    ...(concluido ? { concluidoEm: item.iniciadoEm } : {}),
-    ...(item.curadoria
-      ? {
-          avaliacaoDoCurador: {
-            ...avaliacaoDe(6, true),
-            notaDaAvaliacaoDaIa: item.nota,
-            ...(item.id === 'a2'
-              ? { comentario: 'Rever o prompt de boleto na Clara Alter.' }
-              : {})
-          },
-          curadorId: 'perfil-carla',
-          ...(item.id === 'a2' ? { comentarioStatus: 'Pendente' as const } : {})
-        }
-      : {})
-  };
-}
+import {
+  diaNoFuso,
+  passaNosFiltros,
+  periodoDaQuery,
+  recorteDaQuery,
+  type ModoDaListagem
+} from './filtros.js';
+import { detalhePublico, type RegistroDeAtendimento } from './registro.js';
 
 function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
   const texto = item.avaliacaoDoCurador?.comentario;
@@ -227,164 +61,8 @@ function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
   };
 }
 
-function catalogoDeAtendimentos() {
-  return [...catalogoBase, ...extrasDoMes].map(detalheDe);
-}
-
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
-}
-
-const formatadorDia = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/Sao_Paulo',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit'
-});
-const diaCivil = /^\d{4}-\d{2}-\d{2}$/;
-
-function diaNoFuso(iso: string) {
-  const parts = formatadorDia.formatToParts(new Date(iso));
-  const year = parts.find((part) => part.type === 'year')?.value;
-  const month = parts.find((part) => part.type === 'month')?.value;
-  const day = parts.find((part) => part.type === 'day')?.value;
-
-  return `${year}-${month}-${day}`;
-}
-
-function periodoDaQuery(query: Record<string, string | undefined>) {
-  const inicio = query.inicio;
-  const fim = query.fim;
-
-  if (
-    inicio &&
-    fim &&
-    diaCivil.test(inicio) &&
-    diaCivil.test(fim) &&
-    inicio <= fim
-  ) {
-    return { inicio, fim };
-  }
-
-  return periodoMesCivil(new Date());
-}
-
-function passaNoRecorte(
-  item: { administradora: string; agenteId: string },
-  recorte: ReturnType<typeof lerRecorte>
-) {
-  if (recorte.administradora && item.administradora !== recorte.administradora) {
-    return false;
-  }
-
-  if (recorte.agente && item.agenteId !== recorte.agente) {
-    return false;
-  }
-
-  return true;
-}
-
-function passaNoRecorteEPeriodo(
-  item: RegistroDeAtendimento,
-  recorte: ReturnType<typeof lerRecorte>,
-  query: Record<string, string | undefined>,
-  quando: string
-) {
-  const periodo = periodoDaQuery(query);
-  const dia = diaNoFuso(quando);
-
-  if (dia < periodo.inicio || dia > periodo.fim) {
-    return false;
-  }
-
-  return passaNoRecorte(item, recorte);
-}
-
-function passaNosFiltros(
-  item: RegistroDeAtendimento,
-  recorte: ReturnType<typeof lerRecorte>,
-  query: Record<string, string | undefined>,
-  modo: ModoDaListagem,
-  perfilId: string
-) {
-  if (modo === 'monitoramento') {
-    return passaNoRecorte(item, recorte) && item.status === 'Em andamento';
-  }
-
-  const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
-
-  if (!passaNoRecorteEPeriodo(item, recorte, query, quando)) {
-    return false;
-  }
-
-  if (query.status && item.status !== query.status) {
-    return false;
-  }
-
-  if (query.nota && item.nota !== Number(query.nota)) {
-    return false;
-  }
-
-  if (query.motivo && item.motivo !== query.motivo) {
-    return false;
-  }
-
-  if (query.conversa && item.conversa !== query.conversa) {
-    return false;
-  }
-
-  if (query.curadoria === 'true' && !item.curadoria) {
-    return false;
-  }
-
-  if (query.curadoria === 'false' && item.curadoria) {
-    return false;
-  }
-
-  if (modo === 'fila') {
-    return (
-      item.status === 'Concluído' &&
-      Boolean(item.avaliacaoDaIa) &&
-      !item.curadoria
-    );
-  }
-
-  if (modo === 'minhas') {
-    return item.curadoria && item.curadorId === perfilId;
-  }
-
-  if (modo === 'realizadas') {
-    return item.curadoria;
-  }
-
-  return true;
-}
-
-function passaNoDashboard(
-  item: RegistroDeAtendimento,
-  recorte: ReturnType<typeof lerRecorte>,
-  query: Record<string, string | undefined>
-) {
-  return passaNoRecorteEPeriodo(item, recorte, query, item.iniciadoEm);
-}
-
-function kpisDoPeriodo(itens: RegistroDeAtendimento[]) {
-  const atendimentos = itens.length;
-  const notaMedia =
-    atendimentos === 0
-      ? null
-      : itens.reduce((soma, item) => soma + item.nota, 0) / atendimentos;
-  const aprovados = itens.filter(
-    (item) => item.nota >= reguaUnica.limiarDeAprovacao
-  ).length;
-  const aprovacao =
-    atendimentos === 0 ? null : (aprovados / atendimentos) * 100;
-
-  return [
-    { id: 'atendimentos' as const, rotulo: 'Atendimentos', valor: atendimentos },
-    { id: 'notaMedia' as const, rotulo: 'Nota média', valor: notaMedia },
-    { id: 'aprovacao' as const, rotulo: 'Aprovação', valor: aprovacao }
-  ];
 }
 
 function ordenarFila(itens: RegistroDeAtendimento[]) {
@@ -417,8 +95,7 @@ function responderMonitoramento(item: RegistroDeAtendimento): MonitoramentoDetal
 }
 
 function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
-  const { custo, downloadDeAudio, curadorId: _curadorId, concluidoEm: _concluidoEm, ...resto } =
-    item;
+  const { custo, downloadDeAudio, ...resto } = detalhePublico(item);
 
   return atendimentoDetalheSchema.parse({
     ...resto,
@@ -428,8 +105,6 @@ function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
 }
 
 const atendimentoRoutes: FastifyPluginAsync = async (app) => {
-  const atendimentos = catalogoDeAtendimentos();
-
   async function listar(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -451,20 +126,15 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    let recorte;
+    const recorte = recorteDaQuery(query);
 
-    try {
-      recorte = lerRecorte({
-        administradora: query.administradora,
-        agente: query.agente
-      });
-    } catch {
+    if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });
     }
 
-    const filtrados = atendimentos.filter((item) =>
-      passaNosFiltros(item, recorte, query, modo, registro.id)
-    );
+    const filtrados = app.atendimentos
+      .listar()
+      .filter((item) => passaNosFiltros(item, recorte, query, modo, registro.id));
     const itens = modo === 'fila' ? ordenarFila(filtrados) : filtrados;
     const tamanho = 50;
     const total = itens.length;
@@ -503,41 +173,6 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     });
   }
 
-  app.get('/dashboard', async (request, reply) => {
-    semCache(reply);
-    const registro = registroDaAutorizacao(request.headers.authorization);
-
-    if (!registro) {
-      return reply.code(401).send({ statusCode: 401 });
-    }
-
-    if (registro.papel === 'Curador') {
-      return reply.code(403).send({ statusCode: 403 });
-    }
-
-    const query = request.query as Record<string, string | undefined>;
-    let recorte;
-
-    try {
-      recorte = lerRecorte({
-        administradora: query.administradora,
-        agente: query.agente
-      });
-    } catch {
-      return reply.code(400).send({ statusCode: 400 });
-    }
-
-    const filtrados = atendimentos.filter((item) =>
-      passaNoDashboard(item, recorte, query)
-    );
-
-    return dashboardResponseSchema.parse({
-      recorte,
-      periodo: periodoDaQuery(query),
-      kpis: kpisDoPeriodo(filtrados)
-    });
-  });
-
   app.get('/atendimentos', (request, reply) => listar(request, reply, 'todos'));
   app.get('/monitoramento', (request, reply) => listar(request, reply, 'monitoramento'));
   app.get('/fila-de-curadoria', (request, reply) => listar(request, reply, 'fila'));
@@ -559,19 +194,15 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    let recorte;
+    const recorte = recorteDaQuery(query);
 
-    try {
-      recorte = lerRecorte({
-        administradora: query.administradora,
-        agente: query.agente
-      });
-    } catch {
+    if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });
     }
 
     const periodo = periodoDaQuery(query);
-    const itens = atendimentos
+    const itens = app.atendimentos
+      .listar()
       .map(itemDaFilaDeManutencao)
       .filter((item) => item !== null)
       .filter((item) => {
@@ -616,7 +247,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = atendimentos.find((item) => item.id === id);
+    const encontrado = app.atendimentos.buscarPorId(id);
 
     if (!encontrado || encontrado.status !== 'Em andamento') {
       return reply.code(404).send({ statusCode: 404 });
@@ -634,7 +265,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = atendimentos.find((item) => item.id === id);
+    const encontrado = app.atendimentos.buscarPorId(id);
 
     if (!encontrado) {
       return reply.code(404).send({ statusCode: 404 });
@@ -662,7 +293,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = atendimentos.find((item) => item.id === id);
+    const encontrado = app.atendimentos.buscarPorId(id);
 
     if (!encontrado) {
       return reply.code(404).send({ statusCode: 404 });
@@ -707,7 +338,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = atendimentos.find((item) => item.id === id);
+    const encontrado = app.atendimentos.buscarPorId(id);
     const comentario = encontrado ? itemDaFilaDeManutencao(encontrado) : null;
 
     if (!encontrado || !comentario) {
