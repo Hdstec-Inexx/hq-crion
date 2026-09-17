@@ -17,14 +17,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
 import { reguaUnica } from '../regua/regua-unica.js';
-import {
-  diaNoFuso,
-  aplicarIndicador,
-  passaNosFiltros,
-  periodoDaQuery,
-  recorteDaQuery,
-  type ModoDaListagem
-} from './filtros.js';
+import { recorteDaQuery, type ModoDaListagem } from './filtros.js';
 import { detalhePublico, type RegistroDeAtendimento } from './registro.js';
 
 function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
@@ -152,11 +145,12 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
-    const filtrados = app.atendimentos
-      .listar()
-      .filter((item) => passaNosFiltros(item, recorte, query, modo, registro.id));
-    const comIndicador =
-      modo === 'todos' ? aplicarIndicador(filtrados, query.indicador) : filtrados;
+    const comIndicador = await app.atendimentos.consultarListagem(
+      recorte,
+      query,
+      modo,
+      registro.id
+    );
     const itens = modo === 'fila' ? ordenarFila(comIndicador) : comIndicador;
     const tamanho = 50;
     const total = itens.length;
@@ -224,27 +218,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
-    const periodo = periodoDaQuery(query);
-    const itens = app.atendimentos
-      .listar()
+    const itens = (await app.atendimentos.consultarManutencao(recorte, query))
       .map(itemDaFilaDeManutencao)
-      .filter((item) => item !== null)
-      .filter((item) => {
-        if (recorte.administradora && item.administradora !== recorte.administradora) {
-          return false;
-        }
-
-        if (recorte.agente && item.agenteId !== recorte.agente) {
-          return false;
-        }
-
-        if (query.status && item.status !== query.status) {
-          return false;
-        }
-
-        const dia = diaNoFuso(item.data);
-        return dia >= periodo.inicio && dia <= periodo.fim;
-      });
+      .filter((item) => item !== null);
     const tamanho = 50;
     const total = itens.length;
     const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
@@ -271,7 +247,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = app.atendimentos.buscarPorId(id);
+    const encontrado = await app.atendimentos.buscarPorId(id);
 
     if (!encontrado || encontrado.status !== 'Em andamento') {
       return reply.code(404).send({ statusCode: 404 });
@@ -289,7 +265,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = app.atendimentos.buscarPorId(id);
+    const encontrado = await app.atendimentos.buscarPorId(id);
 
     if (!encontrado) {
       return reply.code(404).send({ statusCode: 404 });
@@ -317,7 +293,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = app.atendimentos.buscarPorId(id);
+    const encontrado = await app.atendimentos.buscarPorId(id);
 
     if (!encontrado) {
       return reply.code(404).send({ statusCode: 404 });
@@ -346,6 +322,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       encontrado.comentarioStatus = 'Pendente';
     }
 
+    await app.atendimentos.salvar(encontrado);
     return responderDetalhe(encontrado, registro.papel);
   });
 
@@ -362,7 +339,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = app.atendimentos.buscarPorId(id);
+    const encontrado = await app.atendimentos.buscarPorId(id);
     const comentario = encontrado ? itemDaFilaDeManutencao(encontrado) : null;
 
     if (!encontrado || !comentario) {
@@ -374,6 +351,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     encontrado.comentarioStatus = 'Resolvido';
+    await app.atendimentos.salvar(encontrado);
     const atualizado = itemDaFilaDeManutencao(encontrado);
 
     if (!atualizado) {
