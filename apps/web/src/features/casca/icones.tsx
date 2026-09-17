@@ -66,3 +66,15 @@ const icones: Record<string, ReactNode> = {
 export function iconeDaArea(rota: string) {
   return icones[rota] ?? iconePadrao;
 }
+
+export function iconeRecolherCasca(recolhida: boolean) {
+  return recolhida ? (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
+  );
+}
