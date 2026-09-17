@@ -1,12 +1,62 @@
 import { z } from 'zod';
 import { recorteSchema } from './recorte.js';
 
-export const idDoKpiSchema = z.enum(['atendimentos', 'notaMedia', 'aprovacao']);
+export const idDoKpiSchema = z.enum([
+  'atendimentos',
+  'tma',
+  'taxaDeResolvidas',
+  'sla',
+  'notaMediaIa',
+  'notaMediaCurador',
+  'avaliadosIa',
+  'avaliadosCurador',
+  'promessasCumpridas',
+  'tempoMedioAteResolucao',
+  'aprovacao'
+]);
 
 export const kpiDoDashboardSchema = z.object({
   id: idDoKpiSchema,
   rotulo: z.string().min(1),
-  valor: z.number().nullable()
+  valor: z.number().nullable(),
+  meta: z.number().optional()
+});
+
+export const paineisDoDashboardSchema = z.object({
+  motivos: z.array(
+    z.object({
+      motivo: z.string().min(1),
+      quantidade: z.number().int().min(0)
+    })
+  ),
+  acertoPorCriterio: z.array(
+    z.object({
+      criterio: z.string().min(1),
+      percentual: z.number().nullable()
+    })
+  ),
+  concordancia: z.object({
+    nota: z.number().nullable(),
+    criterios: z.number().nullable(),
+    porCriterio: z.array(
+      z.object({
+        criterio: z.string().min(1),
+        percentual: z.number().nullable()
+      })
+    )
+  }),
+  naoConformidade: z.array(
+    z.object({
+      criterio: z.string().min(1),
+      quantidade: z.number().int().min(0)
+    })
+  ),
+  pioresAtendimentos: z.array(
+    z.object({
+      id: z.string().min(1),
+      nota: z.number()
+    })
+  )
 });
 
 export const dashboardResponseSchema = z.object({
@@ -15,9 +65,11 @@ export const dashboardResponseSchema = z.object({
     inicio: z.string().min(1),
     fim: z.string().min(1)
   }),
-  kpis: z.array(kpiDoDashboardSchema).min(3)
+  kpis: z.array(kpiDoDashboardSchema).min(11),
+  paineis: paineisDoDashboardSchema
 });
 
 export type IdDoKpi = z.infer<typeof idDoKpiSchema>;
 export type KpiDoDashboard = z.infer<typeof kpiDoDashboardSchema>;
+export type PaineisDoDashboard = z.infer<typeof paineisDoDashboardSchema>;
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;

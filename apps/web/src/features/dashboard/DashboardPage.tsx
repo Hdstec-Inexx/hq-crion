@@ -1,33 +1,11 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
-import {
-  destinoDoKpi,
-  escreverRecorteNaQuery
-} from '@hq-crion/contracts/recorte';
+import { destinoDoKpi, escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { buscarDashboard, type DashboardResponse } from './api';
-
-function formatarNota(nota: number) {
-  return nota.toFixed(1).replace('.', ',');
-}
-
-function formatarKpi(id: DashboardResponse['kpis'][number]['id'], valor: number | null) {
-  if (valor === null) {
-    return '—';
-  }
-
-  if (id === 'notaMedia') {
-    return formatarNota(valor);
-  }
-
-  if (id === 'aprovacao') {
-    return `${Number.isInteger(valor) ? String(valor) : formatarNota(valor)}%`;
-  }
-
-  return String(valor);
-}
+import { formatarValorDoKpi, PaineisDoDashboard } from './PaineisDoDashboard';
 
 export function DashboardPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
@@ -38,7 +16,6 @@ export function DashboardPage() {
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
-  const periodoSubmetido = Boolean(searchParams.get('inicio') && searchParams.get('fim'));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,12 +69,12 @@ export function DashboardPage() {
     setSearchParams(proxima);
   }
 
-  const destinoDosKpis = dashboard
-    ? destinoDoKpi(
-        dashboard.recorte,
-        periodoSubmetido ? dashboard.periodo : null
-      )
-    : '/atendimentos';
+  function limparPeriodo() {
+    const proxima = new URLSearchParams(searchParams);
+    proxima.delete('inicio');
+    proxima.delete('fim');
+    setSearchParams(proxima);
+  }
 
   return (
     <div>
@@ -109,22 +86,25 @@ export function DashboardPage() {
           onChange={atualizarRecorte}
         />
       </div>
-      <form className="listagem-filtros" onSubmit={onFiltrar}>
+      <form className="dashboard-periodo" onSubmit={onFiltrar}>
         <input
           name="inicio"
           type="date"
           aria-label="Início"
-          defaultValue={periodoSubmetido ? (searchParams.get('inicio') ?? '') : ''}
-          key={`inicio-${searchParams.get('inicio') ?? ''}`}
+          defaultValue={dashboard?.periodo.inicio ?? ''}
+          key={`inicio-${dashboard?.periodo.inicio ?? ''}`}
         />
         <input
           name="fim"
           type="date"
           aria-label="Fim"
-          defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
-          key={`fim-${searchParams.get('fim') ?? ''}`}
+          defaultValue={dashboard?.periodo.fim ?? ''}
+          key={`fim-${dashboard?.periodo.fim ?? ''}`}
         />
-        <button type="submit">Filtrar</button>
+        <button type="submit">Aplicar</button>
+        <button type="button" onClick={limparPeriodo}>
+          Limpar
+        </button>
       </form>
       {erro === 'recorte-invalido' ? (
         <p className="listagem-erro" role="alert">
@@ -137,14 +117,22 @@ export function DashboardPage() {
         </p>
       ) : null}
       {dashboard ? (
-        <div className="dashboard-kpis">
-          {dashboard.kpis.map((item) => (
-            <Link className="dashboard-kpi" key={item.id} to={destinoDosKpis}>
-              <small>{item.rotulo}</small>
-              <strong>{formatarKpi(item.id, item.valor)}</strong>
-            </Link>
-          ))}
-        </div>
+        <>
+          <div className="dashboard-kpis">
+            {dashboard.kpis.map((item) => (
+              <Link
+                className="dashboard-kpi"
+                key={item.id}
+                to={destinoDoKpi(dashboard.recorte, dashboard.periodo, item.id)}
+              >
+                <small>{item.rotulo}</small>
+                <strong>{formatarValorDoKpi(item.id, item.valor)}</strong>
+                {item.meta !== undefined ? <em>meta {item.meta}%</em> : null}
+              </Link>
+            ))}
+          </div>
+          <PaineisDoDashboard dashboard={dashboard} />
+        </>
       ) : null}
     </div>
   );

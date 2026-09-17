@@ -5,31 +5,11 @@ import {
   periodoDaQuery,
   recorteDaQuery
 } from '../atendimentos/filtros.js';
-import type { RegistroDeAtendimento } from '../atendimentos/registro.js';
 import { registroDaAutorizacao } from '../perfil/sessoes.js';
-import { reguaUnica } from '../regua/regua-unica.js';
+import { pulsoDoDashboard } from './agregacao.js';
 
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
-}
-
-function kpisDoPeriodo(itens: RegistroDeAtendimento[]) {
-  const atendimentos = itens.length;
-  const notaMedia =
-    atendimentos === 0
-      ? null
-      : itens.reduce((soma, item) => soma + item.nota, 0) / atendimentos;
-  const aprovados = itens.filter(
-    (item) => item.nota >= reguaUnica.limiarDeAprovacao
-  ).length;
-  const aprovacao =
-    atendimentos === 0 ? null : (aprovados / atendimentos) * 100;
-
-  return [
-    { id: 'atendimentos' as const, rotulo: 'Atendimentos', valor: atendimentos },
-    { id: 'notaMedia' as const, rotulo: 'Nota média', valor: notaMedia },
-    { id: 'aprovacao' as const, rotulo: 'Aprovação', valor: aprovacao }
-  ];
 }
 
 const dashboardRoutes: FastifyPluginAsync = async (app) => {
@@ -56,11 +36,9 @@ const dashboardRoutes: FastifyPluginAsync = async (app) => {
       .listar()
       .filter((item) => passaNoDashboard(item, recorte, query));
 
-    return dashboardResponseSchema.parse({
-      recorte,
-      periodo: periodoDaQuery(query),
-      kpis: kpisDoPeriodo(filtrados)
-    });
+    return dashboardResponseSchema.parse(
+      pulsoDoDashboard(filtrados, recorte, periodoDaQuery(query))
+    );
   });
 };
 

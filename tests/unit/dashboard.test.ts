@@ -4,7 +4,7 @@ import { buildApp } from '../../apps/api/src/app.js';
 import { areasDaCasca, destinoDaNavegacao } from '../../packages/contracts/src/casca.js';
 import { dashboardResponseSchema } from '../../packages/contracts/src/dashboard.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
-import { destinoDoKpi } from '../../packages/contracts/src/recorte.js';
+import { destinoDoKpi, destinoDoPainel } from '../../packages/contracts/src/recorte.js';
 import { reguaDeAvaliacaoSchema } from '../../packages/contracts/src/regua.js';
 
 process.env.NODE_ENV = 'test';
@@ -24,7 +24,7 @@ async function sessaoDe(
 
 function kpi(
   body: ReturnType<typeof dashboardResponseSchema.parse>,
-  id: 'atendimentos' | 'notaMedia' | 'aprovacao'
+  id: string
 ) {
   const encontrado = body.kpis.find((item) => item.id === id);
   assert.ok(encontrado, `KPI ${id} ausente`);
@@ -50,6 +50,25 @@ test('KPI com período leva o mesmo intervalo para a lista', () => {
       { inicio: '2026-09-01', fim: '2026-09-30' }
     ),
     '/atendimentos?administradora=Affix&inicio=2026-09-01&fim=2026-09-30'
+  );
+});
+
+test('KPI e painel levam Recorte, período e indicador para a lista', () => {
+  assert.equal(
+    destinoDoKpi(
+      { administradora: 'Affix', agente: 'affix-0800' },
+      { inicio: '2026-09-01', fim: '2026-09-30' },
+      'sla'
+    ),
+    '/atendimentos?administradora=Affix&agente=affix-0800&inicio=2026-09-01&fim=2026-09-30&indicador=sla'
+  );
+  assert.equal(
+    destinoDoPainel(
+      { administradora: 'Alter', agente: null },
+      { inicio: '2026-09-01', fim: '2026-09-30' },
+      { indicador: 'motivos', motivo: 'Boleto' }
+    ),
+    '/atendimentos?administradora=Alter&inicio=2026-09-01&fim=2026-09-30&indicador=motivos&motivo=Boleto'
   );
 });
 
@@ -145,7 +164,7 @@ test('agregados do Dashboard respeitam Recorte e batem com a lista', async () =>
       agente: 'affix-0800'
     });
     assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
-    assert.equal(kpi(body, 'notaMedia').valor, 8.5);
+    assert.equal(kpi(body, 'notaMediaIa').valor, 8.5);
     assert.equal(kpi(body, 'aprovacao').valor, 100);
     assert.equal(destinoDoKpi(body.recorte), `/atendimentos?${recorte}`);
   } finally {
@@ -204,7 +223,7 @@ test('período submetido recorta agregados e o deep link do KPI', async () => {
     assert.deepEqual(body.periodo, { inicio: '2020-01-01', fim: '2020-01-31' });
     assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
     assert.equal(kpi(body, 'atendimentos').valor, 1);
-    assert.equal(kpi(body, 'notaMedia').valor, 5);
+    assert.equal(kpi(body, 'notaMediaIa').valor, 5);
     assert.equal(
       destinoDoKpi(body.recorte, body.periodo),
       `/atendimentos?${query}`
@@ -271,6 +290,88 @@ test('aprovação do Dashboard usa o limiar da Régua única', async () => {
 
     assert.equal(kpi(body, 'aprovacao').valor, esperada);
     assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
+  } finally {
+    await app.close();
+  }
+});
+
+test('pulso do Dashboard traz TMA, resolvidas, SLA e nulos sem fato', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const comFato = await app.inject({
+      method: 'GET',
+      url: '/dashboard?administradora=Affix&agente=affix-0800',
+      headers
+    });
+    const semConclusao = await app.inject({
+      method: 'GET',
+      url: '/dashboard?administradora=Affix&agente=affix-wa',
+      headers
+    });
+    const esperaForaDoSla = await app.inject({
+      method: 'GET',
+      url: '/dashboard?administradora=Affix&inicio=2020-01-01&fim=2020-01-31',
+      headers
+    });
+
+    const comFatoBody = dashboardResponseSchema.parse(comFato.json());
+    const semConclusaoBody = dashboardResponseSchema.parse(semConclusao.json());
+    const esperaForaBody = dashboardResponseSchema.parse(esperaForaDoSla.json());
+
+    assert.equal(kpi(comFatoBody, 'tma').valor, 312);
+    assert.equal(kpi(comFatoBody, 'taxaDeResolvidas').valor, 100);
+    assert.equal(kpi(comFatoBody, 'sla').valor, 100);
+    assert.equal(kpi(comFatoBody, 'sla').meta, 80);
+    assert.equal(kpi(comFatoBody, 'promessasCumpridas').rotulo, 'Taxa de Promessas Cumpridas');
+    assert.equal(kpi(comFatoBody, 'promessasCumpridas').valor, (2 / 3) * 100);
+    assert.equal(kpi(comFatoBody, 'tempoMedioAteResolucao').valor, 312);
+    assert.equal(kpi(comFatoBody, 'avaliadosIa').valor, 1);
+    assert.equal(kpi(comFatoBody, 'avaliadosCurador').valor, 0);
+    assert.equal(kpi(comFatoBody, 'notaMediaCurador').valor, null);
+
+    assert.equal(kpi(semConclusaoBody, 'atendimentos').valor, 1);
+    assert.equal(kpi(semConclusaoBody, 'tma').valor, null);
+    assert.equal(kpi(semConclusaoBody, 'taxaDeResolvidas').valor, null);
+    assert.equal(kpi(semConclusaoBody, 'sla').valor, null);
+    assert.equal(kpi(semConclusaoBody, 'promessasCumpridas').valor, null);
+    assert.equal(kpi(semConclusaoBody, 'tempoMedioAteResolucao').valor, null);
+
+    assert.equal(kpi(esperaForaBody, 'sla').valor, 0);
+    assert.equal(kpi(esperaForaBody, 'tma').valor, 150);
+  } finally {
+    await app.close();
+  }
+});
+
+test('painéis do Dashboard descrevem motivos, critérios e piores Atendimentos', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const response = await app.inject({
+      method: 'GET',
+      url: '/dashboard?administradora=Alter',
+      headers
+    });
+    const body = dashboardResponseSchema.parse(response.json());
+
+    assert.deepEqual(body.paineis.motivos, [{ motivo: 'Boleto', quantidade: 1 }]);
+    assert.equal(
+      body.paineis.naoConformidade.find((item) => item.criterio === 'Informação de Protocolo')
+        ?.quantidade,
+      1
+    );
+    assert.equal(body.paineis.concordancia.nota, 100);
+    assert.equal(body.paineis.pioresAtendimentos[0]?.id, 'a2');
+    assert.equal(
+      body.paineis.acertoPorCriterio.find((item) => item.criterio === 'Validação de e-mail')
+        ?.percentual,
+      null
+    );
   } finally {
     await app.close();
   }
