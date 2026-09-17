@@ -2,7 +2,7 @@ import { catalogoDeAtendimentos } from './catalogo.js';
 import type { PortaDeLeituraDeAtendimentos } from './porta.js';
 
 export function repositorioEmMemoria(): PortaDeLeituraDeAtendimentos {
-  const registros = catalogoDeAtendimentos();
+  const registros = Object.freeze(catalogoDeAtendimentos());
 
   return {
     listar() {

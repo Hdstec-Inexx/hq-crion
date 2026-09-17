@@ -14,3 +14,19 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
   tempoDeEsperaEmSegundos?: number;
   ferramentas?: FerramentasDoAtendimento;
 };
+
+export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe {
+  const {
+    curadorId: _curadorId,
+    concluidoEm: _concluidoEm,
+    comentarioStatus: _comentarioStatus,
+    duracaoEmSegundos: _duracaoEmSegundos,
+    transferencia: _transferencia,
+    tempoDeEsperaEmSegundos: _tempoDeEsperaEmSegundos,
+    ferramentas: _ferramentas,
+    ...publico
+  } = item;
+
+  return publico;
+}
+

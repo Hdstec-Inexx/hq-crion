@@ -1,7 +1,10 @@
 import { dashboardResponseSchema } from '@hq-crion/contracts/dashboard';
-import { lerRecorte } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
-import { passaNoDashboard, periodoDaQuery } from '../atendimentos/filtros.js';
+import {
+  passaNoDashboard,
+  periodoDaQuery,
+  recorteDaQuery
+} from '../atendimentos/filtros.js';
 import type { RegistroDeAtendimento } from '../atendimentos/registro.js';
 import { registroDaAutorizacao } from '../perfil/sessoes.js';
 import { reguaUnica } from '../regua/regua-unica.js';
@@ -43,14 +46,9 @@ const dashboardRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    let recorte;
+    const recorte = recorteDaQuery(query);
 
-    try {
-      recorte = lerRecorte({
-        administradora: query.administradora,
-        agente: query.agente
-      });
-    } catch {
+    if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });
     }
 

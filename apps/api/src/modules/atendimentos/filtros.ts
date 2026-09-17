@@ -1,4 +1,4 @@
-import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
+import { lerRecorte, periodoMesCivil, type Recorte } from '@hq-crion/contracts/recorte';
 import type { RegistroDeAtendimento } from './registro.js';
 
 export type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas' | 'monitoramento';
@@ -18,6 +18,19 @@ export function diaNoFuso(iso: string) {
   const day = parts.find((part) => part.type === 'day')?.value;
 
   return `${year}-${month}-${day}`;
+}
+
+export function recorteDaQuery(
+  query: Record<string, string | undefined>
+): Recorte | undefined {
+  try {
+    return lerRecorte({
+      administradora: query.administradora,
+      agente: query.agente
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 export function periodoDaQuery(query: Record<string, string | undefined>) {

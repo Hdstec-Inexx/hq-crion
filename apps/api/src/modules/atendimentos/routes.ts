@@ -13,7 +13,6 @@ import {
   type MonitoramentoDetalhe
 } from '@hq-crion/contracts/atendimento';
 import type { Papel } from '@hq-crion/contracts/perfil';
-import { lerRecorte } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { reguaUnica } from '../regua/regua-unica.js';
@@ -21,9 +20,10 @@ import {
   diaNoFuso,
   passaNosFiltros,
   periodoDaQuery,
+  recorteDaQuery,
   type ModoDaListagem
 } from './filtros.js';
-import type { RegistroDeAtendimento } from './registro.js';
+import { detalhePublico, type RegistroDeAtendimento } from './registro.js';
 
 function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
   const texto = item.avaliacaoDoCurador?.comentario;
@@ -95,18 +95,7 @@ function responderMonitoramento(item: RegistroDeAtendimento): MonitoramentoDetal
 }
 
 function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
-  const {
-    custo,
-    downloadDeAudio,
-    curadorId: _curadorId,
-    concluidoEm: _concluidoEm,
-    comentarioStatus: _comentarioStatus,
-    duracaoEmSegundos: _duracaoEmSegundos,
-    transferencia: _transferencia,
-    tempoDeEsperaEmSegundos: _tempoDeEsperaEmSegundos,
-    ferramentas: _ferramentas,
-    ...resto
-  } = item;
+  const { custo, downloadDeAudio, ...resto } = detalhePublico(item);
 
   return atendimentoDetalheSchema.parse({
     ...resto,
@@ -137,14 +126,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    let recorte;
+    const recorte = recorteDaQuery(query);
 
-    try {
-      recorte = lerRecorte({
-        administradora: query.administradora,
-        agente: query.agente
-      });
-    } catch {
+    if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });
     }
 
@@ -210,14 +194,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    let recorte;
+    const recorte = recorteDaQuery(query);
 
-    try {
-      recorte = lerRecorte({
-        administradora: query.administradora,
-        agente: query.agente
-      });
-    } catch {
+    if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });
     }
 

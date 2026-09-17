@@ -1,6 +1,6 @@
 import type { RegistroDeAtendimento } from './registro.js';
 
 export type PortaDeLeituraDeAtendimentos = {
-  listar(): RegistroDeAtendimento[];
+  listar(): readonly RegistroDeAtendimento[];
   buscarPorId(id: string): RegistroDeAtendimento | undefined;
 };
