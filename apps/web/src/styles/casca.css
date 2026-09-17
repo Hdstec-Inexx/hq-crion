@@ -1,0 +1,95 @@
+.enquadramento {
+  display: grid;
+  grid-template-columns: 228px 1fr;
+  min-height: 100vh;
+}
+
+.enquadramento.is-collapsed {
+  grid-template-columns: 72px 1fr;
+}
+
+.casca {
+  background: var(--casca);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 12px 16px;
+}
+
+.casca-marca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 18px;
+  background: none;
+  border: 0;
+}
+
+.casca-marca img {
+  height: 28px;
+  width: auto;
+}
+
+.casca-nav {
+  display: grid;
+  gap: 4px;
+}
+
+.casca-nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  text-decoration: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 9px 10px;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.casca-nav a.active {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px var(--cyan);
+}
+
+.casca-nav svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.casca-foot {
+  margin-top: auto;
+  padding: 12px 8px 0;
+  font-size: 12px;
+  color: var(--mute);
+}
+
+.casca-foot button {
+  margin-top: 8px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+  padding: 0;
+}
+
+.casca-foot .casca-sair {
+  margin-left: 12px;
+}
+
+.enquadramento.is-collapsed .casca-nav span,
+.enquadramento.is-collapsed .casca-foot strong {
+  display: none;
+}
+
+.enquadramento.is-collapsed .casca-sair {
+  margin-left: 0;
+}
+
+.casca-main {
+  padding: 28px 32px 96px;
+}
