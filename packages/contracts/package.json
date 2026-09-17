@@ -28,6 +28,10 @@
       "types": "./src/atendimento.ts",
       "default": "./dist/atendimento.js"
     },
+    "./filtros-listagem": {
+      "types": "./src/filtros-listagem.ts",
+      "default": "./dist/filtros-listagem.js"
+    },
     "./dashboard": {
       "types": "./src/dashboard.ts",
       "default": "./dist/dashboard.js"

@@ -15,14 +15,16 @@ import {
 import type { Papel } from '@hq-crion/contracts/perfil';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
+import { buscarPorId } from '../perfil/repositorio.js';
 import { reguaUnica } from '../regua/regua-unica.js';
 import {
   diaNoFuso,
-  passaNosFiltros,
-  periodoDaQuery,
-  recorteDaQuery,
-  type ModoDaListagem
-} from './filtros.js';
+    aplicarIndicador,
+    passaNosFiltros,
+    periodoDaQuery,
+    recorteDaQuery,
+    type ModoDaListagem
+  } from './filtros.js';
 import { detalhePublico, type RegistroDeAtendimento } from './registro.js';
 
 function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
@@ -43,6 +45,24 @@ function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
     texto,
     status: item.comentarioStatus ?? 'Pendente'
   };
+}
+
+function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
+  const vistos = new Map<string, { id: string; nome: string }>();
+
+  for (const item of itens) {
+    if (!item.curadorId || vistos.has(item.curadorId)) {
+      continue;
+    }
+
+    const perfil = buscarPorId(item.curadorId);
+
+    if (perfil?.papel === 'Curador') {
+      vistos.set(item.curadorId, { id: perfil.id, nome: perfil.nome });
+    }
+  }
+
+  return [...vistos.values()];
 }
 
 function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
@@ -135,7 +155,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     const filtrados = app.atendimentos
       .listar()
       .filter((item) => passaNosFiltros(item, recorte, query, modo, registro.id));
-    const itens = modo === 'fila' ? ordenarFila(filtrados) : filtrados;
+    const comIndicador =
+      modo === 'todos' ? aplicarIndicador(filtrados, query.indicador) : filtrados;
+    const itens = modo === 'fila' ? ordenarFila(comIndicador) : comIndicador;
     const tamanho = 50;
     const total = itens.length;
     const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
@@ -169,7 +191,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
         const { custo: _custo, ...semCusto } = listagem;
         return semCusto;
-      })
+      }),
+      curadores: curadoresDaListagem(itens)
     });
   }
 

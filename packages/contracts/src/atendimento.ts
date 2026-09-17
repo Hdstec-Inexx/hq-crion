@@ -40,12 +40,18 @@ export const atendimentoListItemSchema = z.object({
   custo: z.string().min(1).optional()
 });
 
+export const curadorDaListagemSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().min(1)
+});
+
 export const listagemResponseSchema = z.object({
   recorte: recorteSchema,
   pagina: z.number().int().min(1),
   tamanho: z.literal(50),
   total: z.number().int().min(0),
-  itens: z.array(atendimentoListItemSchema)
+  itens: z.array(atendimentoListItemSchema),
+  curadores: z.array(curadorDaListagemSchema)
 });
 
 export const statusDoComentarioSchema = z.enum(['Pendente', 'Resolvido']);
@@ -144,6 +150,7 @@ export const monitoramentoDetalheSchema = z.object({
   transcricao: z.array(turnoDaTranscricaoSchema)
 });
 
+export type CuradorDaListagem = z.infer<typeof curadorDaListagemSchema>;
 export type AtendimentoListItem = z.infer<typeof atendimentoListItemSchema>;
 export type ListagemResponse = z.infer<typeof listagemResponseSchema>;
 export type StatusDoComentario = z.infer<typeof statusDoComentarioSchema>;

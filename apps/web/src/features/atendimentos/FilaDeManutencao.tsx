@@ -2,6 +2,7 @@ import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { FilaDeManutencaoResponse } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
+import { limparFiltrosDaQuery } from '@hq-crion/contracts/filtros-listagem';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
@@ -95,6 +96,10 @@ export function FilaDeManutencao() {
     setSearchParams(proxima);
   }
 
+  function limparFiltros() {
+    setSearchParams(limparFiltrosDaQuery(searchParams));
+  }
+
   function irPara(pagina: number) {
     const proxima = new URLSearchParams(searchParams);
     proxima.set('pagina', String(pagina));
@@ -167,12 +172,15 @@ export function FilaDeManutencao() {
           defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
           key={`fim-${searchParams.get('fim') ?? ''}`}
         />
-        <select name="status" defaultValue={searchParams.get('status') ?? ''} aria-label="Status">
-          <option value="">Status</option>
+        <select name="status" defaultValue={searchParams.get('status') ?? ''} aria-label="Status do Comentário">
+          <option value="">Status do Comentário</option>
           <option value="Pendente">Pendente</option>
           <option value="Resolvido">Resolvido</option>
         </select>
         <button type="submit">Filtrar</button>
+        <button type="button" onClick={limparFiltros}>
+          Limpar
+        </button>
       </form>
       {erro === 'recorte-invalido' ? (
         <p className="listagem-erro" role="alert">

@@ -115,6 +115,59 @@ test('GET /fila-de-curadoria recorta pela Administradora e Agente da URL', async
   }
 });
 
+test('GET /fila-de-curadoria ignora indicador do pulso', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'carla.mendes@crion');
+    const fila = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?indicador=pioresAtendimentos',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(fila.statusCode, 200);
+    const ids = fila.json().itens.map((item: { id: string }) => item.id);
+    assert.ok(ids.includes('a1'));
+    assert.ok(ids.includes('a3'));
+    assert.ok(ids.length > 5);
+    assert.ok(ids.indexOf('extra-1') < ids.indexOf('a1'));
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /fila-de-curadoria ignora Critérios e curador da Listagem', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'carla.mendes@crion');
+    const semExtras = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?administradora=Affix&agente=affix-0800',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const comExtras = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?administradora=Affix&agente=affix-0800&curador=perfil-bruno&criteriosNaoAtendidos=Saudação',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(semExtras.statusCode, 200);
+    assert.equal(comExtras.statusCode, 200);
+    assert.deepEqual(
+      semExtras.json().itens.map((item: { id: string }) => item.id),
+      ['a1']
+    );
+    assert.deepEqual(
+      comExtras.json().itens.map((item: { id: string }) => item.id),
+      ['a1']
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /fila-de-curadoria rejeita Recorte inválido', async () => {
   const app = await buildApp();
 
@@ -219,6 +272,45 @@ test('Gestão não grava conferência', async () => {
     });
 
     assert.equal(response.statusCode, 403);
+  } finally {
+    await app.close();
+  }
+});
+
+test('curador filtra Curadorias realizadas e não restringe Minhas Curadorias', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoGestao = await sessaoDe(app, 'ana.souza@crion');
+    const minhas = await app.inject({
+      method: 'GET',
+      url: '/minhas-curadorias?curador=perfil-bruno',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    const realizadas = await app.inject({
+      method: 'GET',
+      url: '/curadorias-realizadas?curador=perfil-carla',
+      headers: { authorization: `Bearer ${sessaoGestao}` }
+    });
+    const realizadasOutro = await app.inject({
+      method: 'GET',
+      url: '/curadorias-realizadas?curador=perfil-bruno',
+      headers: { authorization: `Bearer ${sessaoGestao}` }
+    });
+
+    assert.equal(minhas.statusCode, 200);
+    assert.ok(minhas.json().itens.some((item: { id: string }) => item.id === 'a2'));
+    assert.equal(realizadas.statusCode, 200);
+    assert.deepEqual(
+      realizadas.json().itens.map((item: { id: string }) => item.id),
+      ['a2']
+    );
+    assert.equal(realizadasOutro.statusCode, 200);
+    assert.deepEqual(
+      realizadasOutro.json().itens.map((item: { id: string }) => item.id),
+      []
+    );
   } finally {
     await app.close();
   }
