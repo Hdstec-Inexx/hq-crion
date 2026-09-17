@@ -14,6 +14,11 @@ import {
   periodoMesCivil,
   queryDoRecorte
 } from '../../packages/contracts/src/recorte.js';
+import {
+  camposVisiveisDaListagem,
+  limparFiltrosDaQuery,
+  motivosDeContato
+} from '../../packages/contracts/src/filtros-listagem.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -29,6 +34,31 @@ async function sessaoDe(
 
   return loginResponseSchema.parse(login.json()).sessao;
 }
+
+test('mapa GEAP de filtros por página e motivo fechado', () => {
+  assert.ok(motivosDeContato.includes('Não informado'));
+  assert.equal(
+    camposVisiveisDaListagem('/atendimentos').includes('statusAtendimento'),
+    true
+  );
+  assert.equal(camposVisiveisDaListagem('/fila-de-curadoria').includes('curador'), false);
+  assert.equal(camposVisiveisDaListagem('/fila-de-curadoria').includes('criterios'), false);
+  assert.equal(camposVisiveisDaListagem('/minhas-curadorias').includes('curador'), false);
+  assert.equal(camposVisiveisDaListagem('/curadorias-realizadas').includes('curador'), true);
+  assert.equal(camposVisiveisDaListagem('/manutencao').includes('criterios'), false);
+  assert.equal(
+    limparFiltrosDaQuery(
+      new URLSearchParams('administradora=Affix&motivo=Boleto&indicador=sla')
+    ).get('administradora'),
+    'Affix'
+  );
+  assert.equal(
+    limparFiltrosDaQuery(
+      new URLSearchParams('administradora=Affix&motivo=Boleto&indicador=sla')
+    ).has('motivo'),
+    false
+  );
+});
 
 test('voltar à lista preserva Recorte na URL', () => {
   assert.equal(
@@ -135,18 +165,75 @@ test('GET /atendimentos filtra por status', async () => {
   }
 });
 
-test('GET /atendimentos filtra por nota', async () => {
+test('GET /atendimentos filtra por nota da IA', async () => {
   const app = await buildApp();
 
   try {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
-      url: '/atendimentos?nota=6',
+      url: '/atendimentos?notaIa=6',
       headers: { authorization: `Bearer ${sessao}` }
     });
 
     assert.equal(response.statusCode, 200);
+    assert.deepEqual(
+      response.json().itens.map((item: { id: string }) => item.id),
+      ['a2']
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos com indicador do pulso restringe a lista', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const avaliadosCurador = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?indicador=avaliadosCurador',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const piores = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?indicador=pioresAtendimentos',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(avaliadosCurador.statusCode, 200);
+    assert.deepEqual(
+      avaliadosCurador.json().itens.map((item: { id: string }) => item.id),
+      ['a2']
+    );
+    assert.equal(piores.statusCode, 200);
+    const idsPiores = piores.json().itens.map((item: { id: string }) => item.id);
+    assert.equal(idsPiores.length, 5);
+    assert.equal(idsPiores[0], 'a2');
+    assert.equal(idsPiores.includes('a1'), false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos combina Recorte, período e indicador do pulso', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const { inicio, fim } = periodoMesCivil(new Date());
+    const response = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?administradora=Alter&inicio=${inicio}&fim=${fim}&indicador=avaliadosCurador`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().recorte, {
+      administradora: 'Alter',
+      agente: null
+    });
     assert.deepEqual(
       response.json().itens.map((item: { id: string }) => item.id),
       ['a2']
@@ -198,20 +285,91 @@ test('GET /atendimentos filtra por id da conversa', async () => {
   }
 });
 
-test('GET /atendimentos filtra por curadoria feita', async () => {
+test('nota da IA malformada não substitui a listagem', async () => {
   const app = await buildApp();
 
   try {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
-      url: '/atendimentos?curadoria=true',
+      url: '/atendimentos?notaIa=nao-e-nota',
       headers: { authorization: `Bearer ${sessao}` }
     });
 
     assert.equal(response.statusCode, 200);
+    const ids = response.json().itens.map((item: { id: string }) => item.id);
+    assert.ok(ids.includes('a1'));
+    assert.ok(ids.includes('a2'));
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos filtra por status da curadoria', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const feitas = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?statusCuradoria=feita',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const pendentes = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?statusCuradoria=pendente&conversa=conv-a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(feitas.statusCode, 200);
     assert.deepEqual(
-      response.json().itens.map((item: { id: string }) => item.id),
+      feitas.json().itens.map((item: { id: string }) => item.id),
+      ['a2']
+    );
+    assert.equal(pendentes.statusCode, 200);
+    assert.deepEqual(
+      pendentes.json().itens.map((item: { id: string }) => item.id),
+      ['a1']
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos filtra por Critérios e curador', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const naoAtendidos = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?criteriosNaoAtendidos=Informa%C3%A7%C3%A3o%20de%20Protocolo',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const atendidos = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?criteriosAtendidos=Sauda%C3%A7%C3%A3o&conversa=conv-a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const curador = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?curador=perfil-carla',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(naoAtendidos.statusCode, 200);
+    assert.deepEqual(
+      naoAtendidos.json().itens.map((item: { id: string }) => item.id),
+      ['a2']
+    );
+    assert.equal(atendidos.statusCode, 200);
+    assert.deepEqual(
+      atendidos.json().itens.map((item: { id: string }) => item.id),
+      ['a1']
+    );
+    assert.equal(curador.statusCode, 200);
+    assert.deepEqual(
+      curador.json().itens.map((item: { id: string }) => item.id),
       ['a2']
     );
   } finally {

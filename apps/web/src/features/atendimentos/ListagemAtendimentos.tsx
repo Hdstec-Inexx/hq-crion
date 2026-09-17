@@ -1,11 +1,19 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import { custoVisivelPara, type ListagemResponse } from '@hq-crion/contracts/atendimento';
+import {
+  camposVisiveisDaListagem,
+  limparFiltrosDaQuery,
+  motivosDeContato,
+  type CampoVisivelDaListagem
+} from '@hq-crion/contracts/filtros-listagem';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
+import { buscarRegua } from '../regua/api';
+import { lerSessao } from '../auth/sessao';
 import { buscarAtendimentos } from './api';
 
 function formatarQuando(iso: string) {
@@ -44,6 +52,9 @@ export function ListagemAtendimentos({
   const [searchParams, setSearchParams] = useSearchParams();
   const [listagem, setListagem] = useState<ListagemResponse | null>(null);
   const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | null>(null);
+  const [criteriosDaRegua, setCriteriosDaRegua] = useState<string[]>([]);
+  const campos = camposVisiveisDaListagem(caminho);
+  const mostra = (campo: CampoVisivelDaListagem) => campos.includes(campo);
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
@@ -76,6 +87,33 @@ export function ListagemAtendimentos({
     return () => controller.abort();
   }, [searchParams, caminho]);
 
+  useEffect(() => {
+    if (!campos.includes('criterios')) {
+      return;
+    }
+
+    const sessao = lerSessao();
+
+    if (!sessao) {
+      return;
+    }
+
+    const controller = new AbortController();
+    buscarRegua(sessao, controller.signal)
+      .then((regua) => {
+        if (!controller.signal.aborted && regua) {
+          setCriteriosDaRegua(regua.criterios.map((criterio) => criterio.nome));
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setCriteriosDaRegua([]);
+        }
+      });
+
+    return () => controller.abort();
+  }, [caminho, campos]);
+
   function atualizarRecorte(administradora: string, agente: string) {
     setSearchParams(escreverRecorteNaQuery(searchParams, administradora, agente, {
       resetarPagina: true
@@ -86,9 +124,18 @@ export function ListagemAtendimentos({
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const proxima = new URLSearchParams(searchParams);
-    const campos = ['inicio', 'fim', 'status', 'nota', 'motivo', 'conversa', 'curadoria'] as const;
+    const simples = [
+      'inicio',
+      'fim',
+      'status',
+      'motivo',
+      'conversa',
+      'notaIa',
+      'statusCuradoria',
+      'curador'
+    ] as const;
 
-    for (const campo of campos) {
+    for (const campo of simples) {
       const valor = String(data.get(campo) ?? '').trim();
 
       if (valor) {
@@ -98,8 +145,27 @@ export function ListagemAtendimentos({
       }
     }
 
+    for (const campo of ['criteriosAtendidos', 'criteriosNaoAtendidos'] as const) {
+      const valores = data
+        .getAll(campo)
+        .map((valor) => String(valor).trim())
+        .filter(Boolean);
+
+      if (valores.length > 0) {
+        proxima.set(campo, valores.join(','));
+      } else {
+        proxima.delete(campo);
+      }
+    }
+
+    proxima.delete('nota');
+    proxima.delete('curadoria');
     proxima.delete('pagina');
     setSearchParams(proxima);
+  }
+
+  function limparFiltros() {
+    setSearchParams(limparFiltrosDaQuery(searchParams));
   }
 
   function irPara(pagina: number) {
@@ -121,55 +187,116 @@ export function ListagemAtendimentos({
         />
       </div>
       <form className="listagem-filtros" onSubmit={onFiltrar}>
-        <input
-          name="inicio"
-          type="date"
-          aria-label="Início"
-          defaultValue={periodoSubmetido ? (searchParams.get('inicio') ?? '') : ''}
-          key={`inicio-${searchParams.get('inicio') ?? ''}`}
-        />
-        <input
-          name="fim"
-          type="date"
-          aria-label="Fim"
-          defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
-          key={`fim-${searchParams.get('fim') ?? ''}`}
-        />
-        <select name="status" defaultValue={searchParams.get('status') ?? ''} aria-label="Status">
-          <option value="">Status</option>
-          <option value="Concluído">Concluído</option>
-          <option value="Em andamento">Em andamento</option>
-        </select>
-        <select name="nota" defaultValue={searchParams.get('nota') ?? ''} aria-label="Nota">
-          <option value="">Nota</option>
-          <option value="9">9,0</option>
-          <option value="8.5">8,5</option>
-          <option value="8">8,0</option>
-          <option value="7.5">7,5</option>
-          <option value="6">6,0</option>
-        </select>
-        <input
-          name="motivo"
-          placeholder="Motivo"
-          aria-label="Motivo"
-          defaultValue={searchParams.get('motivo') ?? ''}
-        />
-        <input
-          name="conversa"
-          placeholder="Id da conversa"
-          aria-label="Id da conversa"
-          defaultValue={searchParams.get('conversa') ?? ''}
-        />
-        <select
-          name="curadoria"
-          defaultValue={searchParams.get('curadoria') ?? ''}
-          aria-label="Curadoria feita"
-        >
-          <option value="">Curadoria feita</option>
-          <option value="true">Feita</option>
-          <option value="false">Não feita</option>
-        </select>
+        {mostra('periodo') ? (
+          <>
+            <input
+              name="inicio"
+              type="date"
+              aria-label="Início"
+              defaultValue={periodoSubmetido ? (searchParams.get('inicio') ?? '') : ''}
+              key={`inicio-${searchParams.get('inicio') ?? ''}`}
+            />
+            <input
+              name="fim"
+              type="date"
+              aria-label="Fim"
+              defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
+              key={`fim-${searchParams.get('fim') ?? ''}`}
+            />
+          </>
+        ) : null}
+        {mostra('statusAtendimento') ? (
+          <select name="status" defaultValue={searchParams.get('status') ?? ''} aria-label="Status do Atendimento">
+            <option value="">Status do Atendimento</option>
+            <option value="Concluído">Concluído</option>
+            <option value="Em andamento">Em andamento</option>
+          </select>
+        ) : null}
+        {mostra('notaIa') ? (
+          <input
+            name="notaIa"
+            type="number"
+            step="0.1"
+            placeholder="Nota da IA"
+            aria-label="Nota da IA"
+            defaultValue={searchParams.get('notaIa') ?? ''}
+          />
+        ) : null}
+        {mostra('motivo') ? (
+          <select name="motivo" defaultValue={searchParams.get('motivo') ?? ''} aria-label="Motivo">
+            <option value="">Motivo</option>
+            {motivosDeContato.map((motivo) => (
+              <option key={motivo} value={motivo}>
+                {motivo}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        {mostra('conversa') ? (
+          <input
+            name="conversa"
+            placeholder="Id da conversa"
+            aria-label="Id da conversa"
+            defaultValue={searchParams.get('conversa') ?? ''}
+          />
+        ) : null}
+        {mostra('criterios') ? (
+          <>
+            <select
+              name="criteriosAtendidos"
+              multiple
+              aria-label="Critérios atendidos"
+              defaultValue={searchParams.get('criteriosAtendidos')?.split(',').filter(Boolean) ?? []}
+              key={`atendidos-${searchParams.get('criteriosAtendidos') ?? ''}`}
+            >
+              {criteriosDaRegua.map((nome) => (
+                <option key={nome} value={nome}>
+                  {nome}
+                </option>
+              ))}
+            </select>
+            <select
+              name="criteriosNaoAtendidos"
+              multiple
+              aria-label="Critérios não atendidos"
+              defaultValue={searchParams.get('criteriosNaoAtendidos')?.split(',').filter(Boolean) ?? []}
+              key={`nao-atendidos-${searchParams.get('criteriosNaoAtendidos') ?? ''}`}
+            >
+              {criteriosDaRegua.map((nome) => (
+                <option key={nome} value={nome}>
+                  {nome}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : null}
+        {mostra('statusCuradoria') ? (
+          <select
+            name="statusCuradoria"
+            defaultValue={searchParams.get('statusCuradoria') ?? ''}
+            aria-label="Status da curadoria"
+          >
+            <option value="">Status da curadoria</option>
+            <option value="feita">Feita</option>
+            <option value="pendente">Pendente</option>
+          </select>
+        ) : null}
+        {mostra('curador') ? (
+          <select name="curador" defaultValue={searchParams.get('curador') ?? ''} aria-label="Curador">
+            <option value="">Curador</option>
+            {listagem?.curadores.map((curador) => (
+              <option key={curador.id} value={curador.id}>
+                {curador.nome}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <button type="submit">Filtrar</button>
+        {mostra('limpar') ? (
+          <button type="button" onClick={limparFiltros}>
+            Limpar
+          </button>
+        ) : null}
       </form>
       {erro === 'recorte-invalido' ? (
         <p className="listagem-erro" role="alert">

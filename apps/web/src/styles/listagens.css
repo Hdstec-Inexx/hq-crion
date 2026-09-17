@@ -14,10 +14,15 @@
   background: #fff;
 }
 
-.listagem-filtros button {
-  background: var(--cyan);
-  border: 0;
-  font-weight: 700;
+.listagem-filtros button[type='button'] {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.listagem-filtros select[multiple] {
+  min-width: 180px;
+  min-height: 72px;
 }
 
 .listagem-painel {

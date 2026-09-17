@@ -1,4 +1,6 @@
-import { lerRecorte, periodoMesCivil, type Recorte } from '@hq-crion/contracts/recorte';
+import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
+import { statusDaCuradoria } from '@hq-crion/contracts/filtros-listagem';
+import { reguaUnica } from '../regua/regua-unica.js';
 import type { RegistroDeAtendimento } from './registro.js';
 
 export type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas' | 'monitoramento';
@@ -22,7 +24,7 @@ export function diaNoFuso(iso: string) {
 
 export function recorteDaQuery(
   query: Record<string, string | undefined>
-): Recorte | undefined {
+): ReturnType<typeof lerRecorte> | undefined {
   try {
     return lerRecorte({
       administradora: query.administradora,
@@ -98,11 +100,13 @@ export function passaNosFiltros(
     return false;
   }
 
-  if (query.status && item.status !== query.status) {
+  if (modo === 'todos' && query.status && item.status !== query.status) {
     return false;
   }
 
-  if (query.nota && item.nota !== Number(query.nota)) {
+  const notaIa = query.notaIa === undefined ? Number.NaN : Number(query.notaIa);
+
+  if (Number.isFinite(notaIa) && item.avaliacaoDaIa.nota !== notaIa) {
     return false;
   }
 
@@ -114,11 +118,25 @@ export function passaNosFiltros(
     return false;
   }
 
-  if (query.curadoria === 'true' && !item.curadoria) {
+  const statusCuradoria = statusDaCuradoria.find((status) => status === query.statusCuradoria);
+
+  if (modo === 'todos' && statusCuradoria === 'feita' && !item.curadoria) {
     return false;
   }
 
-  if (query.curadoria === 'false' && item.curadoria) {
+  if (modo === 'todos' && statusCuradoria === 'pendente' && item.curadoria) {
+    return false;
+  }
+
+  if (modo !== 'fila' && !passaNosCriterios(item, query)) {
+    return false;
+  }
+
+  if (
+    (modo === 'todos' || modo === 'realizadas') &&
+    query.curador &&
+    item.curadorId !== query.curador
+  ) {
     return false;
   }
 
@@ -139,6 +157,83 @@ export function passaNosFiltros(
   }
 
   return true;
+}
+
+function nomesDaQuery(valor: string | undefined) {
+  return (valor ?? '')
+    .split(',')
+    .map((nome) => nome.trim())
+    .filter(Boolean);
+}
+
+function passaNosCriterios(
+  item: RegistroDeAtendimento,
+  query: Record<string, string | undefined>
+) {
+  const atendidos = nomesDaQuery(query.criteriosAtendidos);
+  const naoAtendidos = nomesDaQuery(query.criteriosNaoAtendidos);
+
+  const temEstado = (nomes: string[], estado: 'Atendido' | 'Não atendido') =>
+    nomes.every((nome) =>
+      item.avaliacaoDaIa.criterios.some(
+        (criterio) => criterio.nome === nome && criterio.estado === estado
+      )
+    );
+
+  return temEstado(atendidos, 'Atendido') && temEstado(naoAtendidos, 'Não atendido');
+}
+
+export function aplicarIndicador(
+  itens: RegistroDeAtendimento[],
+  indicador: string | undefined
+) {
+  if (!indicador) {
+    return itens;
+  }
+
+  const concluidos = itens.filter((item) => item.status === 'Concluído');
+
+  switch (indicador) {
+    case 'atendimentos':
+    case 'motivos':
+      return itens;
+    case 'tma':
+      return concluidos.filter((item) => item.duracaoEmSegundos !== undefined);
+    case 'taxaDeResolvidas':
+      return concluidos.filter((item) => item.transferencia === false);
+    case 'sla':
+      return concluidos;
+    case 'notaMediaIa':
+    case 'avaliadosIa':
+    case 'acertoPorCriterio':
+      return itens.filter((item) => Boolean(item.avaliacaoDaIa));
+    case 'notaMediaCurador':
+    case 'avaliadosCurador':
+      return itens.filter((item) => Boolean(item.avaliacaoDoCurador));
+    case 'promessasCumpridas':
+      return itens.filter((item) => Boolean(item.ferramentas));
+    case 'tempoMedioAteResolucao':
+      return concluidos.filter(
+        (item) => item.transferencia === false && item.duracaoEmSegundos !== undefined
+      );
+    case 'aprovacao':
+      return itens.filter((item) => item.nota >= reguaUnica.limiarDeAprovacao);
+    case 'concordancia':
+      return itens.filter(
+        (item) => Boolean(item.avaliacaoDaIa) && Boolean(item.avaliacaoDoCurador)
+      );
+    case 'naoConformidade':
+      return itens.filter((item) =>
+        item.avaliacaoDaIa.criterios.some((criterio) => criterio.estado === 'Não atendido')
+      );
+    case 'pioresAtendimentos':
+      return concluidos
+        .slice()
+        .sort((a, b) => a.avaliacaoDaIa.nota - b.avaliacaoDaIa.nota)
+        .slice(0, 5);
+    default:
+      return itens;
+  }
 }
 
 export function passaNoDashboard(

@@ -76,7 +76,7 @@ _Avoid_: Supervisão (implica intervenção), Ao vivo (fora da casca)
 A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador escolhe quais revisar (modelo pull). Na casca: “Fila de curadoria”. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo); a lista vai do mais antigo ao mais novo.
 
 **Listagem de Atendimentos**:
-A lista operacional de Atendimentos. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo), com datas vazias na UI até o operador submeter um intervalo. Demais filtros seguem o GEAP (status, nota, motivo, id da conversa, curadoria feita), além do Recorte.
+A lista operacional de Atendimentos. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo), com datas vazias na UI até o operador submeter um intervalo. Demais filtros seguem o GEAP (status do Atendimento, motivo em escolha, id da conversa, Critérios, status da curadoria, curador, nota da IA, Limpar), além do Recorte.
 
 **Fila de Manutenção**:
 A lista de Comentários da conferência — pendentes e resolvidos — da qual o Admin trabalha a manutenção dos Agentes de Voz. Filtro por status e data; cada item liga ao Atendimento de origem. Só o Admin opera a fila. Na casca: “Manutenção”. Recorte igual às outras listagens. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo).
