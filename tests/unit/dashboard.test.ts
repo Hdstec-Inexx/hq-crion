@@ -66,9 +66,9 @@ test('KPI e painel levam Recorte, período e indicador para a lista', () => {
     destinoDoPainel(
       { administradora: 'Alter', agente: null },
       { inicio: '2026-09-01', fim: '2026-09-30' },
-      { indicador: 'motivos', motivo: 'Boleto' }
+      'motivos'
     ),
-    '/atendimentos?administradora=Alter&inicio=2026-09-01&fim=2026-09-30&indicador=motivos&motivo=Boleto'
+    '/atendimentos?administradora=Alter&inicio=2026-09-01&fim=2026-09-30&indicador=motivos'
   );
 });
 
@@ -251,10 +251,10 @@ test('filtros da listagem não entram no agregado do Dashboard', async () => {
     });
 
     assert.equal(dashboard.statusCode, 200);
-    assert.deepEqual(
-      dashboardResponseSchema.parse(dashboard.json()).kpis,
-      dashboardResponseSchema.parse(comFiltroDaLista.json()).kpis
-    );
+    const semFiltro = dashboardResponseSchema.parse(dashboard.json());
+    const comFiltro = dashboardResponseSchema.parse(comFiltroDaLista.json());
+    assert.deepEqual(semFiltro.kpis, comFiltro.kpis);
+    assert.deepEqual(semFiltro.paineis, comFiltro.paineis);
   } finally {
     await app.close();
   }
@@ -325,6 +325,9 @@ test('pulso do Dashboard traz TMA, resolvidas, SLA e nulos sem fato', async () =
     assert.equal(kpi(comFatoBody, 'taxaDeResolvidas').valor, 100);
     assert.equal(kpi(comFatoBody, 'sla').valor, 100);
     assert.equal(kpi(comFatoBody, 'sla').meta, 80);
+    assert.equal(kpi(comFatoBody, 'sla').limiarEmSegundos, 150);
+    assert.equal(kpi(comFatoBody, 'notaMediaIa').rotulo, 'Nota média IA Avaliadora');
+    assert.equal(kpi(comFatoBody, 'avaliadosIa').rotulo, 'Avaliados IA Avaliadora');
     assert.equal(kpi(comFatoBody, 'promessasCumpridas').rotulo, 'Taxa de Promessas Cumpridas');
     assert.equal(kpi(comFatoBody, 'promessasCumpridas').valor, (2 / 3) * 100);
     assert.equal(kpi(comFatoBody, 'tempoMedioAteResolucao').valor, 312);

@@ -1,4 +1,8 @@
-import type { DashboardResponse, IdDoKpi } from '@hq-crion/contracts/dashboard';
+import type {
+  DashboardResponse,
+  IdDoKpi,
+  IndicadorDoDashboard
+} from '@hq-crion/contracts/dashboard';
 import { destinoDoKpi, destinoDoPainel } from '@hq-crion/contracts/recorte';
 import { Link } from 'react-router-dom';
 import {
@@ -21,8 +25,8 @@ function formatarPercentual(valor: number) {
 export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse }) {
   const periodo = dashboard.periodo;
   const recorte = dashboard.recorte;
-  const destino = (indicador: string, detalhe?: { motivo?: string; criterio?: string }) =>
-    destinoDoPainel(recorte, periodo, { indicador, ...detalhe });
+  const destino = (indicador: IndicadorDoDashboard) =>
+    destinoDoPainel(recorte, periodo, indicador);
 
   return (
     <div className="dashboard-paineis">
@@ -37,7 +41,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         <ul>
           {dashboard.paineis.motivos.map((item) => (
             <li key={item.motivo}>
-              <Link to={destino('motivos', { motivo: item.motivo })}>
+              <Link to={destino('motivos')}>
                 {item.motivo} · {item.quantidade}
               </Link>
             </li>
@@ -56,7 +60,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         <ul>
           {dashboard.paineis.acertoPorCriterio.map((item) => (
             <li key={item.criterio}>
-              <Link to={destino('acertoPorCriterio', { criterio: item.criterio })}>
+              <Link to={destino('acertoPorCriterio')}>
                 {item.criterio} · {formatarOuTravessao(item.percentual, formatarPercentual)}
               </Link>
             </li>
@@ -90,7 +94,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         <ul>
           {dashboard.paineis.naoConformidade.map((item) => (
             <li key={item.criterio}>
-              <Link to={destino('naoConformidade', { criterio: item.criterio })}>
+              <Link to={destino('naoConformidade')}>
                 {item.criterio} · {item.quantidade}
               </Link>
             </li>

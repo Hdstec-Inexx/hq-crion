@@ -19,8 +19,17 @@ export const kpiDoDashboardSchema = z.object({
   id: idDoKpiSchema,
   rotulo: z.string().min(1),
   valor: z.number().nullable(),
-  meta: z.number().optional()
+  meta: z.number().optional(),
+  limiarEmSegundos: z.number().optional()
 });
+
+export const idDoPainelSchema = z.enum([
+  'motivos',
+  'acertoPorCriterio',
+  'concordancia',
+  'naoConformidade',
+  'pioresAtendimentos'
+]);
 
 export const paineisDoDashboardSchema = z.object({
   motivos: z.array(
@@ -70,6 +79,8 @@ export const dashboardResponseSchema = z.object({
 });
 
 export type IdDoKpi = z.infer<typeof idDoKpiSchema>;
+export type IdDoPainel = z.infer<typeof idDoPainelSchema>;
+export type IndicadorDoDashboard = IdDoKpi | IdDoPainel;
 export type KpiDoDashboard = z.infer<typeof kpiDoDashboardSchema>;
 export type PaineisDoDashboard = z.infer<typeof paineisDoDashboardSchema>;
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;

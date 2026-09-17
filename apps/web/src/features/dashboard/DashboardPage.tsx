@@ -127,7 +127,13 @@ export function DashboardPage() {
               >
                 <small>{item.rotulo}</small>
                 <strong>{formatarValorDoKpi(item.id, item.valor)}</strong>
-                {item.meta !== undefined ? <em>meta {item.meta}%</em> : null}
+                {item.id === 'sla' && item.limiarEmSegundos !== undefined && item.meta !== undefined ? (
+                  <em>
+                    Tempo de Espera ≤ {item.limiarEmSegundos}s · meta {item.meta}%
+                  </em>
+                ) : item.meta !== undefined ? (
+                  <em>meta {item.meta}%</em>
+                ) : null}
               </Link>
             ))}
           </div>
