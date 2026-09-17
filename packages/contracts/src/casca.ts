@@ -103,17 +103,6 @@ export function destinoInicial(papel: Papel): string {
   return areasPorPapel[papel][0].rota;
 }
 
-export function marcaDaCasca(input: {
-  papel: Papel;
-  recolhida: boolean;
-}): { destino: string } | null {
-  if (input.recolhida) {
-    return null;
-  }
-
-  return { destino: destinoInicial(input.papel) };
-}
-
 function isDetalheDeAtendimento(pathname: string) {
   return /^\/atendimentos\/.+/.test(pathname);
 }

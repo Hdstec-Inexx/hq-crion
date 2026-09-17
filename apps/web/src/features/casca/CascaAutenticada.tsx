@@ -1,7 +1,7 @@
 import {
   areasDaCasca,
   destinoDaNavegacao,
-  marcaDaCasca
+  destinoInicial
 } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { useState } from 'react';
@@ -32,7 +32,6 @@ export function CascaAutenticada() {
   }
 
   const areas = areasDaCasca(perfil.papel);
-  const marca = marcaDaCasca({ papel: perfil.papel, recolhida });
 
   async function onSair() {
     try {
@@ -46,10 +45,10 @@ export function CascaAutenticada() {
     <div className={`enquadramento${recolhida ? ' is-collapsed' : ''}`}>
       <aside className="casca">
         <div className="casca-topo">
-          {marca ? (
+          {!recolhida ? (
             <Link
               className="casca-marca"
-              to={marca.destino}
+              to={destinoInicial(perfil.papel)}
               aria-label="Abrir a primeira área do papel"
             >
               <img src="/logo-crion.png" alt="Crion" width={112} height={28} />
@@ -59,6 +58,7 @@ export function CascaAutenticada() {
             className="casca-recolher"
             type="button"
             onClick={() => setRecolhida((atual) => !atual)}
+            aria-expanded={!recolhida}
             aria-label={recolhida ? 'Expandir casca' : 'Recolher casca'}
           >
             {iconeRecolherCasca(recolhida)}

@@ -2,6 +2,7 @@
   display: grid;
   grid-template-columns: 228px 1fr;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .enquadramento.is-collapsed {
@@ -13,6 +14,8 @@
   top: 0;
   align-self: start;
   height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   background: var(--casca);
   border-right: 1px solid var(--line);
   display: flex;
@@ -59,6 +62,12 @@
   background: #fff;
   color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.casca-recolher:focus-visible,
+.casca-foot .casca-sair:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
 }
 
 .casca-recolher svg {
@@ -121,9 +130,25 @@
   padding: 4px 0;
 }
 
+.enquadramento.is-collapsed .casca {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 .enquadramento.is-collapsed .casca-nav span,
 .enquadramento.is-collapsed .casca-foot strong {
   display: none;
+}
+
+.enquadramento.is-collapsed .casca-foot {
+  padding-left: 0;
+  padding-right: 0;
+  justify-items: center;
+}
+
+.enquadramento.is-collapsed .casca-sair {
+  justify-self: center;
+  max-width: 100%;
 }
 
 .casca-main {
