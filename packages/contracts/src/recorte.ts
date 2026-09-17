@@ -124,7 +124,8 @@ export function destinoDoBadge(
 
 export function destinoDoKpi(
   recorte: Recorte,
-  periodo?: { inicio: string; fim: string } | null
+  periodo?: { inicio: string; fim: string } | null,
+  indicador?: string | null
 ): string {
   const query = queryDoRecorte(recorte);
 
@@ -133,9 +134,21 @@ export function destinoDoKpi(
     query.set('fim', periodo.fim);
   }
 
+  if (indicador) {
+    query.set('indicador', indicador);
+  }
+
   const qs = query.toString();
 
   return qs ? `/atendimentos?${qs}` : '/atendimentos';
+}
+
+export function destinoDoPainel(
+  recorte: Recorte,
+  periodo: { inicio: string; fim: string } | null | undefined,
+  indicador: string
+): string {
+  return destinoDoKpi(recorte, periodo, indicador);
 }
 
 export function periodoMesCivil(referencia: Date): { inicio: string; fim: string } {
