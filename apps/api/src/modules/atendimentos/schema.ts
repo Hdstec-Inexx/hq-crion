@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS hq_atendimentos (
 );
 CREATE INDEX IF NOT EXISTS hq_atendimentos_recorte
   ON hq_atendimentos (administradora, agente_id, iniciado_em);
+CREATE INDEX IF NOT EXISTS hq_atendimentos_conclusao
+  ON hq_atendimentos (concluido_em);
 CREATE TABLE IF NOT EXISTS hq_boot (
   chave TEXT PRIMARY KEY,
   valor TEXT NOT NULL
@@ -44,6 +46,16 @@ ON CONFLICT (id) DO UPDATE SET
   avaliacao_da_ia = EXCLUDED.avaliacao_da_ia,
   avaliacao_do_curador = EXCLUDED.avaliacao_do_curador,
   registro = EXCLUDED.registro
+`;
+
+export const inserirAtendimentoSeAusenteSql = `
+INSERT INTO hq_atendimentos (
+  id, administradora, agente_id, iniciado_em, concluido_em, motivo, status,
+  duracao_em_segundos, transferencia, tempo_de_espera_em_segundos,
+  ferramentas, avaliacao_da_ia, avaliacao_do_curador, registro
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb)
+ON CONFLICT (id) DO NOTHING
 `;
 
 export const selecionarPorRecorteSql = `

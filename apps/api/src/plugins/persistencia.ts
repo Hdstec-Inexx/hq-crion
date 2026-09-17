@@ -6,7 +6,7 @@ import {
   repositorioPostgres,
   semearSeNecessario
 } from '../modules/atendimentos/postgres.js';
-import { ingerirFonteExterna } from '../modules/ingestao/boot.js';
+import { ingerirElevenLabs } from '../modules/ingestao/boot.js';
 import type { PortaDeAtendimentos } from '../modules/atendimentos/porta.js';
 
 declare module 'fastify' {
@@ -52,10 +52,18 @@ export default fp(
       return;
     }
 
-    const pool = new Pool({ connectionString: app.config.DATABASE_URL });
+    const pool = new Pool({
+      connectionString: app.config.DATABASE_URL,
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000
+    });
+    pool.on('connect', (conexao) => {
+      void conexao.query("SET statement_timeout = '15s'");
+    });
     await aplicarSchema(pool);
     await semearSeNecessario(pool, app.config.SKIP_SEED);
-    await ingerirFonteExterna(pool, app.config, app.log);
+    await ingerirElevenLabs(pool, app.config, app.log);
     app.decorate('atendimentos', repositorioPostgres(pool));
     app.addHook('onClose', async () => {
       await pool.end();

@@ -19,6 +19,10 @@ RUN pnpm --filter @hq-crion/contracts build && pnpm --filter @hq-crion/web build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
+USER root
+RUN apk add --no-cache wget
+USER 101
+
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 

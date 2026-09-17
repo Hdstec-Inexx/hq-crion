@@ -17,7 +17,16 @@ const configSchema = z
     SESSION_SECRET: optionalString,
     SKIP_SEED: z.preprocess((value) => value === 'true' || value === '1', z.boolean()),
     ELEVENLABS_API_KEY: optionalString,
-    ELEVENLABS_BASE_URL: z.string().default('https://api.elevenlabs.io'),
+    ELEVENLABS_BASE_URL: z
+      .string()
+      .default('https://api.elevenlabs.io')
+      .refine((value) => {
+        try {
+          return new URL(value).protocol === 'https:';
+        } catch {
+          return false;
+        }
+      }, 'ELEVENLABS_BASE_URL deve ser https'),
     S3_BUCKET: optionalString,
     S3_ENDPOINT: optionalString,
     S3_ACCESS_KEY: optionalString,

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { atendimentoDaConversaElevenLabs } from '../../apps/api/src/modules/ingestao/elevenlabs.js';
+import { avaliacaoDaIaTemVeredito } from '../../apps/api/src/modules/atendimentos/registro.js';
+import { inserirAtendimentoSeAusenteSql } from '../../apps/api/src/modules/atendimentos/schema.js';
+import { atendimentoDaFonteElevenLabs } from '../../apps/api/src/modules/ingestao/elevenlabs.js';
 
-test('ingestão mínima mapeia conversa ElevenLabs para Atendimento do HQ', () => {
-  const atendimento = atendimentoDaConversaElevenLabs({
+test('ingestão mínima mapeia a fonte ElevenLabs para Atendimento do HQ sem inventar veredito da IA', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-el-1',
     agent_id: 'affix-0800',
     agent_name: 'Clara Affix 0800',
@@ -30,14 +32,19 @@ test('ingestão mínima mapeia conversa ElevenLabs para Atendimento do HQ', () =
   assert.equal(atendimento.transcricao.length, 2);
   assert.equal(atendimento.transcricao[0]?.locutor, 'Agente de Voz');
   assert.equal(atendimento.audio, '/media/conv-el-1.wav');
+  assert.equal(avaliacaoDaIaTemVeredito(atendimento), false);
 });
 
 test('ingestão mínima ignora Agente de Voz que não pertence ao HQ', () => {
   assert.equal(
-    atendimentoDaConversaElevenLabs({
+    atendimentoDaFonteElevenLabs({
       conversation_id: 'conv-el-x',
       agent_id: 'agente-desconhecido'
     }),
     undefined
   );
+});
+
+test('ingestão não sobrescreve Atendimento já persistido', () => {
+  assert.match(inserirAtendimentoSeAusenteSql, /ON CONFLICT \(id\) DO NOTHING/);
 });

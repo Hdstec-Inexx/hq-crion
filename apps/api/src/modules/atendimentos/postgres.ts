@@ -8,21 +8,18 @@ import {
 import { periodoDaQuery, type ModoDaListagem } from './filtros.js';
 import type { PortaDeAtendimentos } from './porta.js';
 import type { RegistroDeAtendimento } from './registro.js';
-import { schemaSql, selecionarPorRecorteSql, upsertAtendimentoSql } from './schema.js';
+import { schemaSql, selecionarPorRecorteSql, upsertAtendimentoSql, inserirAtendimentoSeAusenteSql } from './schema.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
 import { deveSemear } from './semente.js';
 
-export type ClienteSql = Pick<Pool, 'query'>;
+export type ExecutorSql = Pick<Pool, 'query'>;
 
 function cloneRegistro(registro: RegistroDeAtendimento): RegistroDeAtendimento {
   return structuredClone(registro);
 }
 
-export async function gravarAtendimento(
-  cliente: ClienteSql,
-  registro: RegistroDeAtendimento
-) {
-  await cliente.query(upsertAtendimentoSql, [
+function parametrosDoRegistro(registro: RegistroDeAtendimento) {
+  return [
     registro.id,
     registro.administradora,
     registro.agenteId,
@@ -37,15 +34,29 @@ export async function gravarAtendimento(
     JSON.stringify(registro.avaliacaoDaIa),
     registro.avaliacaoDoCurador ? JSON.stringify(registro.avaliacaoDoCurador) : null,
     JSON.stringify(registro)
-  ]);
+  ];
 }
 
-export async function aplicarSchema(cliente: ClienteSql) {
+export async function gravarAtendimento(
+  cliente: ExecutorSql,
+  registro: RegistroDeAtendimento
+) {
+  await cliente.query(upsertAtendimentoSql, parametrosDoRegistro(registro));
+}
+
+export async function inserirAtendimentoSeAusente(
+  cliente: ExecutorSql,
+  registro: RegistroDeAtendimento
+) {
+  await cliente.query(inserirAtendimentoSeAusenteSql, parametrosDoRegistro(registro));
+}
+
+export async function aplicarSchema(cliente: ExecutorSql) {
   await cliente.query(schemaSql);
 }
 
 export async function semearSeNecessario(
-  cliente: ClienteSql,
+  cliente: ExecutorSql,
   skipSeed: boolean
 ) {
   const estado = await cliente.query<{ valor: string }>(
@@ -68,7 +79,7 @@ export async function semearSeNecessario(
 }
 
 async function registrosDoRecorte(
-  cliente: ClienteSql,
+  cliente: ExecutorSql,
   recorte: Recorte,
   query: Record<string, string | undefined>,
   modo: ModoDaListagem | 'dashboard' | 'manutencao'
@@ -91,7 +102,7 @@ async function registrosDoRecorte(
   return resultado.rows.map((linha) => cloneRegistro(linha.registro));
 }
 
-export function repositorioPostgres(cliente: ClienteSql): PortaDeAtendimentos {
+export function repositorioPostgres(cliente: ExecutorSql): PortaDeAtendimentos {
   return {
     async listar() {
       const resultado = await cliente.query<{ registro: RegistroDeAtendimento }>(

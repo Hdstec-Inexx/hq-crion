@@ -2,7 +2,7 @@ import { agentesDeVoz } from '@hq-crion/contracts/recorte';
 import { reguaUnica } from '../regua/regua-unica.js';
 import type { RegistroDeAtendimento } from '../atendimentos/registro.js';
 
-export type ConversaElevenLabs = {
+export type PayloadElevenLabs = {
   conversation_id: string;
   agent_id: string;
   agent_name?: string;
@@ -16,38 +16,38 @@ function locutorDe(role: string): 'Agente de Voz' | 'Cliente' {
   return role === 'user' || role === 'cliente' ? 'Cliente' : 'Agente de Voz';
 }
 
-export function atendimentoDaConversaElevenLabs(
-  conversa: ConversaElevenLabs
+export function atendimentoDaFonteElevenLabs(
+  payload: PayloadElevenLabs
 ): RegistroDeAtendimento | undefined {
-  const agente = agentesDeVoz.find((item) => item.id === conversa.agent_id);
+  const agente = agentesDeVoz.find((item) => item.id === payload.agent_id);
 
   if (!agente) {
     return undefined;
   }
 
-  const iniciadoEm = conversa.start_time_unix_secs
-    ? new Date(conversa.start_time_unix_secs * 1000).toISOString()
+  const iniciadoEm = payload.start_time_unix_secs
+    ? new Date(payload.start_time_unix_secs * 1000).toISOString()
     : new Date().toISOString();
-  const concluido = conversa.status === 'done' || conversa.status === 'completed';
-  const transcricao = (conversa.transcript ?? []).map((turno, index) => ({
+  const concluido = payload.status === 'done' || payload.status === 'completed';
+  const transcricao = (payload.transcript ?? []).map((turno, index) => ({
     locutor: locutorDe(turno.role),
     quando: `0:${String(index).padStart(2, '0')}`,
     texto: turno.message
   }));
 
   return {
-    id: conversa.conversation_id,
+    id: payload.conversation_id,
     administradora: agente.administradora,
-    agente: conversa.agent_name ?? agente.nome,
+    agente: payload.agent_name ?? agente.nome,
     agenteId: agente.id,
     iniciadoEm,
     motivo: 'Não informado',
     nota: 0,
     status: concluido ? 'Concluído' : 'Em andamento',
     curadoria: false,
-    conversa: conversa.conversation_id,
-    audio: `/media/${conversa.conversation_id}.wav`,
-    downloadDeAudio: `/media/${conversa.conversation_id}.wav`,
+    conversa: payload.conversation_id,
+    audio: `/media/${payload.conversation_id}.wav`,
+    downloadDeAudio: `/media/${payload.conversation_id}.wav`,
     transcricao,
     avaliacaoDaIa: {
       nota: 0,
@@ -60,32 +60,40 @@ export function atendimentoDaConversaElevenLabs(
       }))
     },
     ...(concluido ? { concluidoEm: iniciadoEm } : {}),
-    ...(conversa.call_duration_secs !== undefined
-      ? { duracaoEmSegundos: conversa.call_duration_secs }
+    ...(payload.call_duration_secs !== undefined
+      ? { duracaoEmSegundos: payload.call_duration_secs }
       : {})
   };
 }
 
 type ListaElevenLabs = {
-  conversations?: ConversaElevenLabs[];
+  conversations?: PayloadElevenLabs[];
 };
 
-export async function coletarConversasElevenLabs(input: {
+export async function coletarAtendimentosElevenLabs(input: {
   apiKey: string;
   baseUrl: string;
   fetchImpl?: typeof fetch;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const resposta = await fetchImpl(`${input.baseUrl}/v1/convai/conversations`, {
-    headers: { 'xi-api-key': input.apiKey }
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
 
-  if (!resposta.ok) {
-    throw new Error(`ElevenLabs respondeu ${resposta.status}`);
+  try {
+    const resposta = await fetchImpl(`${input.baseUrl}/v1/convai/conversations`, {
+      headers: { 'xi-api-key': input.apiKey },
+      signal: controller.signal
+    });
+
+    if (!resposta.ok) {
+      throw new Error(`ElevenLabs respondeu ${resposta.status}`);
+    }
+
+    const corpo = (await resposta.json()) as ListaElevenLabs;
+    return (corpo.conversations ?? [])
+      .map(atendimentoDaFonteElevenLabs)
+      .filter((item): item is RegistroDeAtendimento => item !== undefined);
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const corpo = (await resposta.json()) as ListaElevenLabs;
-  return (corpo.conversations ?? [])
-    .map(atendimentoDaConversaElevenLabs)
-    .filter((item): item is RegistroDeAtendimento => item !== undefined);
 }
