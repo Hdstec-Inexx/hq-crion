@@ -19,12 +19,12 @@ import { buscarPorId } from '../perfil/repositorio.js';
 import { reguaUnica } from '../regua/regua-unica.js';
 import {
   diaNoFuso,
-    aplicarIndicador,
-    passaNosFiltros,
-    periodoDaQuery,
-    recorteDaQuery,
-    type ModoDaListagem
-  } from './filtros.js';
+  aplicarIndicador,
+  passaNosFiltros,
+  periodoDaQuery,
+  recorteDaQuery,
+  type ModoDaListagem
+} from './filtros.js';
 import { detalhePublico, type RegistroDeAtendimento } from './registro.js';
 
 function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
@@ -192,7 +192,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
         const { custo: _custo, ...semCusto } = listagem;
         return semCusto;
       }),
-      curadores: curadoresDaListagem(itens)
+      curadores:
+        modo === 'todos' || modo === 'realizadas' ? curadoresDaListagem(itens) : []
     });
   }
 

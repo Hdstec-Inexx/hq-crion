@@ -1,4 +1,5 @@
 import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
+import { statusDaCuradoria } from '@hq-crion/contracts/filtros-listagem';
 import { reguaUnica } from '../regua/regua-unica.js';
 import type { RegistroDeAtendimento } from './registro.js';
 
@@ -103,7 +104,9 @@ export function passaNosFiltros(
     return false;
   }
 
-  if (query.notaIa && item.avaliacaoDaIa.nota !== Number(query.notaIa)) {
+  const notaIa = query.notaIa === undefined ? Number.NaN : Number(query.notaIa);
+
+  if (Number.isFinite(notaIa) && item.avaliacaoDaIa.nota !== notaIa) {
     return false;
   }
 
@@ -115,11 +118,13 @@ export function passaNosFiltros(
     return false;
   }
 
-  if (modo !== 'fila' && query.statusCuradoria === 'feita' && !item.curadoria) {
+  const statusCuradoria = statusDaCuradoria.find((status) => status === query.statusCuradoria);
+
+  if (modo === 'todos' && statusCuradoria === 'feita' && !item.curadoria) {
     return false;
   }
 
-  if (modo !== 'fila' && query.statusCuradoria === 'pendente' && item.curadoria) {
+  if (modo === 'todos' && statusCuradoria === 'pendente' && item.curadoria) {
     return false;
   }
 

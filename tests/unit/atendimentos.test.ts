@@ -285,6 +285,26 @@ test('GET /atendimentos filtra por id da conversa', async () => {
   }
 });
 
+test('nota da IA malformada não substitui a listagem', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?notaIa=nao-e-nota',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    const ids = response.json().itens.map((item: { id: string }) => item.id);
+    assert.ok(ids.includes('a1'));
+    assert.ok(ids.includes('a2'));
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /atendimentos filtra por status da curadoria', async () => {
   const app = await buildApp();
 

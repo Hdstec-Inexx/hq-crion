@@ -115,6 +115,47 @@ test('GET /fila-de-curadoria recorta pela Administradora e Agente da URL', async
   }
 });
 
+test('GET /fila-de-curadoria filtra por conversa, motivo e nota da IA', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'carla.mendes@crion');
+    const conversa = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?conversa=conv-a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const motivo = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?motivo=N%C3%A3o%20informado',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const notaIa = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?notaIa=8.5',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(conversa.statusCode, 200);
+    assert.deepEqual(
+      conversa.json().itens.map((item: { id: string }) => item.id),
+      ['a1']
+    );
+    assert.equal(motivo.statusCode, 200);
+    assert.deepEqual(
+      motivo.json().itens.map((item: { id: string }) => item.id),
+      ['a3']
+    );
+    assert.equal(notaIa.statusCode, 200);
+    assert.deepEqual(
+      notaIa.json().itens.map((item: { id: string }) => item.id),
+      ['a1']
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /fila-de-curadoria ignora indicador do pulso', async () => {
   const app = await buildApp();
 
@@ -301,6 +342,15 @@ test('curador filtra Curadorias realizadas e não restringe Minhas Curadorias', 
 
     assert.equal(minhas.statusCode, 200);
     assert.ok(minhas.json().itens.some((item: { id: string }) => item.id === 'a2'));
+    const minhasComStatus = await app.inject({
+      method: 'GET',
+      url: '/minhas-curadorias?statusCuradoria=pendente',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(minhasComStatus.statusCode, 200);
+    assert.ok(
+      minhasComStatus.json().itens.some((item: { id: string }) => item.id === 'a2')
+    );
     assert.equal(realizadas.statusCode, 200);
     assert.deepEqual(
       realizadas.json().itens.map((item: { id: string }) => item.id),
