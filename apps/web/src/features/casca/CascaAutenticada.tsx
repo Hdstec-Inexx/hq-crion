@@ -1,7 +1,7 @@
 import {
   areasDaCasca,
   destinoDaNavegacao,
-  destinoInicial
+  marcaDaCasca
 } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { useState } from 'react';
@@ -15,7 +15,7 @@ import {
   useNavigate
 } from 'react-router-dom';
 import { encerrarSessao } from '../auth/api';
-import { iconeDaArea } from './icones';
+import { iconeDaArea, iconeRecolherCasca } from './icones';
 
 export function CascaAutenticada() {
   const perfil = useLoaderData() as Perfil;
@@ -32,6 +32,7 @@ export function CascaAutenticada() {
   }
 
   const areas = areasDaCasca(perfil.papel);
+  const marca = marcaDaCasca({ papel: perfil.papel, recolhida });
 
   async function onSair() {
     try {
@@ -44,13 +45,25 @@ export function CascaAutenticada() {
   return (
     <div className={`enquadramento${recolhida ? ' is-collapsed' : ''}`}>
       <aside className="casca">
-        <Link
-          className="casca-marca"
-          to={destinoInicial(perfil.papel)}
-          aria-label="Abrir a primeira área do papel"
-        >
-          <img src="/logo-crion.png" alt="Crion" width={112} height={28} />
-        </Link>
+        <div className="casca-topo">
+          {marca ? (
+            <Link
+              className="casca-marca"
+              to={marca.destino}
+              aria-label="Abrir a primeira área do papel"
+            >
+              <img src="/logo-crion.png" alt="Crion" width={112} height={28} />
+            </Link>
+          ) : null}
+          <button
+            className="casca-recolher"
+            type="button"
+            onClick={() => setRecolhida((atual) => !atual)}
+            aria-label={recolhida ? 'Expandir casca' : 'Recolher casca'}
+          >
+            {iconeRecolherCasca(recolhida)}
+          </button>
+        </div>
         <nav className="casca-nav" aria-label="Casca autenticada">
           {areas.map((area) => (
             <NavLink
@@ -68,23 +81,14 @@ export function CascaAutenticada() {
           <strong title={`${perfil.nome} · ${perfil.papel}`}>
             {perfil.nome} · {perfil.papel}
           </strong>
-          <div>
-            <button
-              type="button"
-              onClick={() => setRecolhida((atual) => !atual)}
-              aria-label={recolhida ? 'Expandir casca' : 'Recolher casca'}
-            >
-              {recolhida ? '▸' : '◂'}
-            </button>
-            <button
-              className="casca-sair"
-              type="button"
-              onClick={onSair}
-              aria-label={`Sair de ${perfil.nome}`}
-            >
-              Sair
-            </button>
-          </div>
+          <button
+            className="casca-sair"
+            type="button"
+            onClick={onSair}
+            aria-label={`Sair de ${perfil.nome}`}
+          >
+            Sair
+          </button>
         </div>
       </aside>
       <main className="casca-main">

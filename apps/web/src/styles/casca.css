@@ -9,18 +9,33 @@
 }
 
 .casca {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
   background: var(--casca);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  padding: 18px 12px 16px;
+  padding: 12px 12px 16px;
+  overflow: hidden;
+}
+
+.casca-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 0 12px;
 }
 
 .casca-marca {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 8px 18px;
+  min-width: 0;
+  flex: 1;
+  padding: 6px 4px;
   background: none;
   border: 0;
 }
@@ -28,11 +43,35 @@
 .casca-marca img {
   height: 28px;
   width: auto;
+  max-width: 100%;
+}
+
+.casca-recolher {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.casca-recolher svg {
+  width: 20px;
+  height: 20px;
 }
 
 .casca-nav {
   display: grid;
   gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .casca-nav a {
@@ -63,31 +102,28 @@
 
 .casca-foot {
   margin-top: auto;
+  display: grid;
+  gap: 8px;
   padding: 12px 8px 0;
   font-size: 12px;
   color: var(--mute);
 }
 
-.casca-foot button {
-  margin-top: 8px;
+.casca-foot .casca-sair {
+  justify-self: start;
+  margin: 0;
   border: 0;
   background: none;
   color: var(--ink);
-  font-weight: 600;
-  padding: 0;
-}
-
-.casca-foot .casca-sair {
-  margin-left: 12px;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.2;
+  padding: 4px 0;
 }
 
 .enquadramento.is-collapsed .casca-nav span,
 .enquadramento.is-collapsed .casca-foot strong {
   display: none;
-}
-
-.enquadramento.is-collapsed .casca-sair {
-  margin-left: 0;
 }
 
 .casca-main {
