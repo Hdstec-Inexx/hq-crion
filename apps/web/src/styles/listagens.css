@@ -25,6 +25,28 @@
   min-height: 72px;
 }
 
+.listagem-filtro-nota-ia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.listagem-filtros input[type='range'] {
+  width: 140px;
+  padding: 0;
+  border: 0;
+  accent-color: var(--cyan);
+}
+
+.listagem-filtro-nota-ia output {
+  min-width: 3ch;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .listagem-painel {
   display: grid;
   gap: 8px;
