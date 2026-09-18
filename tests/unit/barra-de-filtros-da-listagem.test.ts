@@ -124,6 +124,7 @@ test('Motivo da barra é combobox do conjunto fechado, não um select cru', () =
   assert.match(combobox, /motivoAceitoNoFiltro/);
   assert.match(combobox, /type="hidden"/);
   assert.match(combobox, /name="motivo"/);
+  assert.match(combobox, /useFecharAoClicarFora/);
 });
 
 test('Critérios compactos abrem checkboxes e somem da Fila', () => {
@@ -145,6 +146,7 @@ test('Critérios compactos abrem checkboxes e somem da Fila', () => {
   assert.match(multiselect, /type="checkbox"/);
   assert.match(multiselect, /Selecionar todos/);
   assert.match(multiselect, /rotuloDosCriteriosSelecionados/);
+  assert.match(multiselect, /useFecharAoClicarFora/);
   assert.doesNotMatch(css, /select\[multiple\]/);
   assert.doesNotMatch(css, /Georgia|#e5b85c/i);
 });
@@ -161,6 +163,7 @@ test('combobox de Motivo filtra o conjunto fechado sem acento', async () => {
   assert.deepEqual(filtrarMotivosDeContato(opcoes, 'inexistente'), []);
   assert.equal(motivoAceitoNoFiltro('Boleto', opcoes), 'Boleto');
   assert.equal(motivoAceitoNoFiltro('nao', opcoes), '');
+  assert.equal(motivoAceitoNoFiltro('Nao informado', opcoes), 'Não informado');
 });
 
 test('rótulo compacto de Critérios mostra placeholder, um nome ou a contagem', async () => {

@@ -1,14 +1,15 @@
 import { motivosDeContato } from '@hq-crion/contracts/filtros-listagem';
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { filtrarMotivosDeContato, motivoAceitoNoFiltro } from './motivo-combobox-logic';
+import { useFecharAoClicarFora } from './useFecharAoClicarFora';
 
 export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
-  const gerado = useId();
-  const listboxId = `motivo-listbox-${gerado}`;
+  const idBase = useId();
+  const listboxId = `motivo-listbox-${idBase}`;
   const [valor, setValor] = useState(valorSubmetido);
   const [aberto, setAberto] = useState(false);
   const [destaque, setDestaque] = useState(-1);
-  const caixa = useRef<HTMLDivElement>(null);
+  const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
   const opcoes = filtrarMotivosDeContato(motivosDeContato, valor);
   const motivoDoFormulario = motivoAceitoNoFiltro(valor, motivosDeContato);
@@ -17,17 +18,10 @@ export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
     setValor(valorSubmetido);
   }, [valorSubmetido]);
 
-  useEffect(() => {
-    function fecharFora(event: MouseEvent) {
-      if (caixa.current && !caixa.current.contains(event.target as Node)) {
-        setAberto(false);
-        setDestaque(-1);
-      }
-    }
-
-    document.addEventListener('mousedown', fecharFora);
-    return () => document.removeEventListener('mousedown', fecharFora);
-  }, []);
+  useFecharAoClicarFora(raiz, aberto, () => {
+    setAberto(false);
+    setDestaque(-1);
+  });
 
   function escolher(opcao: string) {
     setValor(opcao);
@@ -39,10 +33,16 @@ export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
+      if (opcoes.length === 0) {
+        return;
+      }
       setAberto(true);
       setDestaque((atual) => (atual < opcoes.length - 1 ? atual + 1 : 0));
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
+      if (opcoes.length === 0) {
+        return;
+      }
       setAberto(true);
       setDestaque((atual) => (atual > 0 ? atual - 1 : opcoes.length - 1));
     } else if (event.key === 'Enter' && aberto && destaque >= 0 && opcoes[destaque]) {
@@ -54,11 +54,11 @@ export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
     }
   }
 
-  const ativo =
-    aberto && destaque >= 0 ? `motivo-opt-${gerado}-${destaque}` : undefined;
+  const idOpcaoAtiva =
+    aberto && destaque >= 0 ? `motivo-opt-${idBase}-${destaque}` : undefined;
 
   return (
-    <div className="listagem-combobox-motivo" ref={caixa}>
+    <div className="listagem-combobox-motivo" ref={raiz}>
       <input type="hidden" name="motivo" value={motivoDoFormulario} />
       <label>
         Motivo
@@ -70,7 +70,7 @@ export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
           aria-autocomplete="list"
           aria-expanded={aberto}
           aria-controls={listboxId}
-          aria-activedescendant={ativo}
+          aria-activedescendant={idOpcaoAtiva}
           placeholder="Todos os motivos"
           value={valor}
           onChange={(event) => {
@@ -86,15 +86,15 @@ export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
         <ul
           id={listboxId}
           role="listbox"
-          aria-label="Motivos de contato"
+          aria-label="Motivo"
           className="listagem-combobox-motivo-lista"
         >
           {opcoes.map((opcao, indice) => (
             <li
-              id={`motivo-opt-${gerado}-${indice}`}
+              id={`motivo-opt-${idBase}-${indice}`}
               key={opcao}
               role="option"
-              aria-selected={opcao === valor || indice === destaque}
+              aria-selected={opcao === motivoDoFormulario}
               className={
                 indice === destaque
                   ? 'listagem-combobox-motivo-opcao is-destaque'

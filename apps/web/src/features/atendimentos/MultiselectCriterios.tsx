@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import {
   criteriosDaQuery,
   rotuloDosCriteriosSelecionados
 } from './criterios-filtro-logic';
+import { useFecharAoClicarFora } from './useFecharAoClicarFora';
 
 export function MultiselectCriterios({
   name,
@@ -15,9 +16,9 @@ export function MultiselectCriterios({
   submetido: string;
   opcoes: string[];
 }) {
-  const gerado = useId();
-  const listboxId = `criterios-lista-${gerado}`;
-  const caixa = useRef<HTMLDivElement>(null);
+  const idBase = useId();
+  const listboxId = `criterios-lista-${idBase}`;
+  const raiz = useRef<HTMLDivElement>(null);
   const [aberto, setAberto] = useState(false);
   const [selecionados, setSelecionados] = useState(() => criteriosDaQuery(submetido));
 
@@ -25,16 +26,7 @@ export function MultiselectCriterios({
     setSelecionados(criteriosDaQuery(submetido));
   }, [submetido]);
 
-  useEffect(() => {
-    function fecharFora(event: MouseEvent) {
-      if (caixa.current && !caixa.current.contains(event.target as Node)) {
-        setAberto(false);
-      }
-    }
-
-    document.addEventListener('mousedown', fecharFora);
-    return () => document.removeEventListener('mousedown', fecharFora);
-  }, []);
+  useFecharAoClicarFora(raiz, aberto, () => setAberto(false));
 
   function alternar(nome: string) {
     setSelecionados((atual) =>
@@ -42,8 +34,14 @@ export function MultiselectCriterios({
     );
   }
 
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') {
+      setAberto(false);
+    }
+  }
+
   return (
-    <div className="listagem-multiselect-criterios" ref={caixa}>
+    <div className="listagem-multiselect-criterios" ref={raiz} onKeyDown={onKeyDown}>
       {selecionados.map((nome) => (
         <input key={nome} type="hidden" name={name} value={nome} />
       ))}
