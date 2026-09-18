@@ -4,15 +4,20 @@ import type {
   IndicadorDoDashboard
 } from '@hq-crion/contracts/dashboard';
 import { destinoDoKpi, destinoDoPainel } from '@hq-crion/contracts/recorte';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bar,
   BarChart,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis
 } from 'recharts';
+import { coresDoAnel, fatiasVisiveisDoAnel } from './coresDoAnel';
 
 function formatarOuTravessao(valor: number | null, formatar: (valor: number) => string) {
   return valor === null ? '—' : formatar(valor);
@@ -20,6 +25,22 @@ function formatarOuTravessao(valor: number | null, formatar: (valor: number) => 
 
 function formatarPercentual(valor: number) {
   return `${Number.isInteger(valor) ? String(valor) : valor.toFixed(1).replace('.', ',')}%`;
+}
+
+function usePrefereMenosMovimento() {
+  const [reduzir, setReduzir] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const atualizar = () => setReduzir(media.matches);
+    atualizar();
+    media.addEventListener('change', atualizar);
+    return () => media.removeEventListener('change', atualizar);
+  }, []);
+
+  return reduzir;
 }
 
 export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse }) {
@@ -32,21 +53,16 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
     <div className="dashboard-paineis">
       <article className="dashboard-painel">
         <Link to={destino('motivos')}>Motivos</Link>
-        <GraficoBarras
+        <GraficoAnel
           dados={dashboard.paineis.motivos.map((item) => ({
             nome: item.motivo,
             valor: item.quantidade
           }))}
+          destino={destino('motivos')}
+          deslocamento={0}
+          rotulo="Gráfico de Motivos"
+          vazio="Nenhum Motivo no período."
         />
-        <ul>
-          {dashboard.paineis.motivos.map((item) => (
-            <li key={item.motivo}>
-              <Link to={destino('motivos')}>
-                {item.motivo} · {item.quantidade}
-              </Link>
-            </li>
-          ))}
-        </ul>
       </article>
       <article className="dashboard-painel">
         <Link to={destino('acertoPorCriterio')}>Acerto por Critério</Link>
@@ -56,6 +72,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
               ? []
               : [{ nome: item.criterio, valor: item.percentual }]
           )}
+          destino={destino('acertoPorCriterio')}
         />
         <ul>
           {dashboard.paineis.acertoPorCriterio.map((item) => (
@@ -67,7 +84,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
           ))}
         </ul>
       </article>
-      <article className="dashboard-painel">
+      <article className="dashboard-painel dashboard-painel-concordancia">
         <Link to={destino('concordancia')}>Concordância</Link>
         <p>
           Nota {formatarOuTravessao(dashboard.paineis.concordancia.nota, formatarPercentual)}
@@ -81,25 +98,21 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
               ? []
               : [{ nome: item.criterio, valor: item.percentual }]
           )}
+          destino={destino('concordancia')}
         />
       </article>
       <article className="dashboard-painel">
         <Link to={destino('naoConformidade')}>Critérios de Não Conformidade</Link>
-        <GraficoBarras
+        <GraficoAnel
           dados={dashboard.paineis.naoConformidade.map((item) => ({
             nome: item.criterio,
             valor: item.quantidade
           }))}
+          destino={destino('naoConformidade')}
+          deslocamento={1}
+          rotulo="Gráfico de Critérios de Não Conformidade"
+          vazio="Nenhum Critério com Não Conformidade no período."
         />
-        <ul>
-          {dashboard.paineis.naoConformidade.map((item) => (
-            <li key={item.criterio}>
-              <Link to={destino('naoConformidade')}>
-                {item.criterio} · {item.quantidade}
-              </Link>
-            </li>
-          ))}
-        </ul>
       </article>
       <article className="dashboard-painel">
         <Link to={destino('pioresAtendimentos')}>Piores Atendimentos</Link>
@@ -121,22 +134,107 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
   );
 }
 
-function GraficoBarras({ dados }: { dados: { nome: string; valor: number }[] }) {
+function GraficoAnel({
+  dados,
+  destino,
+  deslocamento,
+  rotulo,
+  vazio
+}: {
+  dados: { nome: string; valor: number }[];
+  destino: string;
+  deslocamento: number;
+  rotulo: string;
+  vazio: string;
+}) {
+  const reduzirMovimento = usePrefereMenosMovimento();
+  const fatias = fatiasVisiveisDoAnel(dados);
+
+  if (fatias.length === 0) {
+    return <p className="dashboard-vazio">{vazio}</p>;
+  }
+
+  const cores = coresDoAnel(fatias.length, deslocamento);
+  const total = fatias.reduce((soma, item) => soma + item.valor, 0);
+
+  return (
+    <div className="dashboard-anel">
+      <Link
+        aria-label={rotulo}
+        className="dashboard-anel-frame"
+        to={destino}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={fatias}
+              dataKey="valor"
+              innerRadius="58%"
+              isAnimationActive={!reduzirMovimento}
+              nameKey="nome"
+              outerRadius="100%"
+              stroke="none"
+            >
+              {fatias.map((item, indice) => (
+                <Cell fill={cores[indice]} key={item.nome} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </Link>
+      <ul className="dashboard-anel-legenda">
+        {fatias.map((item, indice) => {
+          const parcela = total === 0 ? 0 : (item.valor / total) * 100;
+          return (
+            <li key={item.nome}>
+              <Link to={destino}>
+                <span
+                  className="dashboard-anel-swatch"
+                  style={{ background: cores[indice] }}
+                />
+                <span>{item.nome}</span>
+                <strong>
+                  {item.valor.toLocaleString('pt-BR')} ({parcela.toFixed(0)}%)
+                </strong>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function GraficoBarras({
+  dados,
+  destino
+}: {
+  dados: { nome: string; valor: number }[];
+  destino: string;
+}) {
+  const reduzirMovimento = usePrefereMenosMovimento();
+
   if (dados.length === 0) {
     return <p>—</p>;
   }
 
   return (
-    <div className="dashboard-grafico">
+    <Link className="dashboard-grafico" to={destino}>
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 8 }}>
           <XAxis type="number" hide />
           <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11 }} />
           <Tooltip />
-          <Bar dataKey="valor" fill="#5ec4be" radius={[0, 6, 6, 0]} />
+          <Bar
+            dataKey="valor"
+            fill="#5ec4be"
+            isAnimationActive={!reduzirMovimento}
+            radius={[0, 6, 6, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </Link>
   );
 }
 
