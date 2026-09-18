@@ -1,0 +1,42 @@
+export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
+  const proxima = new URLSearchParams(atual);
+  const simples = [
+    'inicio',
+    'fim',
+    'status',
+    'motivo',
+    'conversa',
+    'notaIa',
+    'statusCuradoria',
+    'curador'
+  ] as const;
+
+  for (const campo of simples) {
+    const valor = String(data.get(campo) ?? '').trim();
+
+    if (valor) {
+      proxima.set(campo, valor);
+    } else {
+      proxima.delete(campo);
+    }
+  }
+
+  for (const campo of ['criteriosAtendidos', 'criteriosNaoAtendidos'] as const) {
+    const valores = data
+      .getAll(campo)
+      .map((valor) => String(valor).trim())
+      .filter(Boolean);
+
+    if (valores.length > 0) {
+      proxima.set(campo, valores.join(','));
+    } else {
+      proxima.delete(campo);
+    }
+  }
+
+  proxima.delete('nota');
+  proxima.delete('curadoria');
+  proxima.delete('pagina');
+
+  return proxima;
+}
