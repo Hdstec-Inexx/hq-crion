@@ -1,7 +1,8 @@
 import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
 import { statusDaCuradoria } from '@hq-crion/contracts/filtros-listagem';
+import { slaMaximoEmSegundos } from '../dashboard/sla.js';
 import { reguaUnica } from '../regua/regua-unica.js';
-import type { RegistroDeAtendimento } from './registro.js';
+import { avaliacaoDaIaTemVeredito, type RegistroDeAtendimento } from './registro.js';
 
 export type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas' | 'monitoramento';
 
@@ -202,11 +203,15 @@ export function aplicarIndicador(
     case 'taxaDeResolvidas':
       return concluidos.filter((item) => item.transferencia === false);
     case 'sla':
-      return concluidos;
+      return concluidos.filter(
+        (item) =>
+          item.tempoDeEsperaEmSegundos !== undefined &&
+          item.tempoDeEsperaEmSegundos <= slaMaximoEmSegundos
+      );
     case 'notaMediaIa':
     case 'avaliadosIa':
     case 'acertoPorCriterio':
-      return itens.filter((item) => Boolean(item.avaliacaoDaIa));
+      return itens.filter(avaliacaoDaIaTemVeredito);
     case 'notaMediaCurador':
     case 'avaliadosCurador':
       return itens.filter((item) => Boolean(item.avaliacaoDoCurador));
@@ -228,6 +233,7 @@ export function aplicarIndicador(
       );
     case 'pioresAtendimentos':
       return concluidos
+        .filter(avaliacaoDaIaTemVeredito)
         .slice()
         .sort((a, b) => a.avaliacaoDaIa.nota - b.avaliacaoDaIa.nota)
         .slice(0, 5);

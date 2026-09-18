@@ -32,6 +32,19 @@ const configSchema = z
     S3_ACCESS_KEY: optionalString,
     S3_SECRET_KEY: optionalString
   })
+  .superRefine((config, ctx) => {
+    if (config.NODE_ENV !== 'production') {
+      return;
+    }
+
+    if (!config.CORS_ORIGIN || config.CORS_ORIGIN.includes('localhost')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'CORS_ORIGIN é obrigatório em produção e não pode ser localhost.',
+        path: ['CORS_ORIGIN']
+      });
+    }
+  })
   .transform((config) => ({
     ...config,
     HOST:

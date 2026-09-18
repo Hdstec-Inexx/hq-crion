@@ -7,8 +7,9 @@ import {
   type PerfilComId
 } from '@hq-crion/contracts/perfil';
 import { autorizacao } from '../auth/api';
+import { urlDaApi } from '../../urlDaApi';
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const apiUrl = urlDaApi();
 
 export type ResultadoDaAdministracao =
   | { ok: true; perfil: PerfilComId }

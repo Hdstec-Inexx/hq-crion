@@ -33,6 +33,9 @@ test('ingestão mínima mapeia a fonte ElevenLabs para Atendimento do HQ sem inv
   assert.equal(atendimento.transcricao[0]?.locutor, 'Agente de Voz');
   assert.equal(atendimento.audio, '/media/conv-el-1.wav');
   assert.equal(avaliacaoDaIaTemVeredito(atendimento), false);
+  assert.ok(
+    atendimento.avaliacaoDaIa.criterios.every((criterio) => criterio.estado === 'Não se aplica')
+  );
 });
 
 test('ingestão mínima ignora Agente de Voz que não pertence ao HQ', () => {

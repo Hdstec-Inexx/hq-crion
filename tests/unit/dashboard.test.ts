@@ -70,6 +70,24 @@ test('KPI e painel levam Recorte, período e indicador para a lista', () => {
     ),
     '/atendimentos?administradora=Alter&inicio=2026-09-01&fim=2026-09-30&indicador=motivos'
   );
+  assert.equal(
+    destinoDoPainel(
+      { administradora: 'Alter', agente: null },
+      { inicio: '2026-09-01', fim: '2026-09-30' },
+      'motivos',
+      { motivo: 'Boleto' }
+    ),
+    '/atendimentos?administradora=Alter&inicio=2026-09-01&fim=2026-09-30&indicador=motivos&motivo=Boleto'
+  );
+  assert.equal(
+    destinoDoPainel(
+      { administradora: 'Affix', agente: null },
+      { inicio: '2026-09-01', fim: '2026-09-30' },
+      'naoConformidade',
+      { criteriosNaoAtendidos: 'Informação de Protocolo' }
+    ),
+    '/atendimentos?administradora=Affix&inicio=2026-09-01&fim=2026-09-30&indicador=naoConformidade&criteriosNaoAtendidos=Informa%C3%A7%C3%A3o+de+Protocolo'
+  );
 });
 
 test('casca da Gestão e do Admin abre Dashboard consolidado, sem Recorte na rota', () => {

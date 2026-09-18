@@ -4,9 +4,10 @@ import {
   perfilSchema,
   type Perfil
 } from '@hq-crion/contracts/perfil';
+import { urlDaApi } from '../../urlDaApi';
 import { gravarSessao, limparSessao, lerSessao } from './sessao';
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const apiUrl = urlDaApi();
 
 export function autorizacao(sessao: string) {
   return { Authorization: `Bearer ${sessao}` };

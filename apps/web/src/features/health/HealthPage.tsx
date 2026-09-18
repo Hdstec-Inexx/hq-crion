@@ -1,9 +1,10 @@
 import { healthResponseSchema } from '@hq-crion/contracts/health';
 import { useEffect, useState } from 'react';
+import { urlDaApi } from '../../urlDaApi';
 
 type HealthState = 'loading' | 'ready' | 'error';
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const apiUrl = urlDaApi();
 
 const mensagensPorEstado: Record<
   HealthState,

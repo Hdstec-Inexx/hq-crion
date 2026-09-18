@@ -14,6 +14,7 @@ COPY packages/contracts ./packages/contracts
 
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
+RUN test -n "$VITE_API_URL"
 
 RUN pnpm --filter @hq-crion/contracts build && pnpm --filter @hq-crion/web build
 

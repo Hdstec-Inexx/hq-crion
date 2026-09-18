@@ -3,8 +3,9 @@ import {
   type ConfiguracaoDaIaAvaliadora
 } from '@hq-crion/contracts/ia-avaliadora';
 import { autorizacao } from '../auth/api';
+import { urlDaApi } from '../../urlDaApi';
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const apiUrl = urlDaApi();
 
 export type ResultadoDaIaAvaliadora =
   | { ok: true; configuracao: ConfiguracaoDaIaAvaliadora }

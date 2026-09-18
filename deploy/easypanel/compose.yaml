@@ -58,6 +58,7 @@ services:
       timeout: 3s
       retries: 6
       start_period: 10s
+    user: "101:101"
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped

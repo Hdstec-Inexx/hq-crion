@@ -1,8 +1,9 @@
 import { monitoramentoDetalheSchema, monitoramentoListagemResponseSchema } from '@hq-crion/contracts/atendimento';
 import { autorizacao } from '../auth/api';
 import { lerSessao } from '../auth/sessao';
+import { urlDaApi } from '../../urlDaApi';
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const apiUrl = urlDaApi();
 
 function queryDaListagem(query: URLSearchParams) {
   const limpa = new URLSearchParams();

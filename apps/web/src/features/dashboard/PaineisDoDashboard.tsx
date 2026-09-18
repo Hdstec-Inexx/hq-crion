@@ -3,16 +3,12 @@ import type {
   IdDoKpi,
   IndicadorDoDashboard
 } from '@hq-crion/contracts/dashboard';
-import { destinoDoKpi, destinoDoPainel } from '@hq-crion/contracts/recorte';
-import { Link } from 'react-router-dom';
 import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts';
+  destinoDoDetalheDoDashboard,
+  destinoDoPainel
+} from '@hq-crion/contracts/recorte';
+import { Link } from 'react-router-dom';
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 
 function formatarOuTravessao(valor: number | null, formatar: (valor: number) => string) {
   return valor === null ? '—' : formatar(valor);
@@ -25,8 +21,10 @@ function formatarPercentual(valor: number) {
 export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse }) {
   const periodo = dashboard.periodo;
   const recorte = dashboard.recorte;
-  const destino = (indicador: IndicadorDoDashboard) =>
-    destinoDoPainel(recorte, periodo, indicador);
+  const destino = (
+    indicador: IndicadorDoDashboard,
+    extras?: Record<string, string>
+  ) => destinoDoPainel(recorte, periodo, indicador, extras);
 
   return (
     <div className="dashboard-paineis">
@@ -41,7 +39,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         <ul>
           {dashboard.paineis.motivos.map((item) => (
             <li key={item.motivo}>
-              <Link to={destino('motivos')}>
+              <Link to={destino('motivos', { motivo: item.motivo })}>
                 {item.motivo} · {item.quantidade}
               </Link>
             </li>
@@ -60,7 +58,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         <ul>
           {dashboard.paineis.acertoPorCriterio.map((item) => (
             <li key={item.criterio}>
-              <Link to={destino('acertoPorCriterio')}>
+              <Link to={destino('acertoPorCriterio', { criteriosAtendidos: item.criterio })}>
                 {item.criterio} · {formatarOuTravessao(item.percentual, formatarPercentual)}
               </Link>
             </li>
@@ -94,7 +92,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         <ul>
           {dashboard.paineis.naoConformidade.map((item) => (
             <li key={item.criterio}>
-              <Link to={destino('naoConformidade')}>
+              <Link to={destino('naoConformidade', { criteriosNaoAtendidos: item.criterio })}>
                 {item.criterio} · {item.quantidade}
               </Link>
             </li>
@@ -109,7 +107,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
           ) : (
             dashboard.paineis.pioresAtendimentos.map((item) => (
               <li key={item.id}>
-                <Link to={destinoDoKpi(recorte, periodo, 'pioresAtendimentos')}>
+                <Link to={destinoDoDetalheDoDashboard(item.id, recorte, periodo)}>
                   {item.id} · {item.nota.toFixed(1).replace('.', ',')}
                 </Link>
               </li>
@@ -132,7 +130,6 @@ function GraficoBarras({ dados }: { dados: { nome: string; valor: number }[] }) 
         <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 8 }}>
           <XAxis type="number" hide />
           <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11 }} />
-          <Tooltip />
           <Bar dataKey="valor" fill="#5ec4be" radius={[0, 6, 6, 0]} />
         </BarChart>
       </ResponsiveContainer>

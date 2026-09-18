@@ -217,6 +217,45 @@ test('GET /atendimentos com indicador do pulso restringe a lista', async () => {
   }
 });
 
+test('GET /atendimentos com indicador sla só inclui Tempo de Espera dentro do prazo', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const periodo = 'inicio=2020-01-01&fim=2020-01-31';
+    const lista = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?${periodo}`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const sla = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?${periodo}&indicador=sla`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const motivo = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?${periodo}&indicador=motivos&motivo=Carência`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(lista.statusCode, 200);
+    assert.deepEqual(
+      lista.json().itens.map((item: { id: string }) => item.id),
+      ['a-fora']
+    );
+    assert.equal(sla.statusCode, 200);
+    assert.deepEqual(sla.json().itens, []);
+    assert.equal(motivo.statusCode, 200);
+    assert.deepEqual(
+      motivo.json().itens.map((item: { id: string }) => item.id),
+      ['a-fora']
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /atendimentos combina Recorte, período e indicador do pulso', async () => {
   const app = await buildApp();
 

@@ -1,8 +1,9 @@
 import { dashboardResponseSchema, type DashboardResponse } from '@hq-crion/contracts/dashboard';
 import { autorizacao } from '../auth/api';
 import { lerSessao } from '../auth/sessao';
+import { urlDaApi } from '../../urlDaApi';
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const apiUrl = urlDaApi();
 
 function queryDoDashboard(query: URLSearchParams) {
   const limpa = new URLSearchParams();

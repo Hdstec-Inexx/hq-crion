@@ -24,6 +24,17 @@ test('env de produção documenta banco Crion, CORS e skip de seed', () => {
   assert.equal(config.HOST, '0.0.0.0');
 });
 
+test('produção sem CORS_ORIGIN público recusa o default de localhost', () => {
+  assert.throws(
+    () =>
+      parseAppConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgres://crion@db/hq_crion'
+      }),
+    /CORS_ORIGIN/
+  );
+});
+
 test('produção com DATABASE_URL usa o adapter Postgres, não o catálogo em memória', () => {
   assert.equal(
     fonteDePersistencia({

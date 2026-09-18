@@ -125,7 +125,8 @@ export function destinoDoBadge(
 export function destinoDoKpi(
   recorte: Recorte,
   periodo?: { inicio: string; fim: string } | null,
-  indicador?: string | null
+  indicador?: string | null,
+  extras?: Record<string, string>
 ): string {
   const query = queryDoRecorte(recorte);
 
@@ -138,6 +139,12 @@ export function destinoDoKpi(
     query.set('indicador', indicador);
   }
 
+  for (const [chave, valor] of Object.entries(extras ?? {})) {
+    if (valor) {
+      query.set(chave, valor);
+    }
+  }
+
   const qs = query.toString();
 
   return qs ? `/atendimentos?${qs}` : '/atendimentos';
@@ -146,9 +153,26 @@ export function destinoDoKpi(
 export function destinoDoPainel(
   recorte: Recorte,
   periodo: { inicio: string; fim: string } | null | undefined,
-  indicador: string
+  indicador: string,
+  extras?: Record<string, string>
 ): string {
-  return destinoDoKpi(recorte, periodo, indicador);
+  return destinoDoKpi(recorte, periodo, indicador, extras);
+}
+
+export function destinoDoDetalheDoDashboard(
+  id: string,
+  recorte: Recorte,
+  periodo?: { inicio: string; fim: string } | null
+): string {
+  const query = queryDoRecorte(recorte);
+
+  if (periodo?.inicio && periodo.fim) {
+    query.set('inicio', periodo.inicio);
+    query.set('fim', periodo.fim);
+  }
+
+  const qs = query.toString();
+  return qs ? `/atendimentos/${id}?${qs}` : `/atendimentos/${id}`;
 }
 
 export function periodoMesCivil(referencia: Date): { inicio: string; fim: string } {

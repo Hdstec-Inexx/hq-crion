@@ -8,9 +8,8 @@ import {
   avaliacaoDaIaTemVeredito,
   type RegistroDeAtendimento
 } from '../atendimentos/registro.js';
+import { slaMaximoEmSegundos, slaMeta } from './sla.js';
 
-const slaMaximoEmSegundos = 150;
-const slaMeta = 80;
 const limiteDePiores = 5;
 
 function media(valores: number[]) {
@@ -67,7 +66,8 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
     { executadas: 0, sucesso: 0 }
   );
   const aprovados = itens.filter(
-    (item) => item.nota >= reguaUnica.limiarDeAprovacao
+    (item) =>
+      avaliacaoDaIaTemVeredito(item) && item.nota >= reguaUnica.limiarDeAprovacao
   ).length;
 
   return [

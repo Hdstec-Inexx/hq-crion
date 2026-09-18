@@ -1,7 +1,8 @@
 import { reguaDeAvaliacaoSchema, type ReguaDeAvaliacao } from '@hq-crion/contracts/regua';
 import { autorizacao } from '../auth/api';
+import { urlDaApi } from '../../urlDaApi';
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const apiUrl = urlDaApi();
 
 export async function buscarRegua(
   sessao: string,
