@@ -7,8 +7,10 @@ import {
   destinoDoDetalheDoDashboard,
   destinoDoPainel
 } from '@hq-crion/contracts/recorte';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { GraficoAnel } from './GraficoAnel';
+import { GraficoBarras } from './GraficoBarras';
 
 function formatarOuTravessao(valor: number | null, formatar: (valor: number) => string) {
   return valor === null ? '—' : formatar(valor);
@@ -18,9 +20,26 @@ function formatarPercentual(valor: number) {
   return `${Number.isInteger(valor) ? String(valor) : valor.toFixed(1).replace('.', ',')}%`;
 }
 
+function usePrefereMenosMovimento() {
+  const [reduzir, setReduzir] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const atualizar = () => setReduzir(media.matches);
+    atualizar();
+    media.addEventListener('change', atualizar);
+    return () => media.removeEventListener('change', atualizar);
+  }, []);
+
+  return reduzir;
+}
+
 export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse }) {
   const periodo = dashboard.periodo;
   const recorte = dashboard.recorte;
+  const reduzirMovimento = usePrefereMenosMovimento();
   const destino = (
     indicador: IndicadorDoDashboard,
     extras?: Record<string, string>
@@ -30,21 +49,18 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
     <div className="dashboard-paineis">
       <article className="dashboard-painel">
         <Link to={destino('motivos')}>Motivos</Link>
-        <GraficoBarras
+        <GraficoAnel
           dados={dashboard.paineis.motivos.map((item) => ({
             nome: item.motivo,
             valor: item.quantidade
           }))}
+          destino={destino('motivos')}
+          destinoDaFatia={(motivo) => destino('motivos', { motivo })}
+          deslocamento={0}
+          rotulo="Gráfico de Motivos"
+          vazio="Nenhum Motivo no período."
+          reduzirMovimento={reduzirMovimento}
         />
-        <ul>
-          {dashboard.paineis.motivos.map((item) => (
-            <li key={item.motivo}>
-              <Link to={destino('motivos', { motivo: item.motivo })}>
-                {item.motivo} · {item.quantidade}
-              </Link>
-            </li>
-          ))}
-        </ul>
       </article>
       <article className="dashboard-painel">
         <Link to={destino('acertoPorCriterio')}>Acerto por Critério</Link>
@@ -54,6 +70,8 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
               ? []
               : [{ nome: item.criterio, valor: item.percentual }]
           )}
+          destino={destino('acertoPorCriterio')}
+          reduzirMovimento={reduzirMovimento}
         />
         <ul>
           {dashboard.paineis.acertoPorCriterio.map((item) => (
@@ -65,7 +83,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
           ))}
         </ul>
       </article>
-      <article className="dashboard-painel">
+      <article className="dashboard-painel dashboard-painel-concordancia">
         <Link to={destino('concordancia')}>Concordância</Link>
         <p>
           Nota {formatarOuTravessao(dashboard.paineis.concordancia.nota, formatarPercentual)}
@@ -79,25 +97,26 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
               ? []
               : [{ nome: item.criterio, valor: item.percentual }]
           )}
+          destino={destino('concordancia')}
+          reduzirMovimento={reduzirMovimento}
         />
       </article>
       <article className="dashboard-painel">
         <Link to={destino('naoConformidade')}>Critérios de Não Conformidade</Link>
-        <GraficoBarras
+        <GraficoAnel
           dados={dashboard.paineis.naoConformidade.map((item) => ({
             nome: item.criterio,
             valor: item.quantidade
           }))}
+          destino={destino('naoConformidade')}
+          destinoDaFatia={(criterio) =>
+            destino('naoConformidade', { criteriosNaoAtendidos: criterio })
+          }
+          deslocamento={1}
+          rotulo="Gráfico de Critérios de Não Conformidade"
+          vazio="Nenhum Critério com Não Conformidade no período."
+          reduzirMovimento={reduzirMovimento}
         />
-        <ul>
-          {dashboard.paineis.naoConformidade.map((item) => (
-            <li key={item.criterio}>
-              <Link to={destino('naoConformidade', { criteriosNaoAtendidos: item.criterio })}>
-                {item.criterio} · {item.quantidade}
-              </Link>
-            </li>
-          ))}
-        </ul>
       </article>
       <article className="dashboard-painel">
         <Link to={destino('pioresAtendimentos')}>Piores Atendimentos</Link>
@@ -115,24 +134,6 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
           )}
         </ul>
       </article>
-    </div>
-  );
-}
-
-function GraficoBarras({ dados }: { dados: { nome: string; valor: number }[] }) {
-  if (dados.length === 0) {
-    return <p>—</p>;
-  }
-
-  return (
-    <div className="dashboard-grafico">
-      <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 8 }}>
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11 }} />
-          <Bar dataKey="valor" fill="#5ec4be" radius={[0, 6, 6, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
     </div>
   );
 }

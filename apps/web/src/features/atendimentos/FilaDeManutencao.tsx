@@ -157,26 +157,38 @@ export function FilaDeManutencao() {
           onChange={atualizarRecorte}
         />
       </div>
-      <form className="listagem-filtros" onSubmit={onFiltrar}>
-        <input
-          name="inicio"
-          type="date"
-          aria-label="Início"
-          defaultValue={periodoSubmetido ? (searchParams.get('inicio') ?? '') : ''}
-          key={`inicio-${searchParams.get('inicio') ?? ''}`}
-        />
-        <input
-          name="fim"
-          type="date"
-          aria-label="Fim"
-          defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
-          key={`fim-${searchParams.get('fim') ?? ''}`}
-        />
-        <select name="status" defaultValue={searchParams.get('status') ?? ''} aria-label="Status do Comentário">
-          <option value="">Status do Comentário</option>
-          <option value="Pendente">Pendente</option>
-          <option value="Resolvido">Resolvido</option>
-        </select>
+      <form className="listagem-filtros listagem-filtros-pulso" onSubmit={onFiltrar}>
+        <div className="listagem-filtro-periodo">
+          <label>
+            Data inicial
+            <input
+              name="inicio"
+              type="date"
+              defaultValue={periodoSubmetido ? (searchParams.get('inicio') ?? '') : ''}
+              key={`inicio-${searchParams.get('inicio') ?? ''}`}
+            />
+          </label>
+          <span aria-hidden="true" className="listagem-filtro-seta">
+            →
+          </span>
+          <label>
+            Data final
+            <input
+              name="fim"
+              type="date"
+              defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
+              key={`fim-${searchParams.get('fim') ?? ''}`}
+            />
+          </label>
+        </div>
+        <label>
+          Status do Comentário
+          <select name="status" defaultValue={searchParams.get('status') ?? ''} key={`status-${searchParams.get('status') ?? ''}`}>
+            <option value="">Todos</option>
+            <option value="Pendente">Pendente</option>
+            <option value="Resolvido">Resolvido</option>
+          </select>
+        </label>
         <button type="submit">Filtrar</button>
         <button type="button" onClick={limparFiltros}>
           Limpar

@@ -135,6 +135,26 @@ test('GET /fila-de-curadoria filtra por conversa, motivo e nota da IA', async ()
       url: '/fila-de-curadoria?notaIa=8.5',
       headers: { authorization: `Bearer ${sessao}` }
     });
+    const zero = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?notaIa=0',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const semParam = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const foraDoDegrau = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?notaIa=7.3',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const malformada = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?notaIa=nao-e-nota',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
 
     assert.equal(conversa.statusCode, 200);
     assert.deepEqual(
@@ -150,6 +170,21 @@ test('GET /fila-de-curadoria filtra por conversa, motivo e nota da IA', async ()
     assert.deepEqual(
       notaIa.json().itens.map((item: { id: string }) => item.id),
       ['a1']
+    );
+    assert.equal(zero.statusCode, 200);
+    assert.deepEqual(
+      zero.json().itens.map((item: { id: string }) => item.id),
+      semParam.json().itens.map((item: { id: string }) => item.id)
+    );
+    assert.equal(foraDoDegrau.statusCode, 200);
+    assert.deepEqual(
+      foraDoDegrau.json().itens.map((item: { id: string }) => item.id),
+      semParam.json().itens.map((item: { id: string }) => item.id)
+    );
+    assert.equal(malformada.statusCode, 200);
+    assert.deepEqual(
+      malformada.json().itens.map((item: { id: string }) => item.id),
+      semParam.json().itens.map((item: { id: string }) => item.id)
     );
   } finally {
     await app.close();

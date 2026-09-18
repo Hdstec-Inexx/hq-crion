@@ -87,20 +87,24 @@ export function DashboardPage() {
         />
       </div>
       <form className="dashboard-periodo" onSubmit={onFiltrar}>
-        <input
-          name="inicio"
-          type="date"
-          aria-label="Início"
-          defaultValue={dashboard?.periodo.inicio ?? ''}
-          key={`inicio-${dashboard?.periodo.inicio ?? ''}`}
-        />
-        <input
-          name="fim"
-          type="date"
-          aria-label="Fim"
-          defaultValue={dashboard?.periodo.fim ?? ''}
-          key={`fim-${dashboard?.periodo.fim ?? ''}`}
-        />
+        <label>
+          Data inicial
+          <input
+            name="inicio"
+            type="date"
+            defaultValue={dashboard?.periodo.inicio ?? ''}
+            key={`inicio-${dashboard?.periodo.inicio ?? ''}`}
+          />
+        </label>
+        <label>
+          Data final
+          <input
+            name="fim"
+            type="date"
+            defaultValue={dashboard?.periodo.fim ?? ''}
+            key={`fim-${dashboard?.periodo.fim ?? ''}`}
+          />
+        </label>
         <button type="submit">Aplicar</button>
         <button type="button" onClick={limparPeriodo}>
           Limpar

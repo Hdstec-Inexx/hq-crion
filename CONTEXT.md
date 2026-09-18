@@ -90,7 +90,7 @@ O percentual de Atendimentos no Recorte e no período cuja nota da IA atinge o l
 ### Dashboard
 
 **Dashboard**:
-A leitura gerencial (Admin e Gestão) no Recorte e no período. Volume é a contagem de Atendimentos do HQ **dentro** desse Recorte e período — não a listagem global da ElevenLabs. KPIs: volume, TMA, Taxa de Resolvidas, SLA, Nota média IA × Curador, Avaliados IA × Curador, Taxa de Promessas Cumpridas, Tempo Médio até Resolução, **Aprovação**. Painéis: motivos, acerto por Critério, Concordância, Critérios de Não Conformidade, piores Atendimentos. Filtros de listagem (status, curador, critérios, nota, conversa) **não** entram no agregado. Clique em KPI ou painel abre a Listagem de Atendimentos com Recorte, período e o indicador. Sem período na URL, observa o mês civil; a UI do período segue o pulso GEAP (intervalo visível, aplicar, limpar).
+A leitura gerencial (Admin e Gestão) no Recorte e no período. Volume é a contagem de Atendimentos do HQ **dentro** desse Recorte e período — não a listagem global da ElevenLabs. KPIs: volume, TMA, Taxa de Resolvidas, SLA, Nota média IA × Curador, Avaliados IA × Curador, Taxa de Promessas Cumpridas, Tempo Médio até Resolução, **Aprovação**. Painéis: motivos, acerto por Critério, Concordância, Critérios de Não Conformidade, piores Atendimentos. **Motivos** e **Critérios de Não Conformidade** são anéis de distribuição (legenda ao lado); **Acerto por Critério** e **Concordância** por Critério são barras de percentual, todos em painel **claro** Crion (a Concordância não herda o card tinta do GEAP). Enquadramento e densidade seguem o pulso GEAP; as fatias usam matizes distintos a partir do ciano Crion, não tons da mesma cor. Dois anéis na mesma tela não repetem a mesma ordem de cores. Filtros de listagem (status, curador, critérios, nota, conversa) **não** entram no agregado. Clique em KPI ou painel abre a Listagem de Atendimentos com Recorte, período e o indicador. Sem período na URL, observa o mês civil; a UI do período segue o pulso GEAP (intervalo visível, aplicar, limpar).
 
 **SLA**:
 Percentual, no Dashboard e no Recorte/período, dos Atendimentos concluídos no HQ cujo Tempo de Espera está dentro do prazo (≤ **150 segundos**). Sem Tempo de Espera mensurável não conta como dentro do prazo. Meta de referência: **80%**.
@@ -111,14 +111,18 @@ Quantos Atendimentos concluídos no Recorte e no período têm Avaliação da IA
 A observação em tempo real — somente texto, sem áudio — de Atendimentos ainda abertos. Na casca o rótulo é “Ao vivo”; o nome da área é este.
 _Avoid_: Supervisão (implica intervenção), Ao vivo (fora da casca)
 
+**Filtro de Nota da IA**:
+Nas listagens o controle chama-se **Nota da IA Avaliadora**. Recorta pela **nota exata** da Avaliação da IA (0 a 10, passo 0,5). Zero ou ausente = sem recorte.
+_Avoid_: Nota mínima, limiar ≥, passo 0,1, Nota da Avaliação da IA (conceito GEAP de calibração do avaliador — este HQ não o usa no filtro)
+
 **Fila de Curadoria**:
-A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador escolhe quais revisar (modelo pull). Na casca: “Fila de curadoria”. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo); a lista vai do mais antigo ao mais novo. Filtros: Recorte, período, id da conversa, motivo, nota da IA, Limpar — o mesmo recorte operacional da fila GEAP, sem critérios nem curador.
+A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador escolhe quais revisar (modelo pull). Na casca: “Fila de curadoria”. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo); a lista vai do mais antigo ao mais novo. Filtros: Recorte, período, id da conversa, motivo, **Filtro de Nota da IA**, Limpar — o mesmo recorte operacional da fila GEAP, sem critérios nem curador.
 
 **Listagem de Atendimentos**:
-A lista operacional de Atendimentos. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo), com datas vazias na UI até o operador submeter um intervalo. Recorte no header. Filtros da página: período, id da conversa, motivo, critérios não atendidos e atendidos, status da curadoria (realizada/pendente), curador, nota da IA, Limpar — e **Status** do Atendimento (Concluído / Em andamento). Não usa nota em degraus nem o booleano “Curadoria feita”.
+A lista operacional de Atendimentos. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo), com datas vazias na UI até o operador submeter um intervalo. Recorte no header. Filtros da página: período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos** (dois multi-selects compactos da Régua), status da curadoria (realizada/pendente), curador, **Filtro de Nota da IA**, Limpar — e **Status** do Atendimento (Concluído / Em andamento). Não usa o booleano “Curadoria feita”.
 
 **Minhas Curadorias / Curadorias realizadas**:
-Listas de Atendimentos já conferidos. Filtros como no GEAP: Recorte, período, id da conversa, motivo, critérios, nota da IA, Limpar; curador só em Curadorias realizadas (não em Minhas).
+Listas de Atendimentos já conferidos. Filtros como no GEAP: Recorte, período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos**, **Filtro de Nota da IA**, Limpar; curador só em Curadorias realizadas (não em Minhas).
 
 **Fila de Manutenção**:
 A lista de Comentários da conferência — pendentes e resolvidos — da qual o Admin trabalha a manutenção dos Agentes de Voz. Filtro por status e data; cada item liga ao Atendimento de origem. Só o Admin opera a fila. Na casca: “Manutenção”. Recorte igual às outras listagens. Sem período informado, observa o **mês civil corrente** (America/Sao_Paulo).
