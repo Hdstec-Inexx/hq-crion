@@ -10,6 +10,34 @@ import { lerSessao } from '../auth/sessao';
 import { buscarRegua } from '../regua/api';
 import { queryAposFiltrar } from './query-apos-filtrar';
 
+function SelectCriterios({
+  name,
+  rotulo,
+  submetido,
+  opcoes
+}: {
+  name: 'criteriosAtendidos' | 'criteriosNaoAtendidos';
+  rotulo: string;
+  submetido: string;
+  opcoes: string[];
+}) {
+  return (
+    <select
+      name={name}
+      multiple
+      aria-label={rotulo}
+      defaultValue={submetido.split(',').filter(Boolean)}
+      key={`${name}-${submetido}`}
+    >
+      {opcoes.map((nome) => (
+        <option key={nome} value={nome}>
+          {nome}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function BarraDeFiltrosDaListagem({
   caminho,
   curadores
@@ -20,11 +48,11 @@ export function BarraDeFiltrosDaListagem({
   const [searchParams, setSearchParams] = useSearchParams();
   const [criteriosDaRegua, setCriteriosDaRegua] = useState<string[]>([]);
   const campos = camposVisiveisDaListagem(caminho);
-  const mostra = (campo: CampoVisivelDaListagem) => campos.includes(campo);
+  const campoVisivel = (campo: CampoVisivelDaListagem) => campos.includes(campo);
   const periodoSubmetido = Boolean(searchParams.get('inicio') && searchParams.get('fim'));
 
   useEffect(() => {
-    if (!campos.includes('criterios')) {
+    if (!camposVisiveisDaListagem(caminho).includes('criterios')) {
       return;
     }
 
@@ -48,7 +76,7 @@ export function BarraDeFiltrosDaListagem({
       });
 
     return () => controller.abort();
-  }, [caminho, campos]);
+  }, [caminho]);
 
   function onFiltrar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,7 +89,7 @@ export function BarraDeFiltrosDaListagem({
 
   return (
     <form className="listagem-filtros" onSubmit={onFiltrar}>
-      {mostra('periodo') ? (
+      {campoVisivel('periodo') ? (
         <>
           <input
             name="inicio"
@@ -79,14 +107,14 @@ export function BarraDeFiltrosDaListagem({
           />
         </>
       ) : null}
-      {mostra('statusAtendimento') ? (
+      {campoVisivel('statusAtendimento') ? (
         <select name="status" defaultValue={searchParams.get('status') ?? ''} aria-label="Status do Atendimento">
           <option value="">Status do Atendimento</option>
           <option value="Concluído">Concluído</option>
           <option value="Em andamento">Em andamento</option>
         </select>
       ) : null}
-      {mostra('notaIa') ? (
+      {campoVisivel('notaIa') ? (
         <input
           name="notaIa"
           type="number"
@@ -96,7 +124,7 @@ export function BarraDeFiltrosDaListagem({
           defaultValue={searchParams.get('notaIa') ?? ''}
         />
       ) : null}
-      {mostra('motivo') ? (
+      {campoVisivel('motivo') ? (
         <select name="motivo" defaultValue={searchParams.get('motivo') ?? ''} aria-label="Motivo">
           <option value="">Motivo</option>
           {motivosDeContato.map((motivo) => (
@@ -106,7 +134,7 @@ export function BarraDeFiltrosDaListagem({
           ))}
         </select>
       ) : null}
-      {mostra('conversa') ? (
+      {campoVisivel('conversa') ? (
         <input
           name="conversa"
           placeholder="Id da conversa"
@@ -114,37 +142,23 @@ export function BarraDeFiltrosDaListagem({
           defaultValue={searchParams.get('conversa') ?? ''}
         />
       ) : null}
-      {mostra('criterios') ? (
+      {campoVisivel('criterios') ? (
         <>
-          <select
+          <SelectCriterios
             name="criteriosAtendidos"
-            multiple
-            aria-label="Critérios atendidos"
-            defaultValue={searchParams.get('criteriosAtendidos')?.split(',').filter(Boolean) ?? []}
-            key={`atendidos-${searchParams.get('criteriosAtendidos') ?? ''}`}
-          >
-            {criteriosDaRegua.map((nome) => (
-              <option key={nome} value={nome}>
-                {nome}
-              </option>
-            ))}
-          </select>
-          <select
+            rotulo="Critérios atendidos"
+            submetido={searchParams.get('criteriosAtendidos') ?? ''}
+            opcoes={criteriosDaRegua}
+          />
+          <SelectCriterios
             name="criteriosNaoAtendidos"
-            multiple
-            aria-label="Critérios não atendidos"
-            defaultValue={searchParams.get('criteriosNaoAtendidos')?.split(',').filter(Boolean) ?? []}
-            key={`nao-atendidos-${searchParams.get('criteriosNaoAtendidos') ?? ''}`}
-          >
-            {criteriosDaRegua.map((nome) => (
-              <option key={nome} value={nome}>
-                {nome}
-              </option>
-            ))}
-          </select>
+            rotulo="Critérios não atendidos"
+            submetido={searchParams.get('criteriosNaoAtendidos') ?? ''}
+            opcoes={criteriosDaRegua}
+          />
         </>
       ) : null}
-      {mostra('statusCuradoria') ? (
+      {campoVisivel('statusCuradoria') ? (
         <select
           name="statusCuradoria"
           defaultValue={searchParams.get('statusCuradoria') ?? ''}
@@ -155,7 +169,7 @@ export function BarraDeFiltrosDaListagem({
           <option value="pendente">Pendente</option>
         </select>
       ) : null}
-      {mostra('curador') ? (
+      {campoVisivel('curador') ? (
         <select name="curador" defaultValue={searchParams.get('curador') ?? ''} aria-label="Curador">
           <option value="">Curador</option>
           {curadores.map((curador) => (
@@ -166,7 +180,7 @@ export function BarraDeFiltrosDaListagem({
         </select>
       ) : null}
       <button type="submit">Filtrar</button>
-      {mostra('limpar') ? (
+      {campoVisivel('limpar') ? (
         <button type="button" onClick={limparFiltros}>
           Limpar
         </button>

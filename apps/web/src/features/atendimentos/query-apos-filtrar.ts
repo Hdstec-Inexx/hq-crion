@@ -1,6 +1,6 @@
 export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
   const proxima = new URLSearchParams(atual);
-  const simples = [
+  const filtrosDeValorUnico = [
     'inicio',
     'fim',
     'status',
@@ -11,7 +11,7 @@ export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
     'curador'
   ] as const;
 
-  for (const campo of simples) {
+  for (const campo of filtrosDeValorUnico) {
     const valor = String(data.get(campo) ?? '').trim();
 
     if (valor) {

@@ -33,6 +33,22 @@ test('Filtrar grava o rascunho na query e preserva Recorte', () => {
   assert.equal(proxima.has('nota'), false);
 });
 
+test('Filtrar ignora Recorte enviado no formulário', () => {
+  const data = new FormData();
+  data.set('administradora', 'Alter');
+  data.set('agente', 'clara-alter');
+  data.set('motivo', 'Boleto');
+
+  const proxima = queryAposFiltrar(
+    new URLSearchParams('administradora=Affix&agente=affix-0800'),
+    data
+  );
+
+  assert.equal(proxima.get('administradora'), 'Affix');
+  assert.equal(proxima.get('agente'), 'affix-0800');
+  assert.equal(proxima.get('motivo'), 'Boleto');
+});
+
 test('página da listagem monta a barra e deixa Recorte no header', () => {
   const pagina = readFileSync(
     join(raiz, 'apps/web/src/features/atendimentos/ListagemAtendimentos.tsx'),

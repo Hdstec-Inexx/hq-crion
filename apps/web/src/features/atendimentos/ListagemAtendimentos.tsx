@@ -27,6 +27,8 @@ function formatarNota(nota: number) {
   return nota.toFixed(1).replace('.', ',');
 }
 
+const semCuradores: { id: string; nome: string }[] = [];
+
 function destinoDoDetalhe(id: string, search: string, lista: string) {
   const params = new URLSearchParams(search);
   params.set('lista', lista);
@@ -101,7 +103,7 @@ export function ListagemAtendimentos({
       </div>
       <BarraDeFiltrosDaListagem
         caminho={caminho}
-        curadores={listagem?.curadores ?? []}
+        curadores={listagem?.curadores ?? semCuradores}
       />
       {erro === 'recorte-invalido' ? (
         <p className="listagem-erro" role="alert">
