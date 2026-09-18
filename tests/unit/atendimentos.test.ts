@@ -17,7 +17,8 @@ import {
 import {
   camposVisiveisDaListagem,
   limparFiltrosDaQuery,
-  motivosDeContato
+  motivosDeContato,
+  notaIaDaQuery
 } from '../../packages/contracts/src/filtros-listagem.js';
 
 process.env.NODE_ENV = 'test';
@@ -165,21 +166,65 @@ test('GET /atendimentos filtra por status', async () => {
   }
 });
 
+test('notaIa da query é igualdade em degrau de 0,5 e 0 não recorta', () => {
+  assert.equal(notaIaDaQuery(undefined), undefined);
+  assert.equal(notaIaDaQuery('0'), undefined);
+  assert.equal(notaIaDaQuery('7.5'), 7.5);
+  assert.equal(notaIaDaQuery('7.3'), undefined);
+  assert.equal(notaIaDaQuery('nao-e-nota'), undefined);
+  assert.equal(notaIaDaQuery(['7.5', '8.5'] as unknown as string), undefined);
+});
+
 test('GET /atendimentos filtra por nota da IA', async () => {
   const app = await buildApp();
 
   try {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
-    const response = await app.inject({
+    const igualdade = await app.inject({
       method: 'GET',
-      url: '/atendimentos?notaIa=6',
+      url: '/atendimentos?notaIa=7.5',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const zero = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?notaIa=0',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const semParam = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const meioPonto = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?notaIa=8.5',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const foraDoDegrau = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?notaIa=7.3',
       headers: { authorization: `Bearer ${sessao}` }
     });
 
-    assert.equal(response.statusCode, 200);
+    assert.equal(igualdade.statusCode, 200);
     assert.deepEqual(
-      response.json().itens.map((item: { id: string }) => item.id),
-      ['a2']
+      igualdade.json().itens.map((item: { id: string }) => item.id),
+      ['a4']
+    );
+    assert.equal(zero.statusCode, 200);
+    assert.deepEqual(
+      zero.json().itens.map((item: { id: string }) => item.id),
+      semParam.json().itens.map((item: { id: string }) => item.id)
+    );
+    assert.equal(meioPonto.statusCode, 200);
+    assert.deepEqual(
+      meioPonto.json().itens.map((item: { id: string }) => item.id),
+      ['a1']
+    );
+    assert.equal(foraDoDegrau.statusCode, 200);
+    assert.deepEqual(
+      foraDoDegrau.json().itens.map((item: { id: string }) => item.id),
+      semParam.json().itens.map((item: { id: string }) => item.id)
     );
   } finally {
     await app.close();
@@ -295,11 +340,18 @@ test('nota da IA malformada não substitui a listagem', async () => {
       url: '/atendimentos?notaIa=nao-e-nota',
       headers: { authorization: `Bearer ${sessao}` }
     });
+    const repetida = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?notaIa=7.5&notaIa=8.5',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
 
     assert.equal(response.statusCode, 200);
     const ids = response.json().itens.map((item: { id: string }) => item.id);
     assert.ok(ids.includes('a1'));
     assert.ok(ids.includes('a2'));
+    assert.equal(repetida.statusCode, 200);
+    assert.ok(repetida.json().itens.map((item: { id: string }) => item.id).includes('a1'));
   } finally {
     await app.close();
   }

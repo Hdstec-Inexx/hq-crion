@@ -9,6 +9,7 @@ import { useSearchParams } from 'react-router-dom';
 import { lerSessao } from '../auth/sessao';
 import { buscarRegua } from '../regua/api';
 import { queryAposFiltrar } from './query-apos-filtrar';
+import { SliderNotaDaIaAvaliadora } from './SliderNotaDaIaAvaliadora';
 
 function SelectCriterios({
   name,
@@ -115,14 +116,7 @@ export function BarraDeFiltrosDaListagem({
         </select>
       ) : null}
       {campoVisivel('notaIa') ? (
-        <input
-          name="notaIa"
-          type="number"
-          step="0.1"
-          placeholder="Nota da IA"
-          aria-label="Nota da IA"
-          defaultValue={searchParams.get('notaIa') ?? ''}
-        />
+        <SliderNotaDaIaAvaliadora notaIaNaQuery={searchParams.get('notaIa') ?? ''} />
       ) : null}
       {campoVisivel('motivo') ? (
         <select name="motivo" defaultValue={searchParams.get('motivo') ?? ''} aria-label="Motivo">

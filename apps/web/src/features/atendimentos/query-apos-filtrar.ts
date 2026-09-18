@@ -1,3 +1,5 @@
+import { notaIaDaQuery } from '@hq-crion/contracts/filtros-listagem';
+
 export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
   const proxima = new URLSearchParams(atual);
   const filtrosDeValorUnico = [
@@ -13,6 +15,18 @@ export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
 
   for (const campo of filtrosDeValorUnico) {
     const valor = String(data.get(campo) ?? '').trim();
+
+    if (campo === 'notaIa') {
+      const notaIa = notaIaDaQuery(valor);
+
+      if (notaIa === undefined) {
+        proxima.delete(campo);
+      } else {
+        proxima.set(campo, String(notaIa));
+      }
+
+      continue;
+    }
 
     if (valor) {
       proxima.set(campo, valor);

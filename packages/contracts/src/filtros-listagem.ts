@@ -66,6 +66,20 @@ const chavesLimpaveis = [
   'pagina'
 ] as const;
 
+export function notaIaDaQuery(valor: string | undefined) {
+  if (typeof valor !== 'string' || valor.trim() === '') {
+    return undefined;
+  }
+
+  const nota = Number(valor);
+
+  if (!Number.isFinite(nota) || nota <= 0 || nota > 10 || !Number.isInteger(nota * 2)) {
+    return undefined;
+  }
+
+  return nota;
+}
+
 export function limparFiltrosDaQuery(query: URLSearchParams) {
   const proxima = new URLSearchParams(query);
 
