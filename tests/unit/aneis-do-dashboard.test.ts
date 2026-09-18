@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   coresDoAnel,
   fatiasVisiveisDoAnel
@@ -42,6 +45,34 @@ test('fatiasVisiveisDoAnel omitem quantidade zero para não desenhar anel oco', 
     ]),
     [{ nome: 'Protocolo', valor: 2 }]
   );
+});
+
+test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoDoGrafico', () => {
+  const anel = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/src/features/dashboard/GraficoAnel.tsx'),
+    'utf8'
+  );
+  const destino = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/src/features/dashboard/DestinoDoGrafico.tsx'),
+    'utf8'
+  );
+
+  assert.match(anel, /<ul className="dashboard-anel-legenda">\s*\{fatias\.map/);
+  assert.match(anel, /<DestinoDoGrafico/);
+  assert.doesNotMatch(anel, /<Tooltip/);
+  assert.match(destino, /navigate\(destino\)/);
+});
+
+test('ADR 0007 grava paleta Crion e ordem deslocada dos anéis', () => {
+  const adr = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../docs/adr/0007-aneis-paleta-crion-ordem-deslocada.md'),
+    'utf8'
+  );
+
+  assert.match(adr, /coresDoAnel/);
+  assert.match(adr, /deslocamento 0/);
+  assert.match(adr, /deslocamento 1/);
+  assert.match(adr, /#5EC4BE/i);
 });
 
 test('coresDoAnel não usa os hex da paleta GEAP', () => {

@@ -43,6 +43,16 @@ test('Filtrar omite notaIa em 0 e remove valor fora do degrau', () => {
   assert.equal(queryAposFiltrar(new URLSearchParams('notaIa=7.5'), fora).has('notaIa'), false);
 });
 
+test('Filtrar omite Motivo fora do conjunto fechado', () => {
+  const data = new FormData();
+  data.set('motivo', 'invalido');
+
+  assert.equal(
+    queryAposFiltrar(new URLSearchParams('motivo=Boleto'), data).has('motivo'),
+    false
+  );
+});
+
 test('Filtrar ignora Recorte enviado no formulário', () => {
   const data = new FormData();
   data.set('administradora', 'Alter');
@@ -73,7 +83,7 @@ test('página da listagem monta a barra e deixa Recorte no header', () => {
   assert.match(pagina, /<RecorteCascata/);
   assert.doesNotMatch(pagina, /className="listagem-filtros"/);
   assert.doesNotMatch(pagina, /buscarRegua/);
-  assert.match(barra, /className="listagem-filtros"/);
+  assert.match(barra, /className="listagem-filtros listagem-filtros-pulso"/);
   assert.match(barra, /<SliderNotaDaIaAvaliadora/);
   assert.doesNotMatch(barra, /type="number"/);
   assert.doesNotMatch(barra, /step="0\.1"/);
@@ -149,6 +159,18 @@ test('Critérios compactos abrem checkboxes e somem da Fila', () => {
   assert.match(multiselect, /useFecharAoClicarFora/);
   assert.doesNotMatch(css, /select\[multiple\]/);
   assert.doesNotMatch(css, /Georgia|#e5b85c/i);
+});
+
+test('Fila de Manutenção não herda a barra compacta do pulso GEAP', () => {
+  const manutencao = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/FilaDeManutencao.tsx'),
+    'utf8'
+  );
+  const css = readFileSync(join(raiz, 'apps/web/src/styles/listagens.css'), 'utf8');
+
+  assert.match(manutencao, /className="listagem-filtros"/);
+  assert.doesNotMatch(manutencao, /listagem-filtros-pulso/);
+  assert.match(css, /\.listagem-filtros-pulso :focus-visible/);
 });
 
 test('combobox de Motivo filtra o conjunto fechado sem acento', async () => {

@@ -1,3 +1,5 @@
+import type { PontoDoPainel } from './ponto-do-painel';
+
 const paletaCrion = [
   '#5ec4be',
   '#2a9a94',
@@ -16,6 +18,6 @@ export function coresDoAnel(quantidade: number, deslocamento: number) {
   );
 }
 
-export function fatiasVisiveisDoAnel(dados: { nome: string; valor: number }[]) {
+export function fatiasVisiveisDoAnel(dados: PontoDoPainel[]) {
   return dados.filter((item) => item.valor > 0);
 }

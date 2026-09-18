@@ -23,8 +23,11 @@ export function MultiselectCriterios({
   const [selecionados, setSelecionados] = useState(() => criteriosDaQuery(submetido));
 
   useEffect(() => {
-    setSelecionados(criteriosDaQuery(submetido));
-  }, [submetido]);
+    const daQuery = criteriosDaQuery(submetido);
+    setSelecionados(
+      opcoes.length === 0 ? daQuery : daQuery.filter((nome) => opcoes.includes(nome))
+    );
+  }, [submetido, opcoes]);
 
   useFecharAoClicarFora(raiz, aberto, () => setAberto(false));
 
