@@ -5,19 +5,9 @@ import type {
 } from '@hq-crion/contracts/dashboard';
 import { destinoDoKpi, destinoDoPainel } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts';
-import { coresDoAnel, fatiasVisiveisDoAnel } from './coresDoAnel';
+import { Link } from 'react-router-dom';
+import { GraficoAnel } from './GraficoAnel';
+import { GraficoBarras } from './GraficoBarras';
 
 function formatarOuTravessao(valor: number | null, formatar: (valor: number) => string) {
   return valor === null ? '—' : formatar(valor);
@@ -136,116 +126,6 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         </ul>
       </article>
     </div>
-  );
-}
-
-function GraficoAnel({
-  dados,
-  destino,
-  deslocamento,
-  rotulo,
-  vazio,
-  reduzirMovimento
-}: {
-  dados: { nome: string; valor: number }[];
-  destino: string;
-  deslocamento: number;
-  rotulo: string;
-  vazio: string;
-  reduzirMovimento: boolean;
-}) {
-  const navigate = useNavigate();
-  const fatias = fatiasVisiveisDoAnel(dados);
-
-  if (fatias.length === 0) {
-    return <p className="dashboard-vazio">{vazio}</p>;
-  }
-
-  const cores = coresDoAnel(dados.length, deslocamento);
-  const indiceDaFatia = new Map(dados.map((item, indice) => [item.nome, indice]));
-  const total = fatias.reduce((soma, item) => soma + item.valor, 0);
-
-  return (
-    <div className="dashboard-anel">
-      <button
-        aria-label={rotulo}
-        className="dashboard-anel-frame"
-        onClick={() => navigate(destino)}
-        type="button"
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={fatias}
-              dataKey="valor"
-              innerRadius="58%"
-              isAnimationActive={!reduzirMovimento}
-              nameKey="nome"
-              outerRadius="100%"
-              stroke="none"
-            >
-              {fatias.map((item) => (
-                <Cell fill={cores[indiceDaFatia.get(item.nome) ?? 0]} key={item.nome} />
-              ))}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
-      </button>
-      <ul className="dashboard-anel-legenda">
-        {dados.map((item, indice) => {
-          const parcela = total === 0 ? 0 : (item.valor / total) * 100;
-          return (
-            <li key={item.nome}>
-              <Link to={destino}>
-                <span
-                  className="dashboard-anel-swatch"
-                  style={{ background: cores[indice] }}
-                />
-                <span>{item.nome}</span>
-                <strong>
-                  {item.valor.toLocaleString('pt-BR')} ({parcela.toFixed(0)}%)
-                </strong>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-function GraficoBarras({
-  dados,
-  destino,
-  reduzirMovimento
-}: {
-  dados: { nome: string; valor: number }[];
-  destino: string;
-  reduzirMovimento: boolean;
-}) {
-  const navigate = useNavigate();
-
-  if (dados.length === 0) {
-    return <p>—</p>;
-  }
-
-  return (
-    <button className="dashboard-grafico" onClick={() => navigate(destino)} type="button">
-      <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 8 }}>
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11 }} />
-          <Tooltip />
-          <Bar
-            dataKey="valor"
-            fill="#5ec4be"
-            isAnimationActive={!reduzirMovimento}
-            radius={[0, 6, 6, 0]}
-          />
-        </BarChart>
-      </ResponsiveContainer>
-    </button>
   );
 }
 

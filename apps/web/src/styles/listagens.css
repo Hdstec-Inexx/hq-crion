@@ -1,12 +1,15 @@
 .listagem-filtros {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
   gap: 8px;
   margin-bottom: 12px;
 }
 
-.listagem-filtros label,
+.listagem-filtros-pulso {
+  align-items: end;
+}
+
+.listagem-filtros-pulso label,
 .listagem-multiselect-criterios-rotulo {
   display: grid;
   gap: 4px;
@@ -30,7 +33,7 @@
   color: var(--ink);
 }
 
-.listagem-filtros :focus-visible {
+.listagem-filtros-pulso :focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: 1px;
 }

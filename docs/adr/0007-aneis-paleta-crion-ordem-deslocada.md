@@ -1,0 +1,3 @@
+# Anéis do Dashboard: paleta Crion e ordem deslocada
+
+Motivos e Critérios de Não Conformidade no Dashboard são anéis compactos (cerca de 160px, recorte interno) com legenda ao lado (swatch, nome, quantidade e participação). Não se usa a legenda da biblioteca de gráfico. A paleta é uma lista ordenada derivada do ciano Crion (`#5EC4BE`); não se copiam os hexes do GEAP. `coresDoAnel(quantidade, deslocamento)` percorre essa lista por índice. Na mesma tela, Motivos usa deslocamento 0 e Não Conformidade usa deslocamento 1, para as sequências não coincidirem. Acerto por Critério e Concordância permanecem barras de percentual em painel claro. Não “corrigir” as cores dos anéis para a mesma ordem do GEAP.

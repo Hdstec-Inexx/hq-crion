@@ -1,4 +1,4 @@
-import { notaIaDaQuery } from '@hq-crion/contracts/filtros-listagem';
+import { motivosDeContato, notaIaDaQuery } from '@hq-crion/contracts/filtros-listagem';
 
 export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
   const proxima = new URLSearchParams(atual);
@@ -23,6 +23,18 @@ export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
         proxima.delete(campo);
       } else {
         proxima.set(campo, String(notaIa));
+      }
+
+      continue;
+    }
+
+    if (campo === 'motivo') {
+      const motivo = motivosDeContato.find((opcao) => opcao === valor);
+
+      if (motivo) {
+        proxima.set(campo, motivo);
+      } else {
+        proxima.delete(campo);
       }
 
       continue;

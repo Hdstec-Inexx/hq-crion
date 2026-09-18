@@ -231,6 +231,32 @@ test('GET /atendimentos filtra por nota da IA', async () => {
   }
 });
 
+test('GET /atendimentos ignora Motivo fora do conjunto fechado', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const semParam = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const foraDoConjunto = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?motivo=invalido',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(foraDoConjunto.statusCode, 200);
+    assert.deepEqual(
+      foraDoConjunto.json().itens.map((item: { id: string }) => item.id),
+      semParam.json().itens.map((item: { id: string }) => item.id)
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /atendimentos com indicador do pulso restringe a lista', async () => {
   const app = await buildApp();
 

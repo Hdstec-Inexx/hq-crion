@@ -1,5 +1,9 @@
 import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
-import { notaIaDaQuery, statusDaCuradoria } from '@hq-crion/contracts/filtros-listagem';
+import {
+  motivosDeContato,
+  notaIaDaQuery,
+  statusDaCuradoria
+} from '@hq-crion/contracts/filtros-listagem';
 import { reguaUnica } from '../regua/regua-unica.js';
 import type { RegistroDeAtendimento } from './registro.js';
 
@@ -106,11 +110,13 @@ export function passaNosFiltros(
 
   const notaIa = notaIaDaQuery(query.notaIa);
 
-  if (notaIa !== undefined && item.avaliacaoDaIa.nota !== notaIa) {
+  if (notaIa !== undefined && item.avaliacaoDaIa?.nota !== notaIa) {
     return false;
   }
 
-  if (query.motivo && item.motivo !== query.motivo) {
+  const motivo = motivosDeContato.find((opcao) => opcao === query.motivo);
+
+  if (motivo && item.motivo !== motivo) {
     return false;
   }
 

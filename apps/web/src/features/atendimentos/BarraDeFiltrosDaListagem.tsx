@@ -34,7 +34,7 @@ export function BarraDeFiltrosDaListagem({
   }, [inicioNaQuery, fimNaQuery]);
 
   useEffect(() => {
-    if (!camposVisiveisDaListagem(caminho).includes('criterios')) {
+    if (!campoVisivel('criterios')) {
       return;
     }
 
@@ -70,7 +70,7 @@ export function BarraDeFiltrosDaListagem({
   }
 
   return (
-    <form className="listagem-filtros" onSubmit={onFiltrar}>
+    <form className="listagem-filtros listagem-filtros-pulso" onSubmit={onFiltrar}>
       {campoVisivel('periodo') ? (
         <div className="listagem-filtro-periodo">
           <label>
