@@ -150,6 +150,11 @@ test('GET /fila-de-curadoria filtra por conversa, motivo e nota da IA', async ()
       url: '/fila-de-curadoria?notaIa=7.3',
       headers: { authorization: `Bearer ${sessao}` }
     });
+    const malformada = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria?notaIa=nao-e-nota',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
 
     assert.equal(conversa.statusCode, 200);
     assert.deepEqual(
@@ -174,6 +179,11 @@ test('GET /fila-de-curadoria filtra por conversa, motivo e nota da IA', async ()
     assert.equal(foraDoDegrau.statusCode, 200);
     assert.deepEqual(
       foraDoDegrau.json().itens.map((item: { id: string }) => item.id),
+      semParam.json().itens.map((item: { id: string }) => item.id)
+    );
+    assert.equal(malformada.statusCode, 200);
+    assert.deepEqual(
+      malformada.json().itens.map((item: { id: string }) => item.id),
       semParam.json().itens.map((item: { id: string }) => item.id)
     );
   } finally {

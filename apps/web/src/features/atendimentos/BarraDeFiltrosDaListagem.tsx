@@ -116,7 +116,7 @@ export function BarraDeFiltrosDaListagem({
         </select>
       ) : null}
       {campoVisivel('notaIa') ? (
-        <SliderNotaDaIaAvaliadora submetido={searchParams.get('notaIa') ?? ''} />
+        <SliderNotaDaIaAvaliadora notaIaNaQuery={searchParams.get('notaIa') ?? ''} />
       ) : null}
       {campoVisivel('motivo') ? (
         <select name="motivo" defaultValue={searchParams.get('motivo') ?? ''} aria-label="Motivo">

@@ -67,7 +67,7 @@ const chavesLimpaveis = [
 ] as const;
 
 export function notaIaDaQuery(valor: string | undefined) {
-  if (valor === undefined || valor.trim() === '') {
+  if (typeof valor !== 'string' || valor.trim() === '') {
     return undefined;
   }
 

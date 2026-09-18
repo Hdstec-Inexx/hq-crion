@@ -1,16 +1,16 @@
 import { notaIaDaQuery } from '@hq-crion/contracts/filtros-listagem';
 import { useEffect, useState } from 'react';
 
-function valorDoSlider(submetido: string) {
-  return String(notaIaDaQuery(submetido) ?? 0);
+function notaDoSlider(notaIaNaQuery: string) {
+  return String(notaIaDaQuery(notaIaNaQuery) ?? 0);
 }
 
-export function SliderNotaDaIaAvaliadora({ submetido }: { submetido: string }) {
-  const [valor, setValor] = useState(() => valorDoSlider(submetido));
+export function SliderNotaDaIaAvaliadora({ notaIaNaQuery }: { notaIaNaQuery: string }) {
+  const [valor, setValor] = useState(() => notaDoSlider(notaIaNaQuery));
 
   useEffect(() => {
-    setValor(valorDoSlider(submetido));
-  }, [submetido]);
+    setValor(notaDoSlider(notaIaNaQuery));
+  }, [notaIaNaQuery]);
 
   return (
     <label className="listagem-filtro-nota-ia">
@@ -23,7 +23,6 @@ export function SliderNotaDaIaAvaliadora({ submetido }: { submetido: string }) {
         step="0.5"
         value={valor}
         onChange={(event) => setValor(event.target.value)}
-        aria-label="Nota da IA Avaliadora"
       />
       <output>{valor.replace('.', ',')}</output>
     </label>
