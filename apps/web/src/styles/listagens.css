@@ -1,8 +1,18 @@
 .listagem-filtros {
   display: flex;
   flex-wrap: wrap;
+  align-items: end;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.listagem-filtros label,
+.listagem-multiselect-criterios-rotulo {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .listagem-filtros input,
@@ -20,12 +30,88 @@
   color: var(--ink);
 }
 
-.listagem-filtros select[multiple] {
-  min-width: 180px;
-  min-height: 72px;
+.listagem-filtros :focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
 }
 
-.listagem-filtro-nota-ia {
+.listagem-filtro-periodo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.listagem-filtro-seta {
+  padding-bottom: 8px;
+  color: var(--mute);
+}
+
+.listagem-combobox-motivo,
+.listagem-multiselect-criterios {
+  position: relative;
+  min-width: 180px;
+}
+
+.listagem-combobox-motivo-lista,
+.listagem-multiselect-criterios-painel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 4px 0 0;
+  padding: 6px 0;
+  list-style: none;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgb(44 48 51 / 8%);
+  max-height: 220px;
+  overflow: auto;
+}
+
+.listagem-multiselect-criterios-painel {
+  min-width: 240px;
+  padding: 8px;
+}
+
+.listagem-combobox-motivo-opcao,
+.listagem-multiselect-criterios-opcao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.listagem-combobox-motivo-opcao.is-destaque,
+.listagem-multiselect-criterios-opcao:hover {
+  background: rgb(94 196 190 / 16%);
+}
+
+.listagem-multiselect-criterios-gatilho {
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listagem-multiselect-criterios-acoes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.listagem-multiselect-criterios-acoes button {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.listagem-filtros .listagem-filtro-nota-ia {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

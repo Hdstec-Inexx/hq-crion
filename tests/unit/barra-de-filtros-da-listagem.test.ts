@@ -77,10 +77,103 @@ test('página da listagem monta a barra e deixa Recorte no header', () => {
   assert.match(barra, /<SliderNotaDaIaAvaliadora/);
   assert.doesNotMatch(barra, /type="number"/);
   assert.doesNotMatch(barra, /step="0\.1"/);
-  assert.match(barra, /multiple/);
   assert.match(barra, /type="date"/);
   assert.match(barra, />Filtrar</);
   assert.match(barra, />\s*Limpar\s*</);
+});
+
+test('datas da barra têm rótulo, seta e final desabilitado sem início', () => {
+  const barra = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/BarraDeFiltrosDaListagem.tsx'),
+    'utf8'
+  );
+
+  assert.match(barra, /Data inicial/);
+  assert.match(barra, /Data final \(opcional\)/);
+  assert.match(barra, /listagem-filtro-seta/);
+  assert.match(barra, /disabled=\{!inicioRascunho\}/);
+});
+
+test('Limpar remonta rascunhos de conversa, status e curador a partir da query', () => {
+  const barra = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/BarraDeFiltrosDaListagem.tsx'),
+    'utf8'
+  );
+
+  assert.match(barra, /key=\{`conversa-\$\{searchParams\.get\('conversa'\)/);
+  assert.match(barra, /key=\{`status-\$\{searchParams\.get\('status'\)/);
+  assert.match(barra, /key=\{`statusCuradoria-\$\{searchParams\.get\('statusCuradoria'\)/);
+  assert.match(barra, /key=\{`curador-\$\{searchParams\.get\('curador'\)/);
+});
+
+test('Motivo da barra é combobox do conjunto fechado, não um select cru', () => {
+  const barra = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/BarraDeFiltrosDaListagem.tsx'),
+    'utf8'
+  );
+  const combobox = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/ComboboxMotivo.tsx'),
+    'utf8'
+  );
+
+  assert.match(barra, /<ComboboxMotivo/);
+  assert.doesNotMatch(barra, /<select name="motivo"/);
+  assert.match(combobox, /role="combobox"/);
+  assert.match(combobox, /motivosDeContato/);
+  assert.match(combobox, /filtrarMotivosDeContato/);
+  assert.match(combobox, /motivoAceitoNoFiltro/);
+  assert.match(combobox, /type="hidden"/);
+  assert.match(combobox, /name="motivo"/);
+});
+
+test('Critérios compactos abrem checkboxes e somem da Fila', () => {
+  const barra = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/BarraDeFiltrosDaListagem.tsx'),
+    'utf8'
+  );
+  const multiselect = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/MultiselectCriterios.tsx'),
+    'utf8'
+  );
+  const css = readFileSync(join(raiz, 'apps/web/src/styles/listagens.css'), 'utf8');
+
+  assert.match(barra, /campoVisivel\('criterios'\)/);
+  assert.match(barra, /<MultiselectCriterios/);
+  assert.match(barra, /Critérios Não Atendidos/);
+  assert.match(barra, /Critérios Atendidos/);
+  assert.doesNotMatch(barra, /<select[\s\S]*multiple/);
+  assert.match(multiselect, /type="checkbox"/);
+  assert.match(multiselect, /Selecionar todos/);
+  assert.match(multiselect, /rotuloDosCriteriosSelecionados/);
+  assert.doesNotMatch(css, /select\[multiple\]/);
+  assert.doesNotMatch(css, /Georgia|#e5b85c/i);
+});
+
+test('combobox de Motivo filtra o conjunto fechado sem acento', async () => {
+  const { filtrarMotivosDeContato, motivoAceitoNoFiltro } = await import(
+    '../../apps/web/src/features/atendimentos/motivo-combobox-logic.js'
+  );
+  const opcoes = ['Boleto', 'Carência', 'Não informado', 'Rede credenciada'];
+
+  assert.deepEqual(filtrarMotivosDeContato(opcoes, ''), opcoes);
+  assert.deepEqual(filtrarMotivosDeContato(opcoes, 'nao'), ['Não informado']);
+  assert.deepEqual(filtrarMotivosDeContato(opcoes, 'rede'), ['Rede credenciada']);
+  assert.deepEqual(filtrarMotivosDeContato(opcoes, 'inexistente'), []);
+  assert.equal(motivoAceitoNoFiltro('Boleto', opcoes), 'Boleto');
+  assert.equal(motivoAceitoNoFiltro('nao', opcoes), '');
+});
+
+test('rótulo compacto de Critérios mostra placeholder, um nome ou a contagem', async () => {
+  const { rotuloDosCriteriosSelecionados } = await import(
+    '../../apps/web/src/features/atendimentos/criterios-filtro-logic.js'
+  );
+
+  assert.equal(rotuloDosCriteriosSelecionados([]), 'Todos os critérios');
+  assert.equal(rotuloDosCriteriosSelecionados(['Saudação']), 'Saudação');
+  assert.equal(
+    rotuloDosCriteriosSelecionados(['Saudação', 'Identificação']),
+    '2 selecionados'
+  );
 });
 
 test('slider Nota da IA Avaliadora usa range 0–10 com passo 0,5 e output visível', () => {
