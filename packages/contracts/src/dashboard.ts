@@ -88,12 +88,12 @@ export type IndicadorDoDashboard = IdDoKpi | IdDoPainel;
 export type KpiDoDashboard = z.infer<typeof kpiDoDashboardSchema>;
 export type PaineisDoDashboard = z.infer<typeof paineisDoDashboardSchema>;
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
+type LinhaDeAcertoPorCriterio = PaineisDoDashboard['acertoPorCriterio'][number];
+type LinhaDeConcordanciaPorCriterio = PaineisDoDashboard['concordancia']['porCriterio'][number];
 
-export function fraseDoHoverDeAcertoPorCriterio(contagem: {
-  percentual: number | null;
-  atendidos: number;
-  aplicaveis: number;
-}) {
+export function fraseDoHoverDeAcertoPorCriterio(
+  contagem: Pick<LinhaDeAcertoPorCriterio, 'percentual' | 'atendidos' | 'aplicaveis'>
+) {
   if (contagem.percentual === null) {
     return 'nenhum aplicável';
   }
@@ -101,11 +101,9 @@ export function fraseDoHoverDeAcertoPorCriterio(contagem: {
   return `${contagem.atendidos} atendidos · ${contagem.aplicaveis} aplicáveis`;
 }
 
-export function fraseDoHoverDeConcordanciaPorCriterio(contagem: {
-  percentual: number | null;
-  iguais: number;
-  comparaveis: number;
-}) {
+export function fraseDoHoverDeConcordanciaPorCriterio(
+  contagem: Pick<LinhaDeConcordanciaPorCriterio, 'percentual' | 'iguais' | 'comparaveis'>
+) {
   if (contagem.percentual === null) {
     return 'nenhum comparável';
   }

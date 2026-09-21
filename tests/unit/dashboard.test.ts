@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from '../../apps/api/src/app.js';
 import { areasDaCasca, destinoDaNavegacao } from '../../packages/contracts/src/casca.js';
 import {
@@ -517,4 +520,24 @@ test('frases de hover das barras nomeiam a base e nunca dizem 0 sem aplicáveis 
     fraseDoHoverDeConcordanciaPorCriterio({ percentual: null, iguais: 0, comparaveis: 0 }),
     'nenhum comparável'
   );
+});
+
+test('barra revela a frase no ponteiro e no foco, sem title que atrase o toque', () => {
+  const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
+  const barras = readFileSync(
+    join(raiz, 'apps/web/src/features/dashboard/GraficoBarras.tsx'),
+    'utf8'
+  );
+  const paineis = readFileSync(
+    join(raiz, 'apps/web/src/features/dashboard/PaineisDoDashboard.tsx'),
+    'utf8'
+  );
+
+  assert.match(barras, /onFocus=\{\(\) => setVisivel\(true\)\}/);
+  assert.match(barras, /pointerType === 'mouse'/);
+  assert.doesNotMatch(barras, /\btitle=/);
+  assert.match(barras, /fraseDoHover/);
+  assert.match(paineis, /criteriosAtendidos: criterio/);
+  assert.match(paineis, /destinoDaBarra=\{\(\) => destino\('concordancia'\)\}/);
+  assert.doesNotMatch(paineis, /dashboard-concordancia-resumo[\s\S]*title=/);
 });

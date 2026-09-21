@@ -101,7 +101,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
           dados={dashboard.paineis.concordancia.porCriterio.map((item) => ({
             nome: item.criterio,
             valor: item.percentual,
-            frase: fraseDoHoverDeConcordanciaPorCriterio(item)
+            fraseDoHover: fraseDoHoverDeConcordanciaPorCriterio(item)
           }))}
           destinoDaBarra={() => destino('concordancia')}
           vazio="Nenhuma Concordância por Critério no período."
@@ -113,7 +113,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
           dados={dashboard.paineis.acertoPorCriterio.map((item) => ({
             nome: item.criterio,
             valor: item.percentual,
-            frase: fraseDoHoverDeAcertoPorCriterio(item)
+            fraseDoHover: fraseDoHoverDeAcertoPorCriterio(item)
           }))}
           destinoDaBarra={(criterio) =>
             destino('acertoPorCriterio', { criteriosAtendidos: criterio })
