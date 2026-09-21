@@ -85,8 +85,10 @@ test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoD
   assert.doesNotMatch(anel, /indiceDaFatia/);
   assert.match(anel, /<DestinoDoGrafico/);
   assert.match(anel, /fraseDaFatia/);
-  assert.match(anel, /destinoDaFatia/);
+  assert.match(anel, /irAFatia/);
+  assert.match(anel, /destinoDaFatia \? destinoDaFatia\(nome\) : destino/);
   assert.match(anel, /<Sector/);
+  assert.match(anel, /onPointerUp/);
   assert.match(anel, /tabIndex=\{0\}/);
   assert.match(anel, /onKeyDown/);
   assert.match(anel, /fatiaEmDestaque/);
