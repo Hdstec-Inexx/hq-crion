@@ -180,8 +180,6 @@
   left: 50%;
   top: 50%;
   z-index: 1;
-  width: 90px;
-  height: 90px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -189,6 +187,15 @@
   transform: translate(-50%, -50%);
   background: transparent;
   cursor: pointer;
+}
+
+.dashboard-anel-fatia-teclado {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .dashboard-anel-frase {
@@ -282,10 +289,32 @@
 }
 
 .dashboard-barras a {
+  position: relative;
   display: grid;
   gap: 0;
   color: inherit;
   text-decoration: none;
+}
+
+.dashboard-barra-frase {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 2;
+  max-width: 220px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgb(44 48 51 / 8%);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+  text-align: center;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .dashboard-barra-rotulo {

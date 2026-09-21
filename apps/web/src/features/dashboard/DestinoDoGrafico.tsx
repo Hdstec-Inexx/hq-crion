@@ -5,11 +5,13 @@ export function DestinoDoGrafico({
   destino,
   className,
   rotulo,
+  tamanhoDoMiolo,
   children
 }: {
   destino: string;
   className: string;
   rotulo?: string;
+  tamanhoDoMiolo: number;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
@@ -25,6 +27,7 @@ export function DestinoDoGrafico({
           evento.stopPropagation();
           irAoPainel();
         }}
+        style={{ width: tamanhoDoMiolo, height: tamanhoDoMiolo }}
         type="button"
       />
     </div>

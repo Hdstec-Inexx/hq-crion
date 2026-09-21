@@ -82,7 +82,21 @@ _Avoid_: régua por Administradora, régua por Agente
 O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. Enquanto a conferência humana não existir, o painel do Curador não aparece e o da IA ocupa a largura.
 
 **Concordância**:
-O alinhamento entre a Avaliação da IA e a do Curador no mesmo Atendimento — por nota e por Critério. Não é um flag gravado: deriva da comparação dos dois vereditos.
+O alinhamento entre a Avaliação da IA e a do Curador no mesmo Atendimento — por nota e por Critério. Não é um flag gravado: deriva da comparação dos dois vereditos. Por Critério, a taxa é **iguais** sobre **comparáveis**.
+
+**Comparável**:
+Um Critério no Atendimento em que IA e Curador são ambos **aplicáveis**. Sem comparáveis não há Concordância naquele Critério.
+_Avoid_: par, sample, n genérico
+
+**Igual** (Concordância):
+Os dois vereditos **comparáveis** no mesmo Critério têm o mesmo estado.
+
+**Aplicável**:
+Um Critério na Avaliação cujo estado não é “Não se aplica”.
+_Avoid_: válido, preenchido
+
+**Acerto por Critério**:
+A taxa de **Atendido** na Avaliação da IA, naquele Critério, só entre os **aplicáveis** do Recorte e do período. Não é participação no anel.
 
 **Aprovação**:
 O percentual de Atendimentos no Recorte e no período cuja nota da IA atinge o limiar da Régua única. Indicador do Dashboard próprio deste HQ; o GEAP não o tem.
@@ -90,7 +104,7 @@ O percentual de Atendimentos no Recorte e no período cuja nota da IA atinge o l
 ### Dashboard
 
 **Dashboard**:
-A leitura gerencial (Admin e Gestão) no Recorte e no período. Volume é a contagem de Atendimentos do HQ **dentro** desse Recorte e período — não a listagem global da ElevenLabs. KPIs: volume, TMA, Taxa de Resolvidas, SLA, Nota média IA × Curador, Avaliados IA × Curador, Taxa de Promessas Cumpridas, Tempo Médio até Resolução, **Aprovação**. Painéis: motivos, acerto por Critério, Concordância, Critérios de Não Conformidade, piores Atendimentos. **Motivos** e **Critérios de Não Conformidade** são anéis compactos (~160px, legenda ao lado); fatias e legenda em ordem **decrescente** de quantidade, com cores no índice das fatias visíveis. **Acerto por Critério** e **Concordância** por Critério são trilhos de percentual 0–100 no pulso GEAP, todos em painel **claro** Crion (a Concordância não herda o card tinta do GEAP: dois números — Nota e Critérios — mais as barras). **Piores Atendimentos** é lista ranqueada (nota da IA + Atendimento), abaixo da Concordância. Grelha: Motivos e Não Conformidade no topo; Concordância e Acerto por Critério na linha seguinte, **com o mesmo rodapé**; Piores Atendimentos abaixo da Concordância. Enquadramento no máximo 1240px, duas colunas iguais, vão 22px; as fatias usam matizes distintos a partir do ciano Crion, não tons da mesma cor. Dois anéis na mesma tela não repetem a mesma ordem de cores. Filtros de listagem (status, curador, critérios, nota, conversa) **não** entram no agregado. Clique em KPI ou painel abre a Listagem de Atendimentos com Recorte, período e o indicador. Sem período na URL, observa o mês civil; a UI do período segue o pulso GEAP (intervalo visível, aplicar, limpar).
+A leitura gerencial (Admin e Gestão) no Recorte e no período. Volume é a contagem de Atendimentos do HQ **dentro** desse Recorte e período — não a listagem global da ElevenLabs. KPIs: volume, TMA, Taxa de Resolvidas, SLA, Nota média IA × Curador, Avaliados IA × Curador, Taxa de Promessas Cumpridas, Tempo Médio até Resolução, **Aprovação**. Painéis: motivos, acerto por Critério, Concordância, Critérios de Não Conformidade, piores Atendimentos. **Motivos** e **Critérios de Não Conformidade** são anéis compactos (~160px, legenda ao lado); fatias e legenda em ordem **decrescente** de quantidade, com cores no índice das fatias visíveis. Hover ou foco na fatia mostra nome, quantidade e **participação** — os mesmos da legenda — e destaca a linha correspondente; toque na fatia navega na hora, sem tooltip. Clique na fatia é o clique da linha da legenda: abre a Listagem com o Motivo ou o Critério daquela fatia (não recorta o Dashboard). Clique no miolo do anel (sem fatia) abre a listagem do painel, sem esse extra. **Acerto por Critério** e **Concordância** por Critério são trilhos de percentual 0–100 no pulso GEAP, todos em painel **claro** Crion (a Concordância não herda o card tinta do GEAP: dois números — Nota e Critérios — mais as barras). Hover ou foco na **barra** (não nos dois números) mostra quantidade: Acerto = atendidos e aplicáveis; Concordância = iguais e comparáveis. Sem aplicáveis ou sem comparáveis a barra é “—”; o hover nomeia a ausência, não zero. Clique na barra de Acerto continua recortando a listagem pelos **Atendidos** daquele Critério; clique na barra de Concordância continua listando Atendimentos com as duas Avaliações, sem recorte por Critério. **Piores Atendimentos** é lista ranqueada (nota da IA + Atendimento), abaixo da Concordância. Grelha: Motivos e Não Conformidade no topo; Concordância e Acerto por Critério na linha seguinte, **com o mesmo rodapé**; Piores Atendimentos abaixo da Concordância. Enquadramento no máximo 1240px, duas colunas iguais, vão 22px; as fatias usam matizes distintos a partir do ciano Crion, não tons da mesma cor. Dois anéis na mesma tela não repetem a mesma ordem de cores. Filtros de listagem (status, curador, critérios, nota, conversa) **não** entram no agregado. Clique em KPI ou painel abre a Listagem de Atendimentos com Recorte, período e o indicador. Sem período na URL, observa o mês civil; a UI do período segue o pulso GEAP (intervalo visível, aplicar, limpar).
 
 **SLA**:
 Percentual, no Dashboard e no Recorte/período, dos Atendimentos concluídos no HQ cujo Tempo de Espera está dentro do prazo (≤ **150 segundos**). Sem Tempo de Espera mensurável não conta como dentro do prazo. Meta de referência: **80%**.
@@ -104,6 +118,10 @@ Percentual de ferramentas executadas com sucesso no Recorte e no período. O ró
 
 **Avaliados (IA × Curador)**:
 Quantos Atendimentos concluídos no Recorte e no período têm Avaliação da IA e quantos têm conferência do Curador.
+
+**Participação**:
+A quantidade da fatia visível do anel (Motivo ou Critério de Não Conformidade) como percentual do total dessas fatias. Inteiro. Não é o percentual 0–100 das barras.
+_Avoid_: pct, o mesmo sentido de Acerto ou Concordância
 
 ### Operação
 
