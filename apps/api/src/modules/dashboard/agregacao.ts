@@ -209,7 +209,9 @@ function paineisDoPeriodo(itens: RegistroDeAtendimento[]): PaineisDoDashboard {
       const fatia = acerto.get(criterio);
       return {
         criterio,
-        percentual: fatia ? taxa(fatia.atendidos, fatia.aplicaveis) : null
+        percentual: fatia ? taxa(fatia.atendidos, fatia.aplicaveis) : null,
+        atendidos: fatia?.atendidos ?? 0,
+        aplicaveis: fatia?.aplicaveis ?? 0
       };
     }),
     concordancia: {
@@ -224,7 +226,9 @@ function paineisDoPeriodo(itens: RegistroDeAtendimento[]): PaineisDoDashboard {
         const fatia = concordancia.get(criterio);
         return {
           criterio,
-          percentual: fatia ? taxa(fatia.iguais, fatia.comparaveis) : null
+          percentual: fatia ? taxa(fatia.iguais, fatia.comparaveis) : null,
+          iguais: fatia?.iguais ?? 0,
+          comparaveis: fatia?.comparaveis ?? 0
         };
       })
     },

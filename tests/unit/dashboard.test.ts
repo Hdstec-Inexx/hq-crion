@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from '../../apps/api/src/app.js';
 import { areasDaCasca, destinoDaNavegacao } from '../../packages/contracts/src/casca.js';
-import { dashboardResponseSchema } from '../../packages/contracts/src/dashboard.js';
+import {
+  dashboardResponseSchema,
+  fraseDoHoverDeAcertoPorCriterio,
+  fraseDoHoverDeConcordanciaPorCriterio
+} from '../../packages/contracts/src/dashboard.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import { destinoDoKpi, destinoDoPainel } from '../../packages/contracts/src/recorte.js';
 import { reguaDeAvaliacaoSchema } from '../../packages/contracts/src/regua.js';
@@ -396,4 +403,141 @@ test('painéis do Dashboard descrevem motivos, critérios e piores Atendimentos'
   } finally {
     await app.close();
   }
+});
+
+test('Acerto por Critério expõe atendidos e aplicáveis consistentes com o percentual', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/dashboard?administradora=Alter',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const body = dashboardResponseSchema.parse(response.json());
+    const email = body.paineis.acertoPorCriterio.find(
+      (item) => item.criterio === 'Validação de e-mail'
+    );
+    const protocolo = body.paineis.acertoPorCriterio.find(
+      (item) => item.criterio === 'Informação de Protocolo'
+    );
+    const saudacao = body.paineis.acertoPorCriterio.find(
+      (item) => item.criterio === 'Saudação'
+    );
+
+    assert.equal(email?.percentual, null);
+    assert.equal(email?.atendidos, 0);
+    assert.equal(email?.aplicaveis, 0);
+    assert.equal(protocolo?.percentual, 0);
+    assert.equal(protocolo?.atendidos, 0);
+    assert.equal(protocolo?.aplicaveis, 1);
+    assert.equal(saudacao?.percentual, 100);
+    assert.equal(saudacao?.atendidos, 1);
+    assert.equal(saudacao?.aplicaveis, 1);
+
+    for (const linha of body.paineis.acertoPorCriterio) {
+      if (linha.percentual === null) {
+        assert.equal(linha.atendidos, 0);
+        assert.equal(linha.aplicaveis, 0);
+      } else {
+        assert.equal(linha.percentual, (linha.atendidos / linha.aplicaveis) * 100);
+      }
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+test('Concordância por Critério expõe iguais e comparáveis consistentes com o percentual', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/dashboard?administradora=Alter',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const body = dashboardResponseSchema.parse(response.json());
+    const email = body.paineis.concordancia.porCriterio.find(
+      (item) => item.criterio === 'Validação de e-mail'
+    );
+    const protocolo = body.paineis.concordancia.porCriterio.find(
+      (item) => item.criterio === 'Informação de Protocolo'
+    );
+
+    assert.equal(email?.percentual, null);
+    assert.equal(email?.iguais, 0);
+    assert.equal(email?.comparaveis, 0);
+    assert.equal(protocolo?.percentual, 100);
+    assert.equal(protocolo?.iguais, 1);
+    assert.equal(protocolo?.comparaveis, 1);
+
+    for (const linha of body.paineis.concordancia.porCriterio) {
+      if (linha.percentual === null) {
+        assert.equal(linha.iguais, 0);
+        assert.equal(linha.comparaveis, 0);
+      } else {
+        assert.equal(linha.percentual, (linha.iguais / linha.comparaveis) * 100);
+      }
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+test('barra de Acerto recorta Critérios Atendidos e Concordância não leva Critério extra', () => {
+  const recorte = { administradora: 'Affix' as const, agente: null };
+  const periodo = { inicio: '2026-09-01', fim: '2026-09-30' };
+
+  assert.equal(
+    destinoDoPainel(recorte, periodo, 'acertoPorCriterio', {
+      criteriosAtendidos: 'Saudação'
+    }),
+    '/atendimentos?administradora=Affix&inicio=2026-09-01&fim=2026-09-30&indicador=acertoPorCriterio&criteriosAtendidos=Sauda%C3%A7%C3%A3o'
+  );
+  assert.equal(
+    destinoDoPainel(recorte, periodo, 'concordancia'),
+    '/atendimentos?administradora=Affix&inicio=2026-09-01&fim=2026-09-30&indicador=concordancia'
+  );
+});
+
+test('frases de hover das barras nomeiam a base e nunca dizem 0 sem aplicáveis ou comparáveis', () => {
+  assert.equal(
+    fraseDoHoverDeAcertoPorCriterio({ percentual: 80, atendidos: 4, aplicaveis: 5 }),
+    '4 atendidos · 5 aplicáveis'
+  );
+  assert.equal(
+    fraseDoHoverDeAcertoPorCriterio({ percentual: null, atendidos: 0, aplicaveis: 0 }),
+    'nenhum aplicável'
+  );
+  assert.equal(
+    fraseDoHoverDeConcordanciaPorCriterio({ percentual: (2 / 3) * 100, iguais: 2, comparaveis: 3 }),
+    '2 iguais · 3 comparáveis'
+  );
+  assert.equal(
+    fraseDoHoverDeConcordanciaPorCriterio({ percentual: null, iguais: 0, comparaveis: 0 }),
+    'nenhum comparável'
+  );
+});
+
+test('barra revela a frase no ponteiro e no foco, sem title que atrase o toque', () => {
+  const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
+  const barras = readFileSync(
+    join(raiz, 'apps/web/src/features/dashboard/GraficoBarras.tsx'),
+    'utf8'
+  );
+  const paineis = readFileSync(
+    join(raiz, 'apps/web/src/features/dashboard/PaineisDoDashboard.tsx'),
+    'utf8'
+  );
+
+  assert.match(barras, /onFocus=\{\(\) => setVisivel\(true\)\}/);
+  assert.match(barras, /pointerType === 'mouse'/);
+  assert.doesNotMatch(barras, /\btitle=/);
+  assert.match(barras, /fraseDoHover/);
+  assert.match(paineis, /criteriosAtendidos: criterio/);
+  assert.match(paineis, /destinoDaBarra=\{\(\) => destino\('concordancia'\)\}/);
+  assert.doesNotMatch(paineis, /dashboard-concordancia-resumo[\s\S]*title=/);
 });
