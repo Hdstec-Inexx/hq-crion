@@ -1,12 +1,17 @@
-import { Link } from 'react-router-dom';
-import { Cell, Pie, PieChart } from 'recharts';
-import { coresDoAnel, fatiasVisiveisDoAnel } from './coresDoAnel';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Cell, Pie, PieChart, Sector } from 'recharts';
+import { coresDoAnel, fatiasVisiveisDoAnel, fraseDaFatia } from './coresDoAnel';
 import { DestinoDoGrafico } from './DestinoDoGrafico';
 import type { PontoDoPainel } from './ponto-do-painel';
 
 const tamanhoDoAnel = 160;
 const raioExterno = 78;
 const raioInterno = Math.round(raioExterno * 0.58);
+
+function participacaoDaFatia(valor: number, total: number) {
+  return total === 0 ? 0 : (valor / total) * 100;
+}
 
 export function GraficoAnel({
   dados,
@@ -25,6 +30,8 @@ export function GraficoAnel({
   vazio: string;
   reduzirMovimento: boolean;
 }) {
+  const navigate = useNavigate();
+  const [fatiaEmDestaque, setFatiaEmDestaque] = useState<string | null>(null);
   const fatias = fatiasVisiveisDoAnel(dados);
 
   if (fatias.length === 0) {
@@ -33,6 +40,10 @@ export function GraficoAnel({
 
   const cores = coresDoAnel(fatias.length, deslocamento);
   const total = fatias.reduce((soma, item) => soma + item.valor, 0);
+  const itemEmDestaque = fatias.find((item) => item.nome === fatiaEmDestaque);
+  const irAFatia = (nome: string) => {
+    navigate(destinoDaFatia ? destinoDaFatia(nome) : destino);
+  };
 
   return (
     <div className="dashboard-anel">
@@ -47,6 +58,39 @@ export function GraficoAnel({
             isAnimationActive={!reduzirMovimento}
             nameKey="nome"
             outerRadius={raioExterno}
+            shape={(props) => {
+              const nome = String(props.name);
+              const valor = Number(props.value);
+              const frase = fraseDaFatia(nome, valor, participacaoDaFatia(valor, total));
+              return (
+                <Sector
+                  {...props}
+                  aria-label={frase}
+                  cursor="pointer"
+                  onBlur={() => setFatiaEmDestaque(null)}
+                  onClick={(evento) => evento.stopPropagation()}
+                  onFocus={() => setFatiaEmDestaque(nome)}
+                  onKeyDown={(evento) => {
+                    if (evento.key === 'Enter' || evento.key === ' ') {
+                      evento.preventDefault();
+                      evento.stopPropagation();
+                      irAFatia(nome);
+                    }
+                  }}
+                  onMouseEnter={() => setFatiaEmDestaque(nome)}
+                  onMouseLeave={() => setFatiaEmDestaque(null)}
+                  onPointerUp={(evento) => {
+                    evento.stopPropagation();
+                    if (evento.pointerType === 'mouse' && evento.button !== 0) {
+                      return;
+                    }
+                    irAFatia(nome);
+                  }}
+                  role="link"
+                  tabIndex={0}
+                />
+              );
+            }}
             stroke="#fff"
             strokeWidth={1}
           >
@@ -55,12 +99,24 @@ export function GraficoAnel({
             ))}
           </Pie>
         </PieChart>
+        {itemEmDestaque ? (
+          <span className="dashboard-anel-frase" role="tooltip">
+            {fraseDaFatia(
+              itemEmDestaque.nome,
+              itemEmDestaque.valor,
+              participacaoDaFatia(itemEmDestaque.valor, total)
+            )}
+          </span>
+        ) : null}
       </DestinoDoGrafico>
       <ul className="dashboard-anel-legenda">
         {fatias.map((item, indice) => {
-          const parcela = total === 0 ? 0 : (item.valor / total) * 100;
+          const parcela = participacaoDaFatia(item.valor, total);
           return (
-            <li key={item.nome}>
+            <li
+              className={fatiaEmDestaque === item.nome ? 'dashboard-anel-legenda-destaque' : undefined}
+              key={item.nome}
+            >
               <Link to={destinoDaFatia ? destinoDaFatia(item.nome) : destino}>
                 <span
                   className="dashboard-anel-swatch"

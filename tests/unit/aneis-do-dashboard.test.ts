@@ -5,7 +5,8 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   coresDoAnel,
-  fatiasVisiveisDoAnel
+  fatiasVisiveisDoAnel,
+  fraseDaFatia
 } from '../../apps/web/src/features/dashboard/coresDoAnel.js';
 
 const paletaGeap = [
@@ -63,6 +64,11 @@ test('fatiasVisiveisDoAnel ordenam por quantidade decrescente', () => {
   );
 });
 
+test('fraseDaFatia junta nome, quantidade pt-BR e participação inteira', () => {
+  assert.equal(fraseDaFatia('Protocolo', 2, 40), 'Protocolo · 2 · 40%');
+  assert.equal(fraseDaFatia('Boleto', 1234, 41.6), 'Boleto · 1.234 · 42%');
+});
+
 test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoDoGrafico', () => {
   const anel = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/src/features/dashboard/GraficoAnel.tsx'),
@@ -78,8 +84,15 @@ test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoD
   assert.doesNotMatch(anel, /coresDoAnel\(dados\.length/);
   assert.doesNotMatch(anel, /indiceDaFatia/);
   assert.match(anel, /<DestinoDoGrafico/);
-  assert.doesNotMatch(anel, /<Tooltip/);
+  assert.match(anel, /fraseDaFatia/);
+  assert.match(anel, /destinoDaFatia/);
+  assert.match(anel, /<Sector/);
+  assert.match(anel, /tabIndex=\{0\}/);
+  assert.match(anel, /onKeyDown/);
+  assert.match(anel, /fatiaEmDestaque/);
   assert.match(destino, /navigate\(destino\)/);
+  assert.match(destino, /dashboard-anel-miolo/);
+  assert.doesNotMatch(destino, /<button[\s\S]*\{children\}[\s\S]*<\/button>/);
 });
 
 test('ADR 0007 grava paleta Crion e ordem deslocada dos anéis', () => {
@@ -161,4 +174,6 @@ test('anel compacto tem 160px e as barras de percentual são trilhos, não Recha
   assert.match(paineis, /<small>Critérios<\/small>/);
   assert.match(paineis, /className="dashboard-piores"/);
   assert.match(css, /height: 7px/);
+  assert.match(css, /dashboard-anel-miolo/);
+  assert.match(css, /dashboard-anel-frase/);
 });

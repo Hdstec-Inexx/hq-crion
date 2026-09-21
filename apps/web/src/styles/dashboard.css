@@ -154,16 +154,61 @@
 }
 
 .dashboard-anel-frame {
+  position: relative;
   display: block;
   width: 160px;
   height: 160px;
   min-height: 160px;
-  overflow: hidden;
+  overflow: visible;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
+}
+
+.dashboard-anel-frame svg {
+  pointer-events: none;
+}
+
+.dashboard-anel-frame path {
+  pointer-events: auto;
+}
+
+.dashboard-anel-miolo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 88px;
+  height: 88px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: transparent;
+  cursor: pointer;
+}
+
+.dashboard-anel-frase {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  z-index: 2;
+  max-width: 220px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgb(44 48 51 / 8%);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+  text-align: center;
+  transform: translateX(-50%);
 }
 
 .dashboard-painel .dashboard-anel-legenda {
@@ -189,6 +234,10 @@
   overflow-wrap: break-word;
   color: inherit;
   text-decoration: none;
+}
+
+.dashboard-anel-legenda-destaque a {
+  background: rgb(94 196 190 / 18%);
 }
 
 .dashboard-anel-swatch {
