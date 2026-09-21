@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Cell, Pie, PieChart, Sector } from 'recharts';
 import { coresDoAnel, fatiasVisiveisDoAnel, fraseDaFatia } from './coresDoAnel';
@@ -36,7 +36,17 @@ export function GraficoAnel({
 }) {
   const navigate = useNavigate();
   const [fatiaEmDestaque, setFatiaEmDestaque] = useState<string | null>(null);
-  const fatias = fatiasVisiveisDoAnel(dados);
+  const fatias = useMemo(() => fatiasVisiveisDoAnel(dados), [dados]);
+  const destinoDaLinha = useCallback(
+    (nome: string) => (destinoDaFatia ? destinoDaFatia(nome) : destino),
+    [destino, destinoDaFatia]
+  );
+  const irAFatia = useCallback(
+    (nome: string) => {
+      navigate(destinoDaLinha(nome));
+    },
+    [destinoDaLinha, navigate]
+  );
 
   if (fatias.length === 0) {
     return <p className="dashboard-vazio">{vazio}</p>;
@@ -45,9 +55,6 @@ export function GraficoAnel({
   const cores = coresDoAnel(fatias.length, deslocamento);
   const total = fatias.reduce((soma, item) => soma + item.valor, 0);
   const itemEmDestaque = fatias.find((item) => item.nome === fatiaEmDestaque);
-  const irAFatia = (nome: string) => {
-    navigate(destinoDaFatia ? destinoDaFatia(nome) : destino);
-  };
 
   return (
     <div className="dashboard-anel">
@@ -74,7 +81,10 @@ export function GraficoAnel({
                   aria-label={frase}
                   cursor="pointer"
                   onBlur={() => setFatiaEmDestaque(null)}
-                  onClick={(evento) => evento.stopPropagation()}
+                  onClick={(evento) => {
+                    evento.stopPropagation();
+                    irAFatia(item.nome);
+                  }}
                   onFocus={() => setFatiaEmDestaque(item.nome)}
                   onKeyDown={(evento) => {
                     if (evento.key === 'Enter' || evento.key === ' ') {
@@ -83,14 +93,18 @@ export function GraficoAnel({
                       irAFatia(item.nome);
                     }
                   }}
-                  onMouseEnter={() => setFatiaEmDestaque(item.nome)}
-                  onMouseLeave={() => setFatiaEmDestaque(null)}
-                  onPointerUp={(evento) => {
-                    evento.stopPropagation();
-                    if (evento.pointerType === 'mouse' && evento.button !== 0) {
+                  onPointerDown={(evento) => evento.stopPropagation()}
+                  onPointerEnter={(evento) => {
+                    if (evento.pointerType === 'touch') {
                       return;
                     }
-                    irAFatia(item.nome);
+                    setFatiaEmDestaque(item.nome);
+                  }}
+                  onPointerLeave={(evento) => {
+                    if (evento.pointerType === 'touch') {
+                      return;
+                    }
+                    setFatiaEmDestaque(null);
                   }}
                   role="link"
                   tabIndex={0}
@@ -119,7 +133,7 @@ export function GraficoAnel({
               className={fatiaEmDestaque === item.nome ? 'dashboard-anel-legenda-destaque' : undefined}
               key={item.nome}
             >
-              <Link to={destinoDaFatia ? destinoDaFatia(item.nome) : destino}>
+              <Link to={destinoDaLinha(item.nome)}>
                 <span
                   className="dashboard-anel-swatch"
                   style={{ background: cores[indice] }}

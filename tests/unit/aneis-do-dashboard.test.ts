@@ -86,9 +86,10 @@ test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoD
   assert.match(anel, /<DestinoDoGrafico/);
   assert.match(anel, /fraseDaFatia/);
   assert.match(anel, /irAFatia/);
-  assert.match(anel, /destinoDaFatia \? destinoDaFatia\(nome\) : destino/);
+  assert.match(anel, /destinoDaLinha/);
   assert.match(anel, /<Sector/);
-  assert.match(anel, /onPointerUp/);
+  assert.match(anel, /onClick=\{\(evento\) => \{\s*evento\.stopPropagation\(\);\s*irAFatia/);
+  assert.match(anel, /pointerType === 'touch'/);
   assert.match(anel, /tabIndex=\{0\}/);
   assert.match(anel, /onKeyDown/);
   assert.match(anel, /fatiaEmDestaque/);
