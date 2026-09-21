@@ -85,7 +85,7 @@ test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoD
   assert.doesNotMatch(anel, /indiceDaFatia/);
   assert.match(anel, /<DestinoDoGrafico/);
   assert.match(anel, /fraseDaFatia/);
-  assert.match(anel, /irAFatia/);
+  assert.match(anel, /irAFatia\(item\.nome\)/);
   assert.match(anel, /destinoDaLinha/);
   assert.match(anel, /<Sector/);
   assert.match(anel, /onClick=\{\(evento\) => \{\s*evento\.stopPropagation\(\);\s*irAFatia/);
@@ -93,8 +93,10 @@ test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoD
   assert.match(anel, /tabIndex=\{0\}/);
   assert.match(anel, /onKeyDown/);
   assert.match(anel, /fatiaEmDestaque/);
+  assert.doesNotMatch(anel, /navigate\(destino\)/);
   assert.match(destino, /navigate\(destino\)/);
   assert.match(destino, /dashboard-anel-miolo/);
+  assert.doesNotMatch(destino, /destinoDaFatia|destinoDaLinha/);
   assert.doesNotMatch(destino, /<button[\s\S]*\{children\}[\s\S]*<\/button>/);
 });
 

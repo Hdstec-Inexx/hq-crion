@@ -35,8 +35,12 @@ export function GraficoAnel({
   reduzirMovimento: boolean;
 }) {
   const navigate = useNavigate();
-  const [fatiaEmDestaque, setFatiaEmDestaque] = useState<string | null>(null);
+  const [fatiaEmDestaque, setFatiaEmDestaque] = useState<PontoDoPainel | null>(null);
   const fatias = useMemo(() => fatiasVisiveisDoAnel(dados), [dados]);
+  const fatiaPorNome = useMemo(
+    () => new Map(fatias.map((item) => [item.nome, item])),
+    [fatias]
+  );
   const destinoDaLinha = useCallback(
     (nome: string) => (destinoDaFatia ? destinoDaFatia(nome) : destino),
     [destino, destinoDaFatia]
@@ -47,6 +51,8 @@ export function GraficoAnel({
     },
     [destinoDaLinha, navigate]
   );
+  const destacar = useCallback((item: PontoDoPainel) => setFatiaEmDestaque(item), []);
+  const limparDestaque = useCallback(() => setFatiaEmDestaque(null), []);
 
   if (fatias.length === 0) {
     return <p className="dashboard-vazio">{vazio}</p>;
@@ -54,7 +60,6 @@ export function GraficoAnel({
 
   const cores = coresDoAnel(fatias.length, deslocamento);
   const total = fatias.reduce((soma, item) => soma + item.valor, 0);
-  const itemEmDestaque = fatias.find((item) => item.nome === fatiaEmDestaque);
 
   return (
     <div className="dashboard-anel">
@@ -70,7 +75,7 @@ export function GraficoAnel({
             nameKey="nome"
             outerRadius={raioExterno}
             shape={(props) => {
-              const item = fatias.find((fatia) => fatia.nome === String(props.name));
+              const item = fatiaPorNome.get(String(props.name));
               if (!item) {
                 return <Sector {...props} />;
               }
@@ -80,12 +85,12 @@ export function GraficoAnel({
                   {...props}
                   aria-label={frase}
                   cursor="pointer"
-                  onBlur={() => setFatiaEmDestaque(null)}
+                  onBlur={limparDestaque}
                   onClick={(evento) => {
                     evento.stopPropagation();
                     irAFatia(item.nome);
                   }}
-                  onFocus={() => setFatiaEmDestaque(item.nome)}
+                  onFocus={() => destacar(item)}
                   onKeyDown={(evento) => {
                     if (evento.key === 'Enter' || evento.key === ' ') {
                       evento.preventDefault();
@@ -98,13 +103,13 @@ export function GraficoAnel({
                     if (evento.pointerType === 'touch') {
                       return;
                     }
-                    setFatiaEmDestaque(item.nome);
+                    destacar(item);
                   }}
                   onPointerLeave={(evento) => {
                     if (evento.pointerType === 'touch') {
                       return;
                     }
-                    setFatiaEmDestaque(null);
+                    limparDestaque();
                   }}
                   role="link"
                   tabIndex={0}
@@ -119,9 +124,9 @@ export function GraficoAnel({
             ))}
           </Pie>
         </PieChart>
-        {itemEmDestaque ? (
+        {fatiaEmDestaque ? (
           <span className="dashboard-anel-frase" role="tooltip">
-            {fraseDoPonto(itemEmDestaque, total)}
+            {fraseDoPonto(fatiaEmDestaque, total)}
           </span>
         ) : null}
       </DestinoDoGrafico>
@@ -130,7 +135,7 @@ export function GraficoAnel({
           const participacao = participacaoDaFatia(item.valor, total);
           return (
             <li
-              className={fatiaEmDestaque === item.nome ? 'dashboard-anel-legenda-destaque' : undefined}
+              className={fatiaEmDestaque?.nome === item.nome ? 'dashboard-anel-legenda-destaque' : undefined}
               key={item.nome}
             >
               <Link to={destinoDaLinha(item.nome)}>
