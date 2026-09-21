@@ -23,3 +23,7 @@ export function fatiasVisiveisDoAnel(dados: PontoDoPainel[]) {
     .filter((item) => item.valor > 0)
     .sort((a, b) => b.valor - a.valor);
 }
+
+export function fraseDaFatia(nome: string, quantidade: number, participacao: number) {
+  return `${nome} · ${quantidade.toLocaleString('pt-BR')} · ${participacao.toFixed(0)}%`;
+}

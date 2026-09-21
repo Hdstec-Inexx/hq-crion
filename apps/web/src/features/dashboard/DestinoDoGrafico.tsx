@@ -13,15 +13,20 @@ export function DestinoDoGrafico({
   children: ReactNode;
 }) {
   const navigate = useNavigate();
+  const irAoPainel = () => navigate(destino);
 
   return (
-    <button
-      aria-label={rotulo}
-      className={className}
-      onClick={() => navigate(destino)}
-      type="button"
-    >
+    <div className={className} onClick={irAoPainel}>
       {children}
-    </button>
+      <button
+        aria-label={rotulo}
+        className="dashboard-anel-miolo"
+        onClick={(evento) => {
+          evento.stopPropagation();
+          irAoPainel();
+        }}
+        type="button"
+      />
+    </div>
   );
 }
