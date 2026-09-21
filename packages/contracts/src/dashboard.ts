@@ -41,7 +41,9 @@ export const paineisDoDashboardSchema = z.object({
   acertoPorCriterio: z.array(
     z.object({
       criterio: z.string().min(1),
-      percentual: z.number().nullable()
+      percentual: z.number().nullable(),
+      atendidos: z.number().int().min(0),
+      aplicaveis: z.number().int().min(0)
     })
   ),
   concordancia: z.object({
@@ -50,7 +52,9 @@ export const paineisDoDashboardSchema = z.object({
     porCriterio: z.array(
       z.object({
         criterio: z.string().min(1),
-        percentual: z.number().nullable()
+        percentual: z.number().nullable(),
+        iguais: z.number().int().min(0),
+        comparaveis: z.number().int().min(0)
       })
     )
   }),
@@ -84,3 +88,25 @@ export type IndicadorDoDashboard = IdDoKpi | IdDoPainel;
 export type KpiDoDashboard = z.infer<typeof kpiDoDashboardSchema>;
 export type PaineisDoDashboard = z.infer<typeof paineisDoDashboardSchema>;
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
+type LinhaDeAcertoPorCriterio = PaineisDoDashboard['acertoPorCriterio'][number];
+type LinhaDeConcordanciaPorCriterio = PaineisDoDashboard['concordancia']['porCriterio'][number];
+
+export function fraseDoHoverDeAcertoPorCriterio(
+  contagem: Pick<LinhaDeAcertoPorCriterio, 'percentual' | 'atendidos' | 'aplicaveis'>
+) {
+  if (contagem.percentual === null) {
+    return 'nenhum aplicável';
+  }
+
+  return `${contagem.atendidos} atendidos · ${contagem.aplicaveis} aplicáveis`;
+}
+
+export function fraseDoHoverDeConcordanciaPorCriterio(
+  contagem: Pick<LinhaDeConcordanciaPorCriterio, 'percentual' | 'iguais' | 'comparaveis'>
+) {
+  if (contagem.percentual === null) {
+    return 'nenhum comparável';
+  }
+
+  return `${contagem.iguais} iguais · ${contagem.comparaveis} comparáveis`;
+}

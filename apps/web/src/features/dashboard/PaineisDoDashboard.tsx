@@ -1,7 +1,9 @@
-import type {
-  DashboardResponse,
-  IdDoKpi,
-  IndicadorDoDashboard
+import {
+  fraseDoHoverDeAcertoPorCriterio,
+  fraseDoHoverDeConcordanciaPorCriterio,
+  type DashboardResponse,
+  type IdDoKpi,
+  type IndicadorDoDashboard
 } from '@hq-crion/contracts/dashboard';
 import {
   destinoDoDetalheDoDashboard,
@@ -98,7 +100,8 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         <GraficoBarras
           dados={dashboard.paineis.concordancia.porCriterio.map((item) => ({
             nome: item.criterio,
-            valor: item.percentual
+            valor: item.percentual,
+            fraseDoHover: fraseDoHoverDeConcordanciaPorCriterio(item)
           }))}
           destinoDaBarra={() => destino('concordancia')}
           vazio="Nenhuma Concordância por Critério no período."
@@ -109,7 +112,8 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
         <GraficoBarras
           dados={dashboard.paineis.acertoPorCriterio.map((item) => ({
             nome: item.criterio,
-            valor: item.percentual
+            valor: item.percentual,
+            fraseDoHover: fraseDoHoverDeAcertoPorCriterio(item)
           }))}
           destinoDaBarra={(criterio) =>
             destino('acertoPorCriterio', { criteriosAtendidos: criterio })
