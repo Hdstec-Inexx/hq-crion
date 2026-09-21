@@ -31,6 +31,32 @@ export const idDoPainelSchema = z.enum([
   'pioresAtendimentos'
 ]);
 
+function taxaBateComAContagem(parte: number, todo: number, percentual: number | null) {
+  if (percentual === null) {
+    return parte === 0 && todo === 0;
+  }
+
+  return todo > 0 && percentual === (parte / todo) * 100;
+}
+
+const linhaDeAcertoPorCriterioSchema = z
+  .object({
+    criterio: z.string().min(1),
+    percentual: z.number().nullable(),
+    atendidos: z.number().int().min(0),
+    aplicaveis: z.number().int().min(0)
+  })
+  .refine((linha) => taxaBateComAContagem(linha.atendidos, linha.aplicaveis, linha.percentual));
+
+const linhaDeConcordanciaPorCriterioSchema = z
+  .object({
+    criterio: z.string().min(1),
+    percentual: z.number().nullable(),
+    iguais: z.number().int().min(0),
+    comparaveis: z.number().int().min(0)
+  })
+  .refine((linha) => taxaBateComAContagem(linha.iguais, linha.comparaveis, linha.percentual));
+
 export const paineisDoDashboardSchema = z.object({
   motivos: z.array(
     z.object({
@@ -38,25 +64,11 @@ export const paineisDoDashboardSchema = z.object({
       quantidade: z.number().int().min(0)
     })
   ),
-  acertoPorCriterio: z.array(
-    z.object({
-      criterio: z.string().min(1),
-      percentual: z.number().nullable(),
-      atendidos: z.number().int().min(0),
-      aplicaveis: z.number().int().min(0)
-    })
-  ),
+  acertoPorCriterio: z.array(linhaDeAcertoPorCriterioSchema),
   concordancia: z.object({
     nota: z.number().nullable(),
     criterios: z.number().nullable(),
-    porCriterio: z.array(
-      z.object({
-        criterio: z.string().min(1),
-        percentual: z.number().nullable(),
-        iguais: z.number().int().min(0),
-        comparaveis: z.number().int().min(0)
-      })
-    )
+    porCriterio: z.array(linhaDeConcordanciaPorCriterioSchema)
   }),
   naoConformidade: z.array(
     z.object({

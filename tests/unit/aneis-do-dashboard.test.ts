@@ -87,15 +87,14 @@ test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoD
   assert.match(anel, /fraseDaFatia/);
   assert.match(anel, /irAFatia\(item\.nome\)/);
   assert.match(anel, /destinoDaLinha/);
-  assert.match(anel, /<Sector/);
-  assert.match(anel, /onClick=\{\(evento\) => \{\s*evento\.stopPropagation\(\);\s*irAFatia/);
-  assert.match(anel, /pointerType === 'touch'/);
-  assert.match(anel, /tabIndex=\{0\}/);
+  assert.match(anel, /dashboard-anel-fatia-teclado/);
+  assert.match(anel, /tamanhoDoMiolo=\{2 \* raioInterno - 8\}/);
   assert.match(anel, /onKeyDown/);
   assert.match(anel, /fatiaEmDestaque/);
   assert.doesNotMatch(anel, /navigate\(destino\)/);
   assert.match(destino, /navigate\(destino\)/);
   assert.match(destino, /dashboard-anel-miolo/);
+  assert.match(destino, /tamanhoDoMiolo/);
   assert.doesNotMatch(destino, /destinoDaFatia|destinoDaLinha/);
   assert.doesNotMatch(destino, /<button[\s\S]*\{children\}[\s\S]*<\/button>/);
 });
@@ -181,4 +180,6 @@ test('anel compacto tem 160px e as barras de percentual são trilhos, não Recha
   assert.match(css, /height: 7px/);
   assert.match(css, /dashboard-anel-miolo/);
   assert.match(css, /dashboard-anel-frase/);
+  assert.match(css, /dashboard-barra-frase/);
+  assert.doesNotMatch(css, /\.dashboard-anel-miolo \{[\s\S]*width: 90px/);
 });

@@ -8,7 +8,7 @@ function BarraDoPainel({
   item: { nome: string; valor: number | null; fraseDoHover: string };
   destino: string;
 }) {
-  const [visivel, setVisivel] = useState(false);
+  const [fraseVisivel, setFraseVisivel] = useState(false);
   const preenchimento =
     item.valor === null ? 0 : Math.min(100, Math.max(0, item.valor));
   const rotulo =
@@ -20,24 +20,29 @@ function BarraDoPainel({
     <li>
       <Link
         aria-label={`${item.nome} ${rotulo} ${item.fraseDoHover}`}
-        onBlur={() => setVisivel(false)}
-        onFocus={() => setVisivel(true)}
+        onBlur={() => setFraseVisivel(false)}
+        onFocus={() => setFraseVisivel(true)}
         onPointerEnter={(evento) => {
-          if (evento.pointerType === 'mouse') {
-            setVisivel(true);
+          if (evento.pointerType === 'touch') {
+            return;
           }
+          setFraseVisivel(true);
         }}
-        onPointerLeave={() => setVisivel(false)}
+        onPointerLeave={() => setFraseVisivel(false)}
         to={destino}
       >
         <span className="dashboard-barra-rotulo">
           <span>{item.nome}</span>
           <strong>{rotulo}</strong>
         </span>
-        <span hidden={!visivel}>{item.fraseDoHover}</span>
         <span className="dashboard-barra-trilho">
           <span style={{ width: `${preenchimento}%` }} />
         </span>
+        {fraseVisivel ? (
+          <span className="dashboard-barra-frase" role="tooltip">
+            {item.fraseDoHover}
+          </span>
+        ) : null}
       </Link>
     </li>
   );

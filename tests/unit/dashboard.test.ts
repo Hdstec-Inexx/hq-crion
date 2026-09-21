@@ -8,7 +8,8 @@ import { areasDaCasca, destinoDaNavegacao } from '../../packages/contracts/src/c
 import {
   dashboardResponseSchema,
   fraseDoHoverDeAcertoPorCriterio,
-  fraseDoHoverDeConcordanciaPorCriterio
+  fraseDoHoverDeConcordanciaPorCriterio,
+  paineisDoDashboardSchema
 } from '../../packages/contracts/src/dashboard.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import { destinoDoKpi, destinoDoPainel } from '../../packages/contracts/src/recorte.js';
@@ -487,6 +488,55 @@ test('Concordância por Critério expõe iguais e comparáveis consistentes com 
   }
 });
 
+test('painel recusa percentual nulo com contagem e taxa que não bate com a base', () => {
+  const vazio = {
+    motivos: [],
+    naoConformidade: [],
+    pioresAtendimentos: [],
+    concordancia: { nota: null, criterios: null, porCriterio: [] }
+  };
+
+  assert.equal(
+    paineisDoDashboardSchema.safeParse({
+      ...vazio,
+      acertoPorCriterio: [
+        { criterio: 'Saudação', percentual: null, atendidos: 0, aplicaveis: 0 }
+      ]
+    }).success,
+    true
+  );
+  assert.equal(
+    paineisDoDashboardSchema.safeParse({
+      ...vazio,
+      acertoPorCriterio: [
+        { criterio: 'Saudação', percentual: 100, atendidos: 1, aplicaveis: 1 }
+      ]
+    }).success,
+    true
+  );
+  assert.equal(
+    paineisDoDashboardSchema.safeParse({
+      ...vazio,
+      acertoPorCriterio: [
+        { criterio: 'Saudação', percentual: null, atendidos: 1, aplicaveis: 0 }
+      ]
+    }).success,
+    false
+  );
+  assert.equal(
+    paineisDoDashboardSchema.safeParse({
+      ...vazio,
+      acertoPorCriterio: [],
+      concordancia: {
+        nota: null,
+        criterios: null,
+        porCriterio: [{ criterio: 'Saudação', percentual: 50, iguais: 1, comparaveis: 1 }]
+      }
+    }).success,
+    false
+  );
+});
+
 test('barra de Acerto recorta Critérios Atendidos e Concordância não leva Critério extra', () => {
   const recorte = { administradora: 'Affix' as const, agente: null };
   const periodo = { inicio: '2026-09-01', fim: '2026-09-30' };
@@ -533,9 +583,10 @@ test('barra revela a frase no ponteiro e no foco, sem title que atrase o toque',
     'utf8'
   );
 
-  assert.match(barras, /onFocus=\{\(\) => setVisivel\(true\)\}/);
-  assert.match(barras, /pointerType === 'mouse'/);
+  assert.match(barras, /onFocus=\{\(\) => setFraseVisivel\(true\)\}/);
+  assert.match(barras, /pointerType === 'touch'/);
   assert.doesNotMatch(barras, /\btitle=/);
+  assert.match(barras, /dashboard-barra-frase/);
   assert.match(barras, /fraseDoHover/);
   assert.match(paineis, /criteriosAtendidos: criterio/);
   assert.match(paineis, /destinoDaBarra=\{\(\) => destino\('concordancia'\)\}/);

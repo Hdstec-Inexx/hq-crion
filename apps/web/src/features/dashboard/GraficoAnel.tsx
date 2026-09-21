@@ -63,7 +63,12 @@ export function GraficoAnel({
 
   return (
     <div className="dashboard-anel">
-      <DestinoDoGrafico className="dashboard-anel-frame" destino={destino} rotulo={rotulo}>
+      <DestinoDoGrafico
+        className="dashboard-anel-frame"
+        destino={destino}
+        rotulo={rotulo}
+        tamanhoDoMiolo={2 * raioInterno - 8}
+      >
         <PieChart height={tamanhoDoAnel} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} width={tamanhoDoAnel}>
           <Pie
             cx={tamanhoDoAnel / 2}
@@ -79,24 +84,13 @@ export function GraficoAnel({
               if (!item) {
                 return <Sector {...props} />;
               }
-              const frase = fraseDoPonto(item, total);
               return (
                 <Sector
                   {...props}
-                  aria-label={frase}
                   cursor="pointer"
-                  onBlur={limparDestaque}
                   onClick={(evento) => {
                     evento.stopPropagation();
                     irAFatia(item.nome);
-                  }}
-                  onFocus={() => destacar(item)}
-                  onKeyDown={(evento) => {
-                    if (evento.key === 'Enter' || evento.key === ' ') {
-                      evento.preventDefault();
-                      evento.stopPropagation();
-                      irAFatia(item.nome);
-                    }
                   }}
                   onPointerDown={(evento) => evento.stopPropagation()}
                   onPointerEnter={(evento) => {
@@ -111,8 +105,6 @@ export function GraficoAnel({
                     }
                     limparDestaque();
                   }}
-                  role="link"
-                  tabIndex={0}
                 />
               );
             }}
@@ -124,6 +116,26 @@ export function GraficoAnel({
             ))}
           </Pie>
         </PieChart>
+        {fatias.map((item) => (
+          <Link
+            aria-label={fraseDoPonto(item, total)}
+            className="dashboard-anel-fatia-teclado"
+            key={item.nome}
+            onBlur={limparDestaque}
+            onClick={(evento) => evento.stopPropagation()}
+            onFocus={() => destacar(item)}
+            onKeyDown={(evento) => {
+              if (evento.key === 'Enter' || evento.key === ' ') {
+                evento.preventDefault();
+                evento.stopPropagation();
+                irAFatia(item.nome);
+              }
+            }}
+            to={destinoDaLinha(item.nome)}
+          >
+            {fraseDoPonto(item, total)}
+          </Link>
+        ))}
         {fatiaEmDestaque ? (
           <span className="dashboard-anel-frase" role="tooltip">
             {fraseDoPonto(fatiaEmDestaque, total)}
