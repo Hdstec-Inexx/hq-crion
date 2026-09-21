@@ -5,7 +5,7 @@ export function GraficoBarras({
   destinoDaBarra,
   vazio
 }: {
-  dados: { nome: string; valor: number | null }[];
+  dados: { nome: string; valor: number | null; frase: string }[];
   destinoDaBarra: (nome: string) => string;
   vazio: string;
 }) {
@@ -25,7 +25,11 @@ export function GraficoBarras({
 
         return (
           <li key={item.nome}>
-            <Link to={destinoDaBarra(item.nome)}>
+            <Link
+              aria-label={`${item.nome} ${rotulo} ${item.frase}`}
+              title={item.frase}
+              to={destinoDaBarra(item.nome)}
+            >
               <span className="dashboard-barra-rotulo">
                 <span>{item.nome}</span>
                 <strong>{rotulo}</strong>
