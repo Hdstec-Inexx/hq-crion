@@ -1,34 +1,42 @@
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
-import { DestinoDoGrafico } from './DestinoDoGrafico';
-import type { PontoDoPainel } from './ponto-do-painel';
+import { Link } from 'react-router-dom';
 
 export function GraficoBarras({
   dados,
-  destino,
-  reduzirMovimento
+  destinoDaBarra,
+  vazio
 }: {
-  dados: PontoDoPainel[];
-  destino: string;
-  reduzirMovimento: boolean;
+  dados: { nome: string; valor: number | null }[];
+  destinoDaBarra: (nome: string) => string;
+  vazio: string;
 }) {
   if (dados.length === 0) {
-    return <p>—</p>;
+    return <p className="dashboard-vazio">{vazio}</p>;
   }
 
   return (
-    <DestinoDoGrafico className="dashboard-grafico" destino={destino}>
-      <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 8 }}>
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11 }} />
-          <Bar
-            dataKey="valor"
-            fill="#5ec4be"
-            isAnimationActive={!reduzirMovimento}
-            radius={[0, 6, 6, 0]}
-          />
-        </BarChart>
-      </ResponsiveContainer>
-    </DestinoDoGrafico>
+    <ul className="dashboard-barras">
+      {dados.map((item) => {
+        const preenchimento =
+          item.valor === null ? 0 : Math.min(100, Math.max(0, item.valor));
+        const rotulo =
+          item.valor === null
+            ? '—'
+            : `${Number.isInteger(item.valor) ? String(item.valor) : item.valor.toFixed(1).replace('.', ',')}%`;
+
+        return (
+          <li key={item.nome}>
+            <Link to={destinoDaBarra(item.nome)}>
+              <span className="dashboard-barra-rotulo">
+                <span>{item.nome}</span>
+                <strong>{rotulo}</strong>
+              </span>
+              <span className="dashboard-barra-trilho">
+                <span style={{ width: `${preenchimento}%` }} />
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

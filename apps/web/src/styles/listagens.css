@@ -1,15 +1,12 @@
 .listagem-filtros {
   display: flex;
   flex-wrap: wrap;
+  align-items: end;
   gap: 8px;
   margin-bottom: 12px;
 }
 
-.listagem-filtros-pulso {
-  align-items: end;
-}
-
-.listagem-filtros-pulso label,
+.listagem-filtros label,
 .listagem-multiselect-criterios {
   display: grid;
   gap: 4px;

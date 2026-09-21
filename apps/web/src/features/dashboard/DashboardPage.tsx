@@ -77,7 +77,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div>
+    <div className="dashboard-pagina">
       <div className="pagina-head">
         <h1>{tituloDaPagina(location.pathname, perfil.papel)}</h1>
         <RecorteCascata

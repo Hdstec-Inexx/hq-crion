@@ -157,30 +157,25 @@ export function FilaDeManutencao() {
           onChange={atualizarRecorte}
         />
       </div>
-      <form className="listagem-filtros listagem-filtros-pulso" onSubmit={onFiltrar}>
-        <div className="listagem-filtro-periodo">
-          <label>
-            Data inicial
-            <input
-              name="inicio"
-              type="date"
-              defaultValue={periodoSubmetido ? (searchParams.get('inicio') ?? '') : ''}
-              key={`inicio-${searchParams.get('inicio') ?? ''}`}
-            />
-          </label>
-          <span aria-hidden="true" className="listagem-filtro-seta">
-            →
-          </span>
-          <label>
-            Data final
-            <input
-              name="fim"
-              type="date"
-              defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
-              key={`fim-${searchParams.get('fim') ?? ''}`}
-            />
-          </label>
-        </div>
+      <form className="listagem-filtros" onSubmit={onFiltrar}>
+        <label>
+          Data inicial
+          <input
+            name="inicio"
+            type="date"
+            defaultValue={periodoSubmetido ? (searchParams.get('inicio') ?? '') : ''}
+            key={`inicio-${searchParams.get('inicio') ?? ''}`}
+          />
+        </label>
+        <label>
+          Data final
+          <input
+            name="fim"
+            type="date"
+            defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
+            key={`fim-${searchParams.get('fim') ?? ''}`}
+          />
+        </label>
         <label>
           Status do Comentário
           <select name="status" defaultValue={searchParams.get('status') ?? ''} key={`status-${searchParams.get('status') ?? ''}`}>

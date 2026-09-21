@@ -47,6 +47,22 @@ test('fatiasVisiveisDoAnel omitem quantidade zero para não desenhar anel oco', 
   );
 });
 
+test('fatiasVisiveisDoAnel ordenam por quantidade decrescente', () => {
+  assert.deepEqual(
+    fatiasVisiveisDoAnel([
+      { nome: 'Carência', valor: 1 },
+      { nome: 'Boleto', valor: 5 },
+      { nome: 'Saudação', valor: 0 },
+      { nome: 'Protocolo', valor: 3 }
+    ]),
+    [
+      { nome: 'Boleto', valor: 5 },
+      { nome: 'Protocolo', valor: 3 },
+      { nome: 'Carência', valor: 1 }
+    ]
+  );
+});
+
 test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoDoGrafico', () => {
   const anel = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/src/features/dashboard/GraficoAnel.tsx'),
@@ -58,6 +74,9 @@ test('legenda do anel lista só fatias visíveis e o drill-down fica no DestinoD
   );
 
   assert.match(anel, /<ul className="dashboard-anel-legenda">\s*\{fatias\.map/);
+  assert.match(anel, /coresDoAnel\(fatias\.length, deslocamento\)/);
+  assert.doesNotMatch(anel, /coresDoAnel\(dados\.length/);
+  assert.doesNotMatch(anel, /indiceDaFatia/);
   assert.match(anel, /<DestinoDoGrafico/);
   assert.doesNotMatch(anel, /<Tooltip/);
   assert.match(destino, /navigate\(destino\)/);
@@ -73,6 +92,7 @@ test('ADR 0007 grava paleta Crion e ordem deslocada dos anéis', () => {
   assert.match(adr, /deslocamento 0/);
   assert.match(adr, /deslocamento 1/);
   assert.match(adr, /#5EC4BE/i);
+  assert.match(adr, /decrescente/);
 });
 
 test('coresDoAnel não usa os hex da paleta GEAP', () => {
@@ -111,4 +131,34 @@ test('coresDoAnel usa matizes distintos a partir do ciano Crion', () => {
   assert.equal(new Set(cores).size, cores.length);
   const faixas = new Set(cores.map((cor) => Math.round(matizEmGraus(cor) / 40)));
   assert.ok(faixas.size >= 5, `esperado ≥5 faixas de matiz, veio ${faixas.size}`);
+});
+
+test('anel compacto tem 160px e as barras de percentual são trilhos, não Recharts', () => {
+  const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
+  const anel = readFileSync(join(raiz, 'apps/web/src/features/dashboard/GraficoAnel.tsx'), 'utf8');
+  const barras = readFileSync(join(raiz, 'apps/web/src/features/dashboard/GraficoBarras.tsx'), 'utf8');
+  const paineis = readFileSync(
+    join(raiz, 'apps/web/src/features/dashboard/PaineisDoDashboard.tsx'),
+    'utf8'
+  );
+  const css = readFileSync(join(raiz, 'apps/web/src/styles/dashboard.css'), 'utf8');
+
+  assert.match(anel, /const tamanhoDoAnel = 160/);
+  assert.match(css, /\.dashboard-anel-frame \{[\s\S]*width: 160px/);
+  assert.match(css, /width: min\(1240px, 100%\)/);
+  assert.match(css, /grid-template-areas:/);
+  assert.match(css, /'motivos nao-conformidade'/);
+  assert.match(css, /'concordancia acerto'/);
+  assert.match(css, /'piores \.'/);
+  assert.match(css, /\.dashboard-paineis \{[\s\S]*gap: 22px/);
+  assert.match(css, /padding: clamp\(24px, 4vw, 38px\)/);
+  assert.match(css, /max-height: 190px/);
+  assert.match(paineis, /dashboard-painel-motivos[\s\S]*dashboard-painel-nao-conformidade[\s\S]*dashboard-painel-concordancia[\s\S]*dashboard-painel-acerto[\s\S]*dashboard-painel-piores/);
+  assert.doesNotMatch(barras, /recharts/);
+  assert.match(barras, /dashboard-barra-trilho/);
+  assert.match(paineis, /dashboard-concordancia-resumo/);
+  assert.match(paineis, /<small>Nota<\/small>/);
+  assert.match(paineis, /<small>Critérios<\/small>/);
+  assert.match(paineis, /className="dashboard-piores"/);
+  assert.match(css, /height: 7px/);
 });

@@ -47,7 +47,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
 
   return (
     <div className="dashboard-paineis">
-      <article className="dashboard-painel">
+      <article className="dashboard-painel dashboard-painel-motivos">
         <Link to={destino('motivos')}>Motivos</Link>
         <GraficoAnel
           dados={dashboard.paineis.motivos.map((item) => ({
@@ -62,46 +62,7 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
           reduzirMovimento={reduzirMovimento}
         />
       </article>
-      <article className="dashboard-painel">
-        <Link to={destino('acertoPorCriterio')}>Acerto por Critério</Link>
-        <GraficoBarras
-          dados={dashboard.paineis.acertoPorCriterio.flatMap((item) =>
-            item.percentual === null
-              ? []
-              : [{ nome: item.criterio, valor: item.percentual }]
-          )}
-          destino={destino('acertoPorCriterio')}
-          reduzirMovimento={reduzirMovimento}
-        />
-        <ul>
-          {dashboard.paineis.acertoPorCriterio.map((item) => (
-            <li key={item.criterio}>
-              <Link to={destino('acertoPorCriterio', { criteriosAtendidos: item.criterio })}>
-                {item.criterio} · {formatarOuTravessao(item.percentual, formatarPercentual)}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </article>
-      <article className="dashboard-painel dashboard-painel-concordancia">
-        <Link to={destino('concordancia')}>Concordância</Link>
-        <p>
-          Nota {formatarOuTravessao(dashboard.paineis.concordancia.nota, formatarPercentual)}
-          {' · '}
-          Critérios{' '}
-          {formatarOuTravessao(dashboard.paineis.concordancia.criterios, formatarPercentual)}
-        </p>
-        <GraficoBarras
-          dados={dashboard.paineis.concordancia.porCriterio.flatMap((item) =>
-            item.percentual === null
-              ? []
-              : [{ nome: item.criterio, valor: item.percentual }]
-          )}
-          destino={destino('concordancia')}
-          reduzirMovimento={reduzirMovimento}
-        />
-      </article>
-      <article className="dashboard-painel">
+      <article className="dashboard-painel dashboard-painel-nao-conformidade">
         <Link to={destino('naoConformidade')}>Critérios de Não Conformidade</Link>
         <GraficoAnel
           dados={dashboard.paineis.naoConformidade.map((item) => ({
@@ -118,21 +79,63 @@ export function PaineisDoDashboard({ dashboard }: { dashboard: DashboardResponse
           reduzirMovimento={reduzirMovimento}
         />
       </article>
-      <article className="dashboard-painel">
+      <article className="dashboard-painel dashboard-painel-concordancia">
+        <Link to={destino('concordancia')}>Concordância</Link>
+        <div className="dashboard-concordancia-resumo">
+          <article>
+            <small>Nota</small>
+            <strong>
+              {formatarOuTravessao(dashboard.paineis.concordancia.nota, formatarPercentual)}
+            </strong>
+          </article>
+          <article>
+            <small>Critérios</small>
+            <strong>
+              {formatarOuTravessao(dashboard.paineis.concordancia.criterios, formatarPercentual)}
+            </strong>
+          </article>
+        </div>
+        <GraficoBarras
+          dados={dashboard.paineis.concordancia.porCriterio.map((item) => ({
+            nome: item.criterio,
+            valor: item.percentual
+          }))}
+          destinoDaBarra={() => destino('concordancia')}
+          vazio="Nenhuma Concordância por Critério no período."
+        />
+      </article>
+      <article className="dashboard-painel dashboard-painel-acerto">
+        <Link to={destino('acertoPorCriterio')}>Acerto por Critério</Link>
+        <GraficoBarras
+          dados={dashboard.paineis.acertoPorCriterio.map((item) => ({
+            nome: item.criterio,
+            valor: item.percentual
+          }))}
+          destinoDaBarra={(criterio) =>
+            destino('acertoPorCriterio', { criteriosAtendidos: criterio })
+          }
+          vazio="Nenhum Critério no período."
+        />
+      </article>
+      <article className="dashboard-painel dashboard-painel-piores">
         <Link to={destino('pioresAtendimentos')}>Piores Atendimentos</Link>
-        <ul>
-          {dashboard.paineis.pioresAtendimentos.length === 0 ? (
-            <li>—</li>
-          ) : (
-            dashboard.paineis.pioresAtendimentos.map((item) => (
+        {dashboard.paineis.pioresAtendimentos.length === 0 ? (
+          <p className="dashboard-vazio">Nenhum Atendimento no período.</p>
+        ) : (
+          <ol className="dashboard-piores">
+            {dashboard.paineis.pioresAtendimentos.map((item) => (
               <li key={item.id}>
-                <Link to={destinoDoDetalheDoDashboard(item.id, recorte, periodo)}>
-                  {item.id} · {item.nota.toFixed(1).replace('.', ',')}
-                </Link>
+                <strong>{item.nota.toFixed(1).replace('.', ',')}</strong>
+                <div>
+                  <Link to={destinoDoDetalheDoDashboard(item.id, recorte, periodo)}>
+                    Atendimento {item.id}
+                  </Link>
+                  <span>Nota da IA Avaliadora</span>
+                </div>
               </li>
-            ))
-          )}
-        </ul>
+            ))}
+          </ol>
+        )}
       </article>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { PontoDoPainel } from './ponto-do-painel';
+import type { PontoDoPainel } from './ponto-do-painel.js';
 
 const paletaDosAneis = [
   '#5ec4be',
@@ -19,5 +19,7 @@ export function coresDoAnel(quantidade: number, deslocamento: number) {
 }
 
 export function fatiasVisiveisDoAnel(dados: PontoDoPainel[]) {
-  return dados.filter((item) => item.valor > 0);
+  return dados
+    .filter((item) => item.valor > 0)
+    .sort((a, b) => b.valor - a.valor);
 }

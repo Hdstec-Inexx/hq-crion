@@ -4,8 +4,8 @@ import { coresDoAnel, fatiasVisiveisDoAnel } from './coresDoAnel';
 import { DestinoDoGrafico } from './DestinoDoGrafico';
 import type { PontoDoPainel } from './ponto-do-painel';
 
-const tamanhoDoAnel = 200;
-const raioExterno = 98;
+const tamanhoDoAnel = 160;
+const raioExterno = 78;
 const raioInterno = Math.round(raioExterno * 0.58);
 
 export function GraficoAnel({
@@ -31,8 +31,7 @@ export function GraficoAnel({
     return <p className="dashboard-vazio">{vazio}</p>;
   }
 
-  const cores = coresDoAnel(dados.length, deslocamento);
-  const indiceDaFatia = new Map(dados.map((item, indice) => [item.nome, indice]));
+  const cores = coresDoAnel(fatias.length, deslocamento);
   const total = fatias.reduce((soma, item) => soma + item.valor, 0);
 
   return (
@@ -51,15 +50,14 @@ export function GraficoAnel({
             stroke="#fff"
             strokeWidth={1}
           >
-            {fatias.map((item) => (
-              <Cell fill={cores[indiceDaFatia.get(item.nome) ?? 0]} key={item.nome} />
+            {fatias.map((item, indice) => (
+              <Cell fill={cores[indice]} key={item.nome} />
             ))}
           </Pie>
         </PieChart>
       </DestinoDoGrafico>
       <ul className="dashboard-anel-legenda">
-        {fatias.map((item) => {
-          const indice = indiceDaFatia.get(item.nome) ?? 0;
+        {fatias.map((item, indice) => {
           const parcela = total === 0 ? 0 : (item.valor / total) * 100;
           return (
             <li key={item.nome}>
