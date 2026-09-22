@@ -138,6 +138,38 @@ test('Recorte na query não muda a Régua única', async () => {
   }
 });
 
+test('Régua única permanece só leitura', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const antes = await app.inject({
+      method: 'GET',
+      url: '/regua',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const edicao = await app.inject({
+      method: 'PUT',
+      url: '/regua',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        criterios: antes.json().criterios,
+        limiarDeAprovacao: 8
+      }
+    });
+    const depois = await app.inject({
+      method: 'GET',
+      url: '/regua',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(antes.statusCode, 200);
+    assert.equal(edicao.statusCode, 404);
+    assert.deepEqual(depois.json(), antes.json());
+  } finally {
+    await app.close();
+  }
+});
+
 test('preflight de GET /regua autoriza Authorization e Cache-Control', async () => {
   const app = await buildApp();
 

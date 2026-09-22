@@ -27,6 +27,7 @@ ENV NODE_ENV=production \
     PORT=3000
 
 COPY --from=build --chown=10001:10001 /out /app
+COPY --chown=10001:10001 db/migrations /app/db/migrations
 COPY --chown=10001:10001 apps/api/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod 755 /app/docker-entrypoint.sh
 

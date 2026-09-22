@@ -1,5 +1,6 @@
 import {
   motivoUltimoAdmin,
+  papelSchema,
   perfilComIdSchema,
   perfilSchema,
   type MotivoUltimoAdmin,
@@ -7,10 +8,11 @@ import {
   type PerfilComId
 } from '@hq-crion/contracts/perfil';
 import { randomUUID } from 'node:crypto';
+import type { ClienteSql } from '../../db/cliente.js';
 
 export type RegistroDePerfil = PerfilComId & { senha: string };
 
-const registros: RegistroDePerfil[] = [
+export const perfisDaSemente: readonly RegistroDePerfil[] = [
   {
     id: 'perfil-ana',
     nome: 'Ana Souza',
@@ -36,6 +38,74 @@ const registros: RegistroDePerfil[] = [
     ativo: true
   }
 ];
+
+const registros: RegistroDePerfil[] = perfisDaSemente.map((perfil) => ({ ...perfil }));
+
+let deposito: ClienteSql | null = null;
+
+export function usarDepositoDePerfis(cliente: ClienteSql | null) {
+  deposito = cliente;
+}
+
+export async function lerPerfisDoDeposito(cliente: ClienteSql) {
+  const resultado = await cliente.query(
+    'SELECT id, nome, email, senha, papel, ativo FROM hq_perfil'
+  );
+  const linhas = resultado.rows as Array<{
+    id: string;
+    nome: string;
+    email: string;
+    senha: string;
+    papel: string;
+    ativo: boolean;
+  }>;
+
+  if (linhas.length === 0) {
+    throw new Error('O depósito não tem Perfil semeado.');
+  }
+
+  return linhas.map((linha) => ({
+    id: linha.id,
+    nome: linha.nome,
+    email: linha.email,
+    senha: linha.senha,
+    papel: papelSchema.parse(linha.papel),
+    ativo: linha.ativo
+  }));
+}
+
+export function aplicarPerfis(perfis: RegistroDePerfil[]) {
+  registros.splice(0, registros.length, ...perfis.map((perfil) => ({ ...perfil })));
+}
+
+async function gravarPerfil(
+  texto: string,
+  valores: unknown[],
+  recusaUltimoAdmin: boolean
+) {
+  if (!deposito) {
+    return;
+  }
+
+  const gravado = await deposito.query(texto, valores);
+
+  if (gravado.rowCount) {
+    return;
+  }
+
+  if (recusaUltimoAdmin) {
+    return motivoUltimoAdmin;
+  }
+
+  throw new Error('O Perfil não está no depósito.');
+}
+
+const guardaDoUltimoAdmin = `
+  EXISTS (
+    SELECT 1 FROM hq_perfil AS outro
+    WHERE outro.id <> $1 AND outro.papel = 'Admin' AND outro.ativo
+  )
+`;
 
 export function perfilDaSessao(registro: RegistroDePerfil): Perfil {
   return perfilSchema.parse({
@@ -68,7 +138,7 @@ export function buscarPorEmail(email: string) {
   return registros.find((registro) => registro.email === normalizado);
 }
 
-export function criarPerfil(identidade: Perfil) {
+export async function criarPerfil(identidade: Perfil) {
   const registro: RegistroDePerfil = {
     id: randomUUID(),
     nome: identidade.nome,
@@ -77,6 +147,22 @@ export function criarPerfil(identidade: Perfil) {
     senha: 'crion-hq',
     ativo: true
   };
+
+  if (deposito) {
+    await deposito.query(
+      `INSERT INTO hq_perfil (id, nome, email, senha, papel, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        registro.id,
+        registro.nome,
+        registro.email,
+        registro.senha,
+        registro.papel,
+        registro.ativo
+      ]
+    );
+  }
+
   registros.push(registro);
   return registro;
 }
@@ -88,10 +174,10 @@ function outroAdminAtivo(excetoId: string) {
   );
 }
 
-export function atualizarPerfil(
+export async function atualizarPerfil(
   id: string,
   identidade: Perfil
-): RegistroDePerfil | MotivoUltimoAdmin | undefined {
+): Promise<RegistroDePerfil | MotivoUltimoAdmin | undefined> {
   const registro = buscarPorId(id);
 
   if (!registro) {
@@ -105,16 +191,32 @@ export function atualizarPerfil(
     return motivoUltimoAdmin;
   }
 
+  const recusa = await gravarPerfil(
+    deixaDeSerAdminAtivo
+      ? `UPDATE hq_perfil
+         SET nome = $2, email = $3, papel = $4
+         WHERE id = $1 AND ${guardaDoUltimoAdmin}`
+      : `UPDATE hq_perfil
+         SET nome = $2, email = $3, papel = $4
+         WHERE id = $1`,
+    [id, identidade.nome, identidade.email, identidade.papel],
+    deixaDeSerAdminAtivo
+  );
+
+  if (recusa) {
+    return recusa;
+  }
+
   registro.nome = identidade.nome;
   registro.email = identidade.email;
   registro.papel = identidade.papel;
   return registro;
 }
 
-export function definirAtivo(
+export async function definirAtivo(
   id: string,
   ativo: boolean
-): RegistroDePerfil | MotivoUltimoAdmin | undefined {
+): Promise<RegistroDePerfil | MotivoUltimoAdmin | undefined> {
   const registro = buscarPorId(id);
 
   if (!registro) {
@@ -123,6 +225,19 @@ export function definirAtivo(
 
   if (!ativo && registro.papel === 'Admin' && registro.ativo && !outroAdminAtivo(id)) {
     return motivoUltimoAdmin;
+  }
+
+  const desativaAdmin = !ativo && registro.papel === 'Admin';
+  const recusa = await gravarPerfil(
+    desativaAdmin
+      ? `UPDATE hq_perfil SET ativo = false WHERE id = $1 AND ${guardaDoUltimoAdmin}`
+      : 'UPDATE hq_perfil SET ativo = $2 WHERE id = $1',
+    desativaAdmin ? [id] : [id, ativo],
+    desativaAdmin
+  );
+
+  if (recusa) {
+    return recusa;
   }
 
   registro.ativo = ativo;
