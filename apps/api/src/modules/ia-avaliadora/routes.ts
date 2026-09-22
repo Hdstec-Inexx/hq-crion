@@ -50,7 +50,7 @@ const iaAvaliadoraRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ statusCode: 400 });
       }
 
-      return gravarConfiguracao(parsed.data);
+      return await gravarConfiguracao(parsed.data);
     }
   );
 };

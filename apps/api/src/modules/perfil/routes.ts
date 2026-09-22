@@ -134,7 +134,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(409).send({ statusCode: 409 });
     }
 
-    const registro = criarPerfil(parsed.data);
+    const registro = await criarPerfil(parsed.data);
     return reply.code(201).send(perfilComId(registro));
   });
 
@@ -159,7 +159,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(409).send({ statusCode: 409 });
     }
 
-    const registro = atualizarPerfil(id, parsed.data);
+    const registro = await atualizarPerfil(id, parsed.data);
 
     if (ehUltimoAdmin(registro)) {
       return recusarUltimoAdmin(reply);
@@ -187,7 +187,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const resultado = definirAtivo(id, parsed.data.ativo);
+    const resultado = await definirAtivo(id, parsed.data.ativo);
 
     if (ehUltimoAdmin(resultado)) {
       return recusarUltimoAdmin(reply);

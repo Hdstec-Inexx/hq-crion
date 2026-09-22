@@ -14,6 +14,11 @@ const configSchema = z
     PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
     CORS_ORIGIN: z.string().default('http://localhost:5173'),
     DATABASE_URL: optionalString,
+    DEPOSITO: z.preprocess(
+      (value) =>
+        typeof value === 'string' && value.trim() === '' ? undefined : value,
+      z.enum(['postgres']).optional()
+    ),
     SESSION_SECRET: optionalString,
     SKIP_SEED: z.preprocess((value) => value === 'true' || value === '1', z.boolean()),
     ELEVENLABS_API_KEY: optionalString,

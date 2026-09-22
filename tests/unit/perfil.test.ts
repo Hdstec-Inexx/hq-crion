@@ -11,6 +11,7 @@ import {
   loginResponseSchema,
   perfilSchema
 } from '../../packages/contracts/src/perfil.js';
+import { perfilDaAutorizacao } from '../../apps/api/src/modules/perfil/sessoes.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -68,6 +69,10 @@ test('login com Perfil válido abre a primeira área', () => {
     }),
     '/atendimentos'
   );
+});
+
+test('sessão de outro processo não autentica', () => {
+  assert.equal(perfilDaAutorizacao('Bearer sessao-de-outro-processo'), undefined);
 });
 
 test('GET /perfil sem sessão responde 401', async () => {
