@@ -1,0 +1,113 @@
+# Roda no GitHub Actions. Não acessa a VPS nem o EasyPanel.
+# Não dispara em push/PR: a dev pode ter pedaços incompletos.
+# Só roda quando alguém aciona em Actions → Conferir → Run workflow,
+# ou pede para o agente/gh: `gh workflow run Conferir --ref <branch>`
+
+name: Conferir
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: conferir-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  qualidade:
+    name: Typecheck, build e testes unitários
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+
+      - name: Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Testes unitários
+        run: pnpm test
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo '## Qualidade'
+            echo '- Typecheck, build e testes unitários neste job.'
+            echo '- Sem Docker, Postgres, SSH ou EasyPanel.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  imagens:
+    name: Build das imagens e pulso
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgres://ci:ci@db:5432/hq_crion
+      CORS_ORIGIN: https://ci.example.invalid
+      SESSION_SECRET: ci-secret-with-at-least-32-characters
+      VITE_API_URL: https://ci.example.invalid
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validar compose do EasyPanel
+        run: docker compose -f deploy/easypanel/compose.yaml config >/dev/null
+
+      - name: Subir imagens e esperar o pulso
+        run: |
+          docker compose \
+            -f deploy/easypanel/compose.yaml \
+            -f deploy/easypanel/compose.ci.yaml \
+            config >/dev/null
+          docker compose \
+            -f deploy/easypanel/compose.yaml \
+            -f deploy/easypanel/compose.ci.yaml \
+            up --build --wait --remove-orphans
+
+      - name: Logs se o boot falhar
+        if: failure()
+        run: |
+          docker compose \
+            -f deploy/easypanel/compose.yaml \
+            -f deploy/easypanel/compose.ci.yaml \
+            logs --no-color
+
+      - name: Derrubar o stack
+        if: always()
+        run: |
+          docker compose \
+            -f deploy/easypanel/compose.yaml \
+            -f deploy/easypanel/compose.ci.yaml \
+            down -v
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo '## Imagens'
+            echo '- Build pelo Compose do EasyPanel, com Postgres só neste job.'
+            echo '- Verde quando a API responde `/health` e a web responde `/healthz`.'
+            echo '- Este job não publica imagem nem conecta na VPS.'
+          } >> "$GITHUB_STEP_SUMMARY"
