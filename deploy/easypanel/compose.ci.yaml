@@ -1,0 +1,24 @@
+# Override só do job Conferir (GitHub Actions).
+# Não usar no EasyPanel: o painel continua com Postgres externo.
+# O serviço `db` existe apenas na rede deste Compose.
+
+name: hq-crion-conferir
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ci
+      POSTGRES_DB: hq_crion
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ci -d hq_crion"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  api:
+    depends_on:
+      db:
+        condition: service_healthy
