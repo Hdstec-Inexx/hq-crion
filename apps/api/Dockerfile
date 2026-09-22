@@ -14,7 +14,7 @@ COPY packages/contracts ./packages/contracts
 
 RUN pnpm --filter @hq-crion/contracts build \
   && pnpm --filter @hq-crion/api build \
-  && pnpm --filter @hq-crion/api deploy --prod /out
+  && pnpm --filter @hq-crion/api deploy --prod --legacy /out
 
 FROM node:22-bookworm-slim
 
