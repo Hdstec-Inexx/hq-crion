@@ -1,0 +1,22 @@
+{
+  "name": "hq-crion",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --filter @hq-crion/contracts build && concurrently -n api,web -c cyan,magenta \"corepack pnpm --filter @hq-crion/api dev\" \"corepack pnpm --filter @hq-crion/web dev\"",
+    "build": "corepack pnpm --recursive build",
+    "typecheck": "corepack pnpm --filter @hq-crion/contracts build && tsc -p tsconfig.json && corepack pnpm --recursive typecheck",
+    "test": "corepack pnpm --filter @hq-crion/contracts build && tsx --test tests/unit/*.test.ts",
+    "prototype": "npx --yes serve prototype -p 4173"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "concurrently": "^9.2.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}
