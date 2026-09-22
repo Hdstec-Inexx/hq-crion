@@ -4,21 +4,26 @@ import {
   custoVisivelPara,
   downloadVisivelPara,
   filaDeManutencaoResponseSchema,
+  gravacaoDaAvaliacaoDaIaSchema,
   listagemResponseSchema,
   monitoramentoDetalheSchema,
   monitoramentoListagemResponseSchema,
   comentarioDaFilaSchema,
   type AtendimentoDetalhe,
   type AtendimentoListItem,
+  type Avaliacao,
   type MonitoramentoDetalhe
 } from '@hq-crion/contracts/atendimento';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
-import { reguaUnica } from '../regua/regua-unica.js';
 import { recorteDaQuery, type ModoDaListagem } from './filtros.js';
-import { detalhePublico, type RegistroDeAtendimento } from './registro.js';
+import {
+  aprovacaoDaNota,
+  detalhePublico,
+  type RegistroDeAtendimento
+} from './registro.js';
 
 function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
   const texto = item.avaliacaoDoCurador?.comentario;
@@ -28,7 +33,7 @@ function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
   }
 
   return {
-    id: item.id,
+    id: item.comentarioId ?? item.id,
     atendimentoId: item.id,
     administradora: item.administradora,
     agente: item.agente,
@@ -51,7 +56,10 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
     const perfil = buscarPorId(item.curadorId);
 
     if (perfil?.papel === 'Curador') {
-      vistos.set(item.curadorId, { id: perfil.id, nome: perfil.nome });
+      vistos.set(item.curadorId, {
+        id: perfil.id,
+        nome: item.curadorNome ?? perfil.nome
+      });
     }
   }
 
@@ -107,13 +115,23 @@ function responderMonitoramento(item: RegistroDeAtendimento): MonitoramentoDetal
   });
 }
 
+function comAprovacao<T extends { nota: number }>(avaliacao: T): T & Pick<Avaliacao, 'aprovacao'> {
+  return {
+    ...avaliacao,
+    aprovacao: aprovacaoDaNota(avaliacao.nota)
+  };
+}
+
 function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
-  const { custo, downloadDeAudio, ...resto } = detalhePublico(item);
+  const { custo, downloadDeAudio, avaliacaoDaIa, avaliacaoDoCurador, ...resto } =
+    detalhePublico(item);
 
   return atendimentoDetalheSchema.parse({
     ...resto,
-    ...(custoVisivelPara(papel) ? { custo } : {}),
-    ...(downloadVisivelPara(papel) ? { downloadDeAudio } : {})
+    ...(avaliacaoDaIa ? { avaliacaoDaIa: comAprovacao(avaliacaoDaIa) } : {}),
+    ...(avaliacaoDoCurador ? { avaliacaoDoCurador: comAprovacao(avaliacaoDoCurador) } : {}),
+    ...(custoVisivelPara(papel) && custo ? { custo } : {}),
+    ...(downloadVisivelPara(papel) && downloadDeAudio ? { downloadDeAudio } : {})
   });
 }
 
@@ -293,36 +311,66 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
+    const resultado = await app.atendimentos.conferir(id, {
+      curadorId: registro.id,
+      curadorNome: registro.nome,
+      nota: lido.data.notaDaRegua,
+      criterios: lido.data.checklist,
+      ...(lido.data.comentario ? { comentario: lido.data.comentario } : {})
+    });
+
+    if (resultado === 'ausente') {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    if (resultado === 'indisponivel') {
+      return reply.code(409).send({ statusCode: 409 });
+    }
+
     const encontrado = await app.atendimentos.buscarPorId(id);
 
     if (!encontrado) {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    if (
-      encontrado.status !== 'Concluído' ||
-      encontrado.curadoria ||
-      !encontrado.avaliacaoDaIa
-    ) {
+    return responderDetalhe(encontrado, registro.papel);
+  });
+
+  app.post('/atendimentos/:id/avaliacao-da-ia', async (request, reply) => {
+    semCache(reply);
+    const registro = registroDaAutorizacao(request.headers.authorization);
+
+    if (!registro) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    if (registro.papel !== 'Admin') {
+      return reply.code(403).send({ statusCode: 403 });
+    }
+
+    const lido = gravacaoDaAvaliacaoDaIaSchema.safeParse(request.body);
+
+    if (!lido.success) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    const { id } = request.params as { id: string };
+    const resultado = await app.atendimentos.gravarAvaliacaoDaIa(id, lido.data);
+
+    if (resultado === 'ausente') {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    if (resultado === 'em-andamento') {
       return reply.code(409).send({ statusCode: 409 });
     }
 
-    encontrado.curadoria = true;
-    encontrado.curadorId = registro.id;
-    encontrado.avaliacaoDoCurador = {
-      nota: lido.data.notaDaRegua,
-      aprovacao:
-        lido.data.notaDaRegua >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado',
-      criterios: lido.data.checklist,
-      notaDaAvaliacaoDaIa: encontrado.avaliacaoDaIa.nota,
-      ...(lido.data.comentario ? { comentario: lido.data.comentario } : {})
-    };
+    const encontrado = await app.atendimentos.buscarPorId(id);
 
-    if (lido.data.comentario) {
-      encontrado.comentarioStatus = 'Pendente';
+    if (!encontrado) {
+      return reply.code(404).send({ statusCode: 404 });
     }
 
-    await app.atendimentos.salvar(encontrado);
     return responderDetalhe(encontrado, registro.papel);
   });
 
@@ -339,20 +387,17 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const encontrado = await app.atendimentos.buscarPorId(id);
-    const comentario = encontrado ? itemDaFilaDeManutencao(encontrado) : null;
+    const resultado = await app.atendimentos.resolverComentario(id);
 
-    if (!encontrado || !comentario) {
+    if (resultado === 'ausente') {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    if (comentario.status !== 'Pendente') {
+    if (resultado === 'ja-resolvido') {
       return reply.code(409).send({ statusCode: 409 });
     }
 
-    encontrado.comentarioStatus = 'Resolvido';
-    await app.atendimentos.salvar(encontrado);
-    const atualizado = itemDaFilaDeManutencao(encontrado);
+    const atualizado = itemDaFilaDeManutencao(resultado);
 
     if (!atualizado) {
       return reply.code(404).send({ statusCode: 404 });

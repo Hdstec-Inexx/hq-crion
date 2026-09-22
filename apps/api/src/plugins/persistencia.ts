@@ -94,8 +94,8 @@ export default fp(
     try {
       await aplicarMigracoes(pool);
       await aplicarSchema(pool);
-      await semearSeNecessario(pool, app.config.SKIP_SEED);
       await semearEstrutura(pool);
+      await semearSeNecessario(pool, app.config.SKIP_SEED);
       const perfis = await lerPerfisDoDeposito(pool);
       const regua = await lerReguaDoDeposito(pool);
       const configuracao = await lerConfiguracaoDoDeposito(pool);

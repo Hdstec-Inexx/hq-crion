@@ -13,8 +13,9 @@ test('ingestão mínima mapeia a fonte ElevenLabs para Atendimento do HQ sem inv
     start_time_unix_secs: 1_715_000_000,
     call_duration_secs: 312,
     transcript: [
-      { role: 'agent', message: 'Olá, aqui é a Clara.' },
-      { role: 'user', message: 'Preciso da rede credenciada.' }
+      { role: 'agent', message: 'Olá, aqui é a Clara.', time_in_call_secs: 1 },
+      { role: 'user', message: 'Preciso da rede credenciada.', time_in_call_secs: 5 },
+      { role: 'agent', message: 'Vou localizar.', time_in_call_secs: 9 }
     ]
   });
 
@@ -29,13 +30,12 @@ test('ingestão mínima mapeia a fonte ElevenLabs para Atendimento do HQ sem inv
   assert.equal(atendimento.administradora, 'Affix');
   assert.equal(atendimento.status, 'Concluído');
   assert.equal(atendimento.duracaoEmSegundos, 312);
-  assert.equal(atendimento.transcricao.length, 2);
+  assert.equal(atendimento.transcricao.length, 3);
   assert.equal(atendimento.transcricao[0]?.locutor, 'Agente de Voz');
   assert.equal(atendimento.audio, '/media/conv-el-1.wav');
+  assert.equal(atendimento.avaliacaoDaIa, undefined);
   assert.equal(avaliacaoDaIaTemVeredito(atendimento), false);
-  assert.ok(
-    atendimento.avaliacaoDaIa.criterios.every((criterio) => criterio.estado === 'Não se aplica')
-  );
+  assert.equal(atendimento.tempoDeEsperaEmSegundos, 4);
 });
 
 test('ingestão mínima ignora Agente de Voz que não pertence ao HQ', () => {
@@ -48,6 +48,19 @@ test('ingestão mínima ignora Agente de Voz que não pertence ao HQ', () => {
   );
 });
 
-test('ingestão não sobrescreve Atendimento já persistido', () => {
-  assert.match(inserirAtendimentoSeAusenteSql, /ON CONFLICT \(id\) DO NOTHING/);
+test('reingestão atualiza só status, transcrição, duração e Tempo de Espera', () => {
+  assert.match(inserirAtendimentoSeAusenteSql, /ON CONFLICT \(id\) DO UPDATE SET/);
+  const atualizacao = inserirAtendimentoSeAusenteSql.slice(
+    inserirAtendimentoSeAusenteSql.indexOf('DO UPDATE SET')
+  );
+  assert.match(atualizacao, /status/);
+  assert.match(atualizacao, /transcricao/);
+  assert.match(atualizacao, /duracao_em_segundos/);
+  assert.match(atualizacao, /tempo_de_espera_em_segundos/);
+  assert.doesNotMatch(atualizacao, /motivo/);
+  assert.doesNotMatch(atualizacao, /custo/);
+  assert.doesNotMatch(atualizacao, /transferencia/);
+  assert.doesNotMatch(atualizacao, /ferramentas/);
+  assert.doesNotMatch(atualizacao, /audio/);
+  assert.doesNotMatch(atualizacao, /avaliacao/);
 });

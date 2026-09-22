@@ -138,7 +138,9 @@ function paineisDoPeriodo(itens: RegistroDeAtendimento[]): PaineisDoDashboard {
       conferidos.push(item);
     }
 
-    for (const criterio of item.avaliacaoDaIa.criterios) {
+    const criteriosIa = item.avaliacaoDaIa?.criterios ?? [];
+
+    for (const criterio of criteriosIa) {
       if (criterio.estado === 'Não atendido') {
         naoConformidade.set(
           criterio.nome,
@@ -168,8 +170,7 @@ function paineisDoPeriodo(itens: RegistroDeAtendimento[]): PaineisDoDashboard {
     }
 
     for (const criterio of nomes) {
-      const ia = item.avaliacaoDaIa.criterios.find((atual) => atual.nome === criterio)
-        ?.estado;
+      const ia = item.avaliacaoDaIa?.criterios.find((atual) => atual.nome === criterio)?.estado;
       const curador = item.avaliacaoDoCurador.criterios.find(
         (atual) => atual.nome === criterio
       )?.estado;
@@ -217,7 +218,9 @@ function paineisDoPeriodo(itens: RegistroDeAtendimento[]): PaineisDoDashboard {
     concordancia: {
       nota: taxa(
         conferidos.filter(
-          (item) => item.avaliacaoDaIa.nota === item.avaliacaoDoCurador?.nota
+          (item) =>
+            item.avaliacaoDaIa !== undefined &&
+            item.avaliacaoDaIa.nota === item.avaliacaoDoCurador?.nota
         ).length,
         conferidos.length
       ),

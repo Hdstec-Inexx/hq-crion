@@ -150,7 +150,7 @@ export function passaNosFiltros(
   if (modo === 'fila') {
     return (
       item.status === 'Concluído' &&
-      Boolean(item.avaliacaoDaIa) &&
+      avaliacaoDaIaTemVeredito(item) &&
       !item.curadoria
     );
   }
@@ -180,11 +180,10 @@ function passaNosCriterios(
   const atendidos = nomesDaQuery(query.criteriosAtendidos);
   const naoAtendidos = nomesDaQuery(query.criteriosNaoAtendidos);
 
+  const criterios = item.avaliacaoDaIa?.criterios ?? [];
   const temEstado = (nomes: string[], estado: 'Atendido' | 'Não atendido') =>
     nomes.every((nome) =>
-      item.avaliacaoDaIa.criterios.some(
-        (criterio) => criterio.nome === nome && criterio.estado === estado
-      )
+      criterios.some((criterio) => criterio.nome === nome && criterio.estado === estado)
     );
 
   return temEstado(atendidos, 'Atendido') && temEstado(naoAtendidos, 'Não atendido');
@@ -235,7 +234,9 @@ export function aplicarIndicador(
       );
     case 'naoConformidade':
       return itens.filter((item) =>
-        item.avaliacaoDaIa.criterios.some((criterio) => criterio.estado === 'Não atendido')
+        (item.avaliacaoDaIa?.criterios ?? []).some(
+          (criterio) => criterio.estado === 'Não atendido'
+        )
       );
     case 'pioresAtendimentos':
       return concluidos

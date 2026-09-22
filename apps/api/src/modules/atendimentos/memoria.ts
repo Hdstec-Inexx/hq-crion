@@ -1,13 +1,14 @@
 import { catalogoDeAtendimentos } from './catalogo.js';
 import {
   aplicarConsultaDaListagem,
-  aplicarConsultaDoDashboard,
-  aplicarConsultaDaManutencao
+  aplicarConsultaDaManutencao,
+  aplicarConsultaDoDashboard
 } from './consulta.js';
 import type { PortaDeAtendimentos } from './porta.js';
+import { aprovacaoDaNota, avaliacaoDaIaTemVeredito } from './registro.js';
 
 export function repositorioEmMemoria(): PortaDeAtendimentos {
-  const registros = Object.freeze(catalogoDeAtendimentos());
+  const registros = catalogoDeAtendimentos();
 
   return {
     async listar() {
@@ -16,8 +17,70 @@ export function repositorioEmMemoria(): PortaDeAtendimentos {
     async buscarPorId(id) {
       return registros.find((registro) => registro.id === id);
     },
-    async salvar() {
-      return;
+    async gravarAvaliacaoDaIa(id, entrada) {
+      const item = registros.find((registro) => registro.id === id);
+
+      if (!item) {
+        return 'ausente';
+      }
+
+      if (item.status !== 'Concluído') {
+        return 'em-andamento';
+      }
+
+      item.nota = entrada.nota;
+      item.avaliacaoDaIa = {
+        nota: entrada.nota,
+        aprovacao: aprovacaoDaNota(entrada.nota),
+        criterios: entrada.criterios
+      };
+
+      return 'ok';
+    },
+    async conferir(id, entrada) {
+      const item = registros.find((registro) => registro.id === id);
+
+      if (!item) {
+        return 'ausente';
+      }
+
+      if (item.status !== 'Concluído' || !avaliacaoDaIaTemVeredito(item)) {
+        return 'indisponivel';
+      }
+
+      item.curadoria = true;
+      item.curadorId = entrada.curadorId;
+      item.curadorNome = entrada.curadorNome;
+      item.avaliacaoDoCurador = {
+        nota: entrada.nota,
+        aprovacao: aprovacaoDaNota(entrada.nota),
+        criterios: entrada.criterios,
+        notaDaAvaliacaoDaIa: item.avaliacaoDaIa.nota,
+        curador: entrada.curadorNome,
+        ...(entrada.comentario ? { comentario: entrada.comentario } : {})
+      };
+
+      if (entrada.comentario) {
+        item.comentarioStatus = 'Pendente';
+      }
+
+      return 'ok';
+    },
+    async resolverComentario(id) {
+      const item = registros.find(
+        (registro) => registro.comentarioId === id || registro.id === id
+      );
+
+      if (!item?.avaliacaoDoCurador?.comentario) {
+        return 'ausente';
+      }
+
+      if ((item.comentarioStatus ?? 'Pendente') !== 'Pendente') {
+        return 'ja-resolvido';
+      }
+
+      item.comentarioStatus = 'Resolvido';
+      return item;
     },
     async consultarListagem(recorte, query, modo, perfilId) {
       return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
