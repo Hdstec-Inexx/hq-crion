@@ -33,7 +33,22 @@ export function registroDaAutorizacao(authorization: string | undefined) {
     return undefined;
   }
 
-  return buscarPorId(perfilId);
+  const registro = buscarPorId(perfilId);
+
+  if (!registro?.ativo) {
+    sessoes.delete(token);
+    return undefined;
+  }
+
+  return registro;
+}
+
+export function invalidarSessoesDoPerfil(perfilId: string) {
+  for (const [token, id] of sessoes) {
+    if (id === perfilId) {
+      sessoes.delete(token);
+    }
+  }
 }
 
 export function perfilDaAutorizacao(

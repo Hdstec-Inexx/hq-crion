@@ -2,6 +2,8 @@ import {
   listaDePerfisSchema,
   perfilComIdSchema,
   perfilSchema,
+  ativoDoPerfilSchema,
+  motivoUltimoAdmin,
   type ListaDePerfis,
   type Perfil,
   type PerfilComId
@@ -13,7 +15,15 @@ const apiUrl = urlDaApi();
 
 export type ResultadoDaAdministracao =
   | { ok: true; perfil: PerfilComId }
-  | { ok: false; motivo: 'negado' | 'invalido' | 'conflito' | 'indisponivel' };
+  | {
+      ok: false;
+      motivo:
+        | 'negado'
+        | 'invalido'
+        | 'conflito'
+        | typeof motivoUltimoAdmin
+        | 'indisponivel';
+    };
 
 async function pedir(
   sessao: string,
@@ -107,6 +117,31 @@ export async function alterarPerfil(
     body: JSON.stringify(parsed.data)
   });
 
+  return lerPerfilAdministrado(response);
+}
+
+export async function definirAtivoDoPerfil(
+  sessao: string,
+  id: string,
+  ativo: boolean
+): Promise<ResultadoDaAdministracao> {
+  const parsed = ativoDoPerfilSchema.safeParse({ ativo });
+
+  if (!parsed.success) {
+    return { ok: false, motivo: 'invalido' };
+  }
+
+  const response = await pedir(sessao, `/perfis/${id}/ativo`, {
+    method: 'PUT',
+    body: JSON.stringify(parsed.data)
+  });
+
+  return lerPerfilAdministrado(response);
+}
+
+async function lerPerfilAdministrado(
+  response: Response
+): Promise<ResultadoDaAdministracao> {
   if (response.status === 403) {
     return { ok: false, motivo: 'negado' };
   }
@@ -116,6 +151,14 @@ export async function alterarPerfil(
   }
 
   if (response.status === 409) {
+    const corpo = (await response.json().catch(() => null)) as {
+      motivo?: string;
+    } | null;
+
+    if (corpo?.motivo === motivoUltimoAdmin) {
+      return { ok: false, motivo: motivoUltimoAdmin };
+    }
+
     return { ok: false, motivo: 'conflito' };
   }
 

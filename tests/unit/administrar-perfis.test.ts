@@ -10,6 +10,7 @@ import {
   listaDePerfisSchema,
   loginResponseSchema,
   papelSchema,
+  motivoUltimoAdmin,
   perfilComIdSchema
 } from '../../packages/contracts/src/perfil.js';
 
@@ -175,6 +176,7 @@ test('Admin cria Perfil com identidade e um dos três papéis, sem Administrador
     assert.equal(criado.nome, 'Diego Lima');
     assert.equal(criado.email, 'diego.lima@crion');
     assert.equal(criado.papel, 'Curador');
+    assert.equal(criado.ativo, true);
     assert.equal('administradora' in response.json(), false);
     assert.equal(criado.id.length > 0, true);
     papelSchema.parse(criado.papel);
@@ -440,4 +442,121 @@ test('só Admin acede a Usuários na casca; o h1 usa Perfis', () => {
     '/usuarios'
   );
   assert.equal(tituloDaPagina('/usuarios', 'Admin'), 'Perfis');
+});
+
+test('Admin desativa Perfil: a sessão cai e o login passa a falhar até reativar', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const loginCarla = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'carla.mendes@crion', senha: 'crion-hq' }
+    });
+    const { sessao: sessaoCarla } = loginResponseSchema.parse(loginCarla.json());
+
+    const desativar = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-carla/ativo',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { ativo: false }
+    });
+
+    assert.equal(desativar.statusCode, 200);
+    assert.equal(desativar.headers['cache-control'], 'no-store');
+    assert.equal(perfilComIdSchema.parse(desativar.json()).ativo, false);
+
+    const sessaoAntiga = await app.inject({
+      method: 'GET',
+      url: '/perfil',
+      headers: { authorization: `Bearer ${sessaoCarla}` }
+    });
+    assert.equal(sessaoAntiga.statusCode, 401);
+
+    const loginDeNovo = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'carla.mendes@crion', senha: 'crion-hq' }
+    });
+    assert.equal(loginDeNovo.statusCode, 401);
+
+    const reativar = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-carla/ativo',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { ativo: true }
+    });
+    assert.equal(reativar.statusCode, 200);
+    assert.equal(perfilComIdSchema.parse(reativar.json()).ativo, true);
+
+    const loginDepois = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'carla.mendes@crion', senha: 'crion-hq' }
+    });
+    assert.equal(loginDepois.statusCode, 200);
+  } finally {
+    await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-carla/ativo',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { ativo: true }
+    });
+    await app.close();
+  }
+});
+
+test('o último Admin ativo não se desativa nem troca de papel', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const desativar = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-bruno/ativo',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { ativo: false }
+    });
+    assert.equal(desativar.statusCode, 409);
+    assert.equal(desativar.json().motivo, motivoUltimoAdmin);
+
+    const troca = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-bruno',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Bruno Alves',
+        email: 'bruno.alves@crion',
+        papel: 'Curador'
+      }
+    });
+    assert.equal(troca.statusCode, 409);
+    assert.equal(troca.json().motivo, motivoUltimoAdmin);
+
+    const aindaAdmin = await app.inject({
+      method: 'GET',
+      url: '/perfil',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    assert.equal(aindaAdmin.statusCode, 200);
+    assert.equal(aindaAdmin.json().papel, 'Admin');
+  } finally {
+    await app.close();
+  }
+});
+
+test('Curador não desativa Perfil', async () => {
+  const { app, sessao } = await sessaoDe('carla.mendes@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-ana/ativo',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { ativo: false }
+    });
+
+    assert.equal(response.statusCode, 403);
+  } finally {
+    await app.close();
+  }
 });

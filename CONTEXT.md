@@ -17,7 +17,7 @@ Papel que atua como fallback humano da IA Avaliadora. Escolhe da Fila de Curador
 _Avoid_: Operacional
 
 **Perfil**:
-A identidade autenticada no HQ Crion: quem é a pessoa (nome, e-mail) e qual **papel** exerce (Admin, Gestão ou Curador). Não pertence a uma Administradora — o recorte de leitura é filtro de tela, não atributo do Perfil. É o que a casca autenticada consulta para liberar ou bloquear áreas.
+A identidade autenticada no HQ Crion: quem é a pessoa (nome, e-mail) e qual **papel** exerce (Admin, Gestão ou Curador). Não pertence a uma Administradora — o recorte de leitura é filtro de tela, não atributo do Perfil. É o que a casca autenticada consulta para liberar ou bloquear áreas. **Desativado**, permanece na lista e nas curadorias já feitas, mas não autentica. O último Admin ativo não se desativa.
 _Avoid_: Usuário (ambíguo com conta genérica), sessão (mecanismo de auth, não o conceito de identidade/papel)
 
 **Casca autenticada**:

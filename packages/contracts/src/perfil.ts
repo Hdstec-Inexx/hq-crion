@@ -25,7 +25,14 @@ export const loginResponseSchema = z.object({
 });
 
 export const perfilComIdSchema = perfilSchema.extend({
-  id: z.string().min(1)
+  id: z.string().min(1),
+  ativo: z.boolean()
+});
+
+export const motivoUltimoAdmin = 'ultimo-admin' as const;
+
+export const ativoDoPerfilSchema = z.object({
+  ativo: z.boolean()
 });
 
 export const listaDePerfisSchema = z.object({
@@ -37,4 +44,6 @@ export type Perfil = z.infer<typeof perfilSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
 export type PerfilComId = z.infer<typeof perfilComIdSchema>;
+export type MotivoUltimoAdmin = typeof motivoUltimoAdmin;
+export type AtivoDoPerfil = z.infer<typeof ativoDoPerfilSchema>;
 export type ListaDePerfis = z.infer<typeof listaDePerfisSchema>;

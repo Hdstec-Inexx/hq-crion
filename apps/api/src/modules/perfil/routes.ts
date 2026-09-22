@@ -2,6 +2,8 @@ import {
   listaDePerfisSchema,
   loginRequestSchema,
   loginResponseSchema,
+  ativoDoPerfilSchema,
+  motivoUltimoAdmin,
   perfilSchema
 } from '@hq-crion/contracts/perfil';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
@@ -11,12 +13,14 @@ import {
   atualizarPerfil,
   buscarPorEmail,
   criarPerfil,
+  definirAtivo,
   listarPerfis,
   perfilComId,
   perfilDaSessao
 } from './repositorio.js';
 import {
   invalidarSessao,
+  invalidarSessoesDoPerfil,
   perfilDaAutorizacao,
   registrarSessao,
   tokenDaAutorizacao
@@ -34,6 +38,14 @@ function recusarSeNaoForAdmin(request: FastifyRequest, reply: FastifyReply) {
   }
 
   return null;
+}
+
+function ehUltimoAdmin(resultado: unknown): resultado is typeof motivoUltimoAdmin {
+  return resultado === motivoUltimoAdmin;
+}
+
+function recusarUltimoAdmin(reply: FastifyReply) {
+  return reply.code(409).send({ statusCode: 409, motivo: motivoUltimoAdmin });
 }
 
 function semCache(reply: FastifyReply) {
@@ -63,7 +75,11 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
 
     const encontrado = buscarPorEmail(parsed.data.email);
 
-    if (!encontrado || !senhaConfere(encontrado.senha, parsed.data.senha)) {
+    const senhaOk = encontrado
+      ? senhaConfere(encontrado.senha, parsed.data.senha)
+      : false;
+
+    if (!encontrado || !senhaOk || !encontrado.ativo) {
       return reply.code(401).send({ statusCode: 401 });
     }
 
@@ -145,11 +161,47 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
 
     const registro = atualizarPerfil(id, parsed.data);
 
+    if (ehUltimoAdmin(registro)) {
+      return recusarUltimoAdmin(reply);
+    }
+
     if (!registro) {
       return reply.code(404).send({ statusCode: 404 });
     }
 
     return perfilComId(registro);
+  });
+
+  app.put('/perfis/:id/ativo', async (request, reply) => {
+    semCache(reply);
+    const recusa = recusarSeNaoForAdmin(request, reply);
+
+    if (recusa) {
+      return recusa;
+    }
+
+    const parsed = ativoDoPerfilSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const resultado = definirAtivo(id, parsed.data.ativo);
+
+    if (ehUltimoAdmin(resultado)) {
+      return recusarUltimoAdmin(reply);
+    }
+
+    if (!resultado) {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    if (!resultado.ativo) {
+      invalidarSessoesDoPerfil(resultado.id);
+    }
+
+    return perfilComId(resultado);
   });
 
   app.post('/sair', async (request, reply) => {

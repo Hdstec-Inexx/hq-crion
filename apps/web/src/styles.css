@@ -304,6 +304,37 @@ a.login-cta {
   font-weight: 700;
 }
 
+.perfil-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.perfil-situacao {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.perfil-inativo {
+  opacity: 0.72;
+}
+
+.perfil-estado {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
 .perfil-cartao .login-error {
   grid-column: 1 / -1;
   margin: 0;
