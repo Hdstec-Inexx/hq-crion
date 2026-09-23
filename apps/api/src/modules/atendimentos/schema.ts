@@ -5,20 +5,31 @@ CREATE TABLE IF NOT EXISTS hq_boot (
 );
 `;
 
-export const inserirAtendimentoSeAusenteSql = `
-INSERT INTO hq_atendimento (
+const colunasDoAtendimento = `
   id, agente_id, status, iniciado_em, concluido_em, duracao_em_segundos,
   transcricao, audio, motivo, transferencia, custo,
   tempo_de_espera_em_segundos, ferramentas
-)
-VALUES (
+`;
+
+const valoresDoAtendimento = `
   $1, $2, $3, $4, $5, $6,
   $7::jsonb, $8, $9, $10, $11,
   $12, $13::jsonb
-)
+`;
+
+export const inserirAtendimentoSql = `
+INSERT INTO hq_atendimento (${colunasDoAtendimento})
+VALUES (${valoresDoAtendimento})
+`;
+
+export const inserirAtendimentoSeAusenteSql = `
+${inserirAtendimentoSql}
 ON CONFLICT (id) DO UPDATE SET
   status = EXCLUDED.status,
   transcricao = EXCLUDED.transcricao,
-  duracao_em_segundos = EXCLUDED.duracao_em_segundos,
-  tempo_de_espera_em_segundos = EXCLUDED.tempo_de_espera_em_segundos
+  duracao_em_segundos = COALESCE(EXCLUDED.duracao_em_segundos, hq_atendimento.duracao_em_segundos),
+  tempo_de_espera_em_segundos = COALESCE(
+    EXCLUDED.tempo_de_espera_em_segundos,
+    hq_atendimento.tempo_de_espera_em_segundos
+  )
 `;

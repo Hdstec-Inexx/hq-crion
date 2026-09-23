@@ -207,8 +207,7 @@ function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
               ? { comentario: 'Rever o prompt de boleto na Clara Alter.' }
               : {})
           },
-          curadorId: 'perfil-carla',
-          curadorNome: 'Carla Mendes',
+          curadorDaRevisao: { id: 'perfil-carla', nome: 'Carla Mendes' },
           ...(item.id === 'a2' ? { comentarioStatus: 'Pendente' as const } : {})
         }
       : {})

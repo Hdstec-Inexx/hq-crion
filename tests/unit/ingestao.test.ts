@@ -55,8 +55,14 @@ test('reingestão atualiza só status, transcrição, duração e Tempo de Esper
   );
   assert.match(atualizacao, /status/);
   assert.match(atualizacao, /transcricao/);
-  assert.match(atualizacao, /duracao_em_segundos/);
-  assert.match(atualizacao, /tempo_de_espera_em_segundos/);
+  assert.match(
+    atualizacao,
+    /duracao_em_segundos = COALESCE\(EXCLUDED\.duracao_em_segundos, hq_atendimento\.duracao_em_segundos\)/
+  );
+  assert.match(
+    atualizacao,
+    /tempo_de_espera_em_segundos = COALESCE\(\s*EXCLUDED\.tempo_de_espera_em_segundos,\s*hq_atendimento\.tempo_de_espera_em_segundos\s*\)/
+  );
   assert.doesNotMatch(atualizacao, /motivo/);
   assert.doesNotMatch(atualizacao, /custo/);
   assert.doesNotMatch(atualizacao, /transferencia/);

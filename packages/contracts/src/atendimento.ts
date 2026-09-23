@@ -101,9 +101,14 @@ export const avaliacaoDoCuradorSchema = avaliacaoSchema.extend({
   curador: z.string().min(1)
 });
 
+const criterioDaGravacaoSchema = criterioAvaliadoSchema.extend({
+  nome: z.string().trim().min(1).max(200),
+  pontos: z.number().finite()
+});
+
 export const gravacaoDaAvaliacaoDaIaSchema = z.object({
-  nota: z.number().finite(),
-  criterios: z.array(criterioAvaliadoSchema).min(1)
+  nota: z.number().finite().min(0).max(10),
+  criterios: z.array(criterioDaGravacaoSchema).min(1).max(30)
 });
 
 export const conferenciaRequestSchema = z.object({

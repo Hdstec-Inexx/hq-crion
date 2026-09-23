@@ -1,11 +1,10 @@
 import type { GravacaoDaAvaliacaoDaIa, CriterioAvaliado } from '@hq-crion/contracts/atendimento';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import type { ModoDaListagem } from './filtros.js';
-import type { RegistroDeAtendimento } from './registro.js';
+import type { CuradorDaRevisao, RegistroDeAtendimento } from './registro.js';
 
 export type EntradaDeConferencia = {
-  curadorId: string;
-  curadorNome: string;
+  curador: CuradorDaRevisao;
   nota: number;
   criterios: CriterioAvaliado[];
   comentario?: string;

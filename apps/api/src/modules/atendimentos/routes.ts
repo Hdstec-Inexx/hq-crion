@@ -49,16 +49,16 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
   const vistos = new Map<string, { id: string; nome: string }>();
 
   for (const item of itens) {
-    if (!item.curadorId || vistos.has(item.curadorId)) {
+    if (!item.curadorDaRevisao || vistos.has(item.curadorDaRevisao.id)) {
       continue;
     }
 
-    const perfil = buscarPorId(item.curadorId);
+    const perfil = buscarPorId(item.curadorDaRevisao.id);
 
     if (perfil?.papel === 'Curador') {
-      vistos.set(item.curadorId, {
+      vistos.set(item.curadorDaRevisao.id, {
         id: perfil.id,
-        nome: item.curadorNome ?? perfil.nome
+        nome: item.curadorDaRevisao.nome
       });
     }
   }
@@ -84,6 +84,26 @@ function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
 
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
+}
+
+function exigirPapel(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  papel: Papel
+) {
+  const registro = registroDaAutorizacao(request.headers.authorization);
+
+  if (!registro) {
+    void reply.code(401).send({ statusCode: 401 });
+    return undefined;
+  }
+
+  if (registro.papel !== papel) {
+    void reply.code(403).send({ statusCode: 403 });
+    return undefined;
+  }
+
+  return registro;
 }
 
 function ordenarFila(itens: RegistroDeAtendimento[]) {
@@ -219,14 +239,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/manutencao', async (request, reply) => {
     semCache(reply);
-    const registro = registroDaAutorizacao(request.headers.authorization);
+    const registro = exigirPapel(request, reply, 'Admin');
 
     if (!registro) {
-      return reply.code(401).send({ statusCode: 401 });
-    }
-
-    if (registro.papel !== 'Admin') {
-      return reply.code(403).send({ statusCode: 403 });
+      return;
     }
 
     const query = request.query as Record<string, string | undefined>;
@@ -294,14 +310,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/atendimentos/:id/conferencia', async (request, reply) => {
     semCache(reply);
-    const registro = registroDaAutorizacao(request.headers.authorization);
+    const registro = exigirPapel(request, reply, 'Curador');
 
     if (!registro) {
-      return reply.code(401).send({ statusCode: 401 });
-    }
-
-    if (registro.papel !== 'Curador') {
-      return reply.code(403).send({ statusCode: 403 });
+      return;
     }
 
     const lido = conferenciaRequestSchema.safeParse(request.body);
@@ -312,8 +324,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     const { id } = request.params as { id: string };
     const resultado = await app.atendimentos.conferir(id, {
-      curadorId: registro.id,
-      curadorNome: registro.nome,
+      curador: { id: registro.id, nome: registro.nome },
       nota: lido.data.notaDaRegua,
       criterios: lido.data.checklist,
       ...(lido.data.comentario ? { comentario: lido.data.comentario } : {})
@@ -336,16 +347,12 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     return responderDetalhe(encontrado, registro.papel);
   });
 
-  app.post('/atendimentos/:id/avaliacao-da-ia', async (request, reply) => {
+  app.post('/atendimentos/:id/avaliacao-da-ia', { bodyLimit: 32_768 }, async (request, reply) => {
     semCache(reply);
-    const registro = registroDaAutorizacao(request.headers.authorization);
+    const registro = exigirPapel(request, reply, 'Admin');
 
     if (!registro) {
-      return reply.code(401).send({ statusCode: 401 });
-    }
-
-    if (registro.papel !== 'Admin') {
-      return reply.code(403).send({ statusCode: 403 });
+      return;
     }
 
     const lido = gravacaoDaAvaliacaoDaIaSchema.safeParse(request.body);
@@ -376,14 +383,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/manutencao/:id/resolver', async (request, reply) => {
     semCache(reply);
-    const registro = registroDaAutorizacao(request.headers.authorization);
+    const registro = exigirPapel(request, reply, 'Admin');
 
     if (!registro) {
-      return reply.code(401).send({ statusCode: 401 });
-    }
-
-    if (registro.papel !== 'Admin') {
-      return reply.code(403).send({ statusCode: 403 });
+      return;
     }
 
     const { id } = request.params as { id: string };

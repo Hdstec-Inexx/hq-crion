@@ -6,9 +6,13 @@ export type FerramentasDoAtendimento = {
   sucesso: number;
 };
 
+export type CuradorDaRevisao = {
+  id: string;
+  nome: string;
+};
+
 export type RegistroDeAtendimento = AtendimentoDetalhe & {
-  curadorId?: string;
-  curadorNome?: string;
+  curadorDaRevisao?: CuradorDaRevisao;
   concluidoEm?: string;
   comentarioStatus?: 'Pendente' | 'Resolvido';
   comentarioId?: string;
@@ -20,6 +24,30 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
 
 export function aprovacaoDaNota(nota: number): 'Aprovado' | 'Reprovado' {
   return nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado';
+}
+
+export function recusaDaAvaliacao(item: { status: string } | undefined) {
+  if (!item) {
+    return 'ausente' as const;
+  }
+
+  if (item.status !== 'Concluído') {
+    return 'em-andamento' as const;
+  }
+
+  return undefined;
+}
+
+export function recusaDaConferencia(item: RegistroDeAtendimento | undefined) {
+  if (!item) {
+    return 'ausente' as const;
+  }
+
+  if (item.status !== 'Concluído' || !avaliacaoDaIaTemVeredito(item)) {
+    return 'indisponivel' as const;
+  }
+
+  return undefined;
 }
 
 export function avaliacaoDaIaTemVeredito(
@@ -36,14 +64,13 @@ export function avaliacaoDaIaTemVeredito(
 
 export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe {
   const {
-    curadorId: _curadorId,
+    curadorDaRevisao: _curadorDaRevisao,
     concluidoEm: _concluidoEm,
     comentarioStatus: _comentarioStatus,
     duracaoEmSegundos: _duracaoEmSegundos,
     transferencia: _transferencia,
     tempoDeEsperaEmSegundos: _tempoDeEsperaEmSegundos,
     ferramentas: _ferramentas,
-    curadorNome: _curadorNome,
     comentarioId: _comentarioId,
     ...publico
   } = item;

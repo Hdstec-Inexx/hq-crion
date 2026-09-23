@@ -11,9 +11,11 @@ import type { PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaNota,
   avaliacaoDaIaTemVeredito,
+  recusaDaAvaliacao,
+  recusaDaConferencia,
   type RegistroDeAtendimento
 } from './registro.js';
-import { inserirAtendimentoSeAusenteSql, schemaSql } from './schema.js';
+import { inserirAtendimentoSeAusenteSql, inserirAtendimentoSql, schemaSql } from './schema.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
 import { deveSemear } from './semente.js';
 
@@ -244,7 +246,7 @@ function montarRegistro(
       ? { avaliacaoDoCurador }
       : {}),
     ...(linha.curador_id && linha.curador_nome
-      ? { curadorId: linha.curador_id, curadorNome: linha.curador_nome }
+      ? { curadorDaRevisao: { id: linha.curador_id, nome: linha.curador_nome } }
       : {}),
     ...(linha.concluido_em ? { concluidoEm: iso(linha.concluido_em) } : {}),
     ...(linha.comentario_status_vigente
@@ -307,7 +309,15 @@ async function lerRegistros(
   return linhas.map((linha) => montarRegistro(linha, criteriosIa, criteriosCurador));
 }
 
-async function registrosDeComentario(cliente: ExecutorSql, comentarioId?: string) {
+async function registrosDeComentario(
+  cliente: ExecutorSql,
+  comentarioId?: string,
+  filtro?: {
+    recorte: Recorte;
+    query: Record<string, string | undefined>;
+  }
+) {
+  const periodo = filtro ? periodoDaQuery(filtro.query) : undefined;
   const resultado = await cliente.query(
     `SELECT
        c.id AS comentario_id,
@@ -324,8 +334,24 @@ async function registrosDeComentario(cliente: ExecutorSql, comentarioId?: string
      FROM hq_comentario c
      JOIN hq_atendimento a ON a.id = c.atendimento_id
      JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
-     WHERE ($1::text IS NULL OR c.id = $1)`,
-    [comentarioId ?? null]
+     WHERE ($1::text IS NULL OR c.id = $1)
+       AND ($2::text IS NULL OR ag.administradora = $2)
+       AND ($3::text IS NULL OR a.agente_id = $3)
+       AND (
+         $4::boolean = false
+         OR (
+           (a.iniciado_em AT TIME ZONE 'America/Sao_Paulo')::date >= $5::date
+           AND (a.iniciado_em AT TIME ZONE 'America/Sao_Paulo')::date <= $6::date
+         )
+       )`,
+    [
+      comentarioId ?? null,
+      filtro?.recorte.administradora ?? null,
+      filtro?.recorte.agente ?? null,
+      Boolean(filtro),
+      periodo?.inicio ?? '1970-01-01',
+      periodo?.fim ?? '9999-12-31'
+    ]
   );
 
   return (resultado.rows as Array<{
@@ -396,33 +422,7 @@ async function inserirCriterios(
 }
 
 async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAtendimento) {
-  await cliente.query(
-    `INSERT INTO hq_atendimento (
-       id, agente_id, status, iniciado_em, concluido_em, duracao_em_segundos,
-       transcricao, audio, motivo, transferencia, custo,
-       tempo_de_espera_em_segundos, ferramentas
-     )
-     VALUES (
-       $1, $2, $3, $4, $5, $6,
-       $7::jsonb, $8, $9, $10, $11,
-       $12, $13::jsonb
-     )`,
-    [
-      registro.id,
-      registro.agenteId,
-      registro.status,
-      registro.iniciadoEm,
-      registro.concluidoEm ?? null,
-      registro.duracaoEmSegundos ?? null,
-      JSON.stringify(registro.transcricao),
-      registro.audio,
-      registro.motivo,
-      registro.transferencia ?? null,
-      registro.custo ?? null,
-      registro.tempoDeEsperaEmSegundos ?? null,
-      registro.ferramentas ? JSON.stringify(registro.ferramentas) : null
-    ]
-  );
+  await cliente.query(inserirAtendimentoSql, valoresDoAtendimento(registro));
 
   if (registro.avaliacaoDaIa) {
     await cliente.query(
@@ -439,7 +439,7 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
     );
   }
 
-  if (!registro.avaliacaoDoCurador || !registro.curadorId) {
+  if (!registro.avaliacaoDoCurador || !registro.curadorDaRevisao) {
     return;
   }
 
@@ -453,8 +453,8 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
       registro.id,
       registro.avaliacaoDoCurador.nota,
       registro.avaliacaoDoCurador.notaDaAvaliacaoDaIa,
-      registro.curadorId,
-      registro.curadorNome ?? registro.avaliacaoDoCurador.curador
+      registro.curadorDaRevisao.id,
+      registro.curadorDaRevisao.nome
     ]
   );
   await inserirCriterios(
@@ -508,11 +508,8 @@ export async function semearSeNecessario(cliente: PoolSql, skipSeed: boolean) {
   });
 }
 
-export async function inserirAtendimentoSeAusente(
-  cliente: ExecutorSql,
-  registro: RegistroDeAtendimento
-) {
-  await cliente.query(inserirAtendimentoSeAusenteSql, [
+export function valoresDoAtendimento(registro: RegistroDeAtendimento) {
+  return [
     registro.id,
     registro.agenteId,
     registro.status,
@@ -526,7 +523,14 @@ export async function inserirAtendimentoSeAusente(
     registro.custo ?? null,
     registro.tempoDeEsperaEmSegundos ?? null,
     registro.ferramentas ? JSON.stringify(registro.ferramentas) : null
-  ]);
+  ];
+}
+
+export async function inserirAtendimentoSeAusente(
+  cliente: ExecutorSql,
+  registro: RegistroDeAtendimento
+) {
+  await cliente.query(inserirAtendimentoSeAusenteSql, valoresDoAtendimento(registro));
 }
 
 export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
@@ -543,14 +547,12 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         const atendimento = await cliente.query(`SELECT status FROM hq_atendimento WHERE id = $1`, [
           id
         ]);
-        const status = atendimento.rows[0]?.status as string | undefined;
+        const recusa = recusaDaAvaliacao(
+          atendimento.rows[0] as { status: string } | undefined
+        );
 
-        if (!status) {
-          return 'ausente' as const;
-        }
-
-        if (status !== 'Concluído') {
-          return 'em-andamento' as const;
+        if (recusa) {
+          return recusa;
         }
 
         await cliente.query(`DELETE FROM hq_avaliacao_da_ia WHERE atendimento_id = $1`, [id]);
@@ -574,13 +576,10 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       return emTransacao(pool, async (cliente) => {
         const registros = await lerRegistros(cliente, { id });
         const encontrado = registros[0];
+        const recusa = recusaDaConferencia(encontrado);
 
-        if (!encontrado) {
-          return 'ausente' as const;
-        }
-
-        if (encontrado.status !== 'Concluído' || !avaliacaoDaIaTemVeredito(encontrado)) {
-          return 'indisponivel' as const;
+        if (recusa || !encontrado || !avaliacaoDaIaTemVeredito(encontrado)) {
+          return recusa ?? 'indisponivel';
         }
 
         const avaliacaoId = randomUUID();
@@ -593,8 +592,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             id,
             entrada.nota,
             encontrado.avaliacaoDaIa.nota,
-            entrada.curadorId,
-            entrada.curadorNome
+            entrada.curador.id,
+            entrada.curador.nome
           ]
         );
         await inserirCriterios(
@@ -650,7 +649,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       return aplicarConsultaDoDashboard(registros, recorte, query);
     },
     async consultarManutencao(recorte, query) {
-      const registros = await registrosDeComentario(pool);
+      const registros = await registrosDeComentario(pool, undefined, { recorte, query });
       return aplicarConsultaDaManutencao(registros, recorte, query);
     }
   };

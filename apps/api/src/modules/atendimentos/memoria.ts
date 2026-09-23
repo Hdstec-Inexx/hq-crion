@@ -5,7 +5,7 @@ import {
   aplicarConsultaDoDashboard
 } from './consulta.js';
 import type { PortaDeAtendimentos } from './porta.js';
-import { aprovacaoDaNota, avaliacaoDaIaTemVeredito } from './registro.js';
+import { aprovacaoDaNota, avaliacaoDaIaTemVeredito, recusaDaAvaliacao, recusaDaConferencia } from './registro.js';
 
 export function repositorioEmMemoria(): PortaDeAtendimentos {
   const registros = catalogoDeAtendimentos();
@@ -19,13 +19,10 @@ export function repositorioEmMemoria(): PortaDeAtendimentos {
     },
     async gravarAvaliacaoDaIa(id, entrada) {
       const item = registros.find((registro) => registro.id === id);
+      const recusa = recusaDaAvaliacao(item);
 
-      if (!item) {
-        return 'ausente';
-      }
-
-      if (item.status !== 'Concluído') {
-        return 'em-andamento';
+      if (recusa || !item) {
+        return recusa ?? 'ausente';
       }
 
       item.nota = entrada.nota;
@@ -39,24 +36,20 @@ export function repositorioEmMemoria(): PortaDeAtendimentos {
     },
     async conferir(id, entrada) {
       const item = registros.find((registro) => registro.id === id);
+      const recusa = recusaDaConferencia(item);
 
-      if (!item) {
-        return 'ausente';
-      }
-
-      if (item.status !== 'Concluído' || !avaliacaoDaIaTemVeredito(item)) {
-        return 'indisponivel';
+      if (recusa || !item || !avaliacaoDaIaTemVeredito(item)) {
+        return recusa ?? 'indisponivel';
       }
 
       item.curadoria = true;
-      item.curadorId = entrada.curadorId;
-      item.curadorNome = entrada.curadorNome;
+      item.curadorDaRevisao = entrada.curador;
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
         aprovacao: aprovacaoDaNota(entrada.nota),
         criterios: entrada.criterios,
         notaDaAvaliacaoDaIa: item.avaliacaoDaIa.nota,
-        curador: entrada.curadorNome,
+        curador: entrada.curador.nome,
         ...(entrada.comentario ? { comentario: entrada.comentario } : {})
       };
 

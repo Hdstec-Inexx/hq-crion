@@ -142,7 +142,7 @@ export function passaNosFiltros(
   if (
     (modo === 'todos' || modo === 'realizadas') &&
     query.curador &&
-    item.curadorId !== query.curador
+    item.curadorDaRevisao?.id !== query.curador
   ) {
     return false;
   }
@@ -156,7 +156,7 @@ export function passaNosFiltros(
   }
 
   if (modo === 'minhas') {
-    return item.curadoria && item.curadorId === perfilId;
+    return item.curadoria && item.curadorDaRevisao?.id === perfilId;
   }
 
   if (modo === 'realizadas') {

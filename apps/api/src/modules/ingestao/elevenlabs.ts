@@ -32,15 +32,16 @@ export function atendimentoDaFonteElevenLabs(
     ? new Date(payload.start_time_unix_secs * 1000).toISOString()
     : new Date().toISOString();
   const concluido = payload.status === 'done' || payload.status === 'completed';
-  const transcricao = (payload.transcript ?? []).map((turno) => ({
-    locutor: locutorDe(turno.role),
-    quando:
-      typeof turno.time_in_call_secs === 'number'
-        ? quandoDaFonte(turno.time_in_call_secs)
-        : '0:00',
-    texto: turno.message,
-    comTempo: typeof turno.time_in_call_secs === 'number'
-  }));
+  const transcricao = (payload.transcript ?? []).map((turno, index) => {
+    const comTempo = typeof turno.time_in_call_secs === 'number';
+
+    return {
+      locutor: locutorDe(turno.role),
+      quando: comTempo ? quandoDaFonte(turno.time_in_call_secs as number) : quandoDaFonte(index),
+      texto: turno.message,
+      comTempo
+    };
+  });
   const tempoDeEsperaEmSegundos = tempoDeEsperaDaTranscricao(
     transcricao.map((turno) => ({
       locutor: turno.locutor,
