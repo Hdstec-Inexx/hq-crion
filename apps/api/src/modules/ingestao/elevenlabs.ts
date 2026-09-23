@@ -1,6 +1,9 @@
 import { agentesDeVoz } from '@hq-crion/contracts/recorte';
-import { reguaUnica } from '../regua/regua-unica.js';
 import type { RegistroDeAtendimento } from '../atendimentos/registro.js';
+import {
+  quandoDaFonte,
+  tempoDeEsperaDaTranscricao
+} from '../atendimentos/tempo-de-espera.js';
 
 export type PayloadElevenLabs = {
   conversation_id: string;
@@ -9,7 +12,7 @@ export type PayloadElevenLabs = {
   status?: string;
   start_time_unix_secs?: number;
   call_duration_secs?: number;
-  transcript?: { role: string; message: string }[];
+  transcript?: { role: string; message: string; time_in_call_secs?: number }[];
 };
 
 function locutorDe(role: string): 'Agente de Voz' | 'Cliente' {
@@ -29,11 +32,22 @@ export function atendimentoDaFonteElevenLabs(
     ? new Date(payload.start_time_unix_secs * 1000).toISOString()
     : new Date().toISOString();
   const concluido = payload.status === 'done' || payload.status === 'completed';
-  const transcricao = (payload.transcript ?? []).map((turno, index) => ({
-    locutor: locutorDe(turno.role),
-    quando: `0:${String(index).padStart(2, '0')}`,
-    texto: turno.message
-  }));
+  const transcricao = (payload.transcript ?? []).map((turno, index) => {
+    const comTempo = typeof turno.time_in_call_secs === 'number';
+
+    return {
+      locutor: locutorDe(turno.role),
+      quando: comTempo ? quandoDaFonte(turno.time_in_call_secs as number) : quandoDaFonte(index),
+      texto: turno.message,
+      comTempo
+    };
+  });
+  const tempoDeEsperaEmSegundos = tempoDeEsperaDaTranscricao(
+    transcricao.map((turno) => ({
+      locutor: turno.locutor,
+      quando: turno.comTempo ? turno.quando : ''
+    }))
+  );
 
   return {
     id: payload.conversation_id,
@@ -48,17 +62,8 @@ export function atendimentoDaFonteElevenLabs(
     conversa: payload.conversation_id,
     audio: `/media/${payload.conversation_id}.wav`,
     downloadDeAudio: `/media/${payload.conversation_id}.wav`,
-    transcricao,
-    avaliacaoDaIa: {
-      nota: 0,
-      aprovacao: 'Reprovado',
-      criterios: reguaUnica.criterios.map((criterio) => ({
-        nome: criterio.nome,
-        estado: 'Não se aplica' as const,
-        pontos: criterio.valor,
-        critico: criterio.critico
-      }))
-    },
+    transcricao: transcricao.map(({ locutor, quando, texto }) => ({ locutor, quando, texto })),
+    ...(tempoDeEsperaEmSegundos !== undefined ? { tempoDeEsperaEmSegundos } : {}),
     ...(concluido ? { concluidoEm: iniciadoEm } : {}),
     ...(payload.call_duration_secs !== undefined
       ? { duracaoEmSegundos: payload.call_duration_secs }

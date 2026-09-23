@@ -164,7 +164,8 @@ function PainelAvaliacao({
       </header>
       {doCurador ? (
         <p className="avaliacao-snapshot">
-          Nota da Avaliação da IA no snapshot: {formatarNota(avaliacao.notaDaAvaliacaoDaIa)}
+          Curador: {avaliacao.curador}. Nota da Avaliação da IA no snapshot:{' '}
+          {formatarNota(avaliacao.notaDaAvaliacaoDaIa)}
         </p>
       ) : null}
       <div className="criterio-grid">
@@ -196,7 +197,7 @@ function FormularioConferencia({
   atendimento,
   onGravada
 }: {
-  atendimento: AtendimentoDetalhe;
+  atendimento: AtendimentoDetalhe & { avaliacaoDaIa: Avaliacao };
   onGravada: (detalhe: AtendimentoDetalhe) => void;
 }) {
   const [erro, setErro] = useState<string | null>(null);
@@ -399,16 +400,19 @@ export function DetalheAtendimento() {
           </div>
           {perfil.papel === 'Curador' &&
           atendimento.status === 'Concluído' &&
+          atendimento.avaliacaoDaIa &&
           !atendimento.avaliacaoDoCurador ? (
             <FormularioConferencia
-              atendimento={atendimento}
+              atendimento={{ ...atendimento, avaliacaoDaIa: atendimento.avaliacaoDaIa }}
               onGravada={setAtendimento}
             />
           ) : null}
           <div
             className={`avaliacao-paineis${atendimento.avaliacaoDoCurador ? '' : ' ia-only'}`}
           >
-            <PainelAvaliacao titulo="Avaliação da IA" avaliacao={atendimento.avaliacaoDaIa} />
+            {atendimento.avaliacaoDaIa ? (
+              <PainelAvaliacao titulo="Avaliação da IA" avaliacao={atendimento.avaliacaoDaIa} />
+            ) : null}
             {atendimento.avaliacaoDoCurador ? (
               <PainelAvaliacao
                 titulo="Avaliação do Curador"
