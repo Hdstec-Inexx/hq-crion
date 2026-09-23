@@ -2,6 +2,7 @@ import { caminhoDeMidiaPermitido } from '@hq-crion/contracts/atendimento';
 import { useEffect, useRef, useState } from 'react';
 import {
   barraContinuaVisivel,
+  posicaoDoAudio,
   reproducaoEmCurso,
   saltoDeTrintaSegundos,
   velocidadeDoPlayer,
@@ -23,6 +24,14 @@ function formatarTempo(segundos: number) {
 
 function rotuloDaVelocidade(velocidade: VelocidadeDoPlayer) {
   return `${String(velocidade).replace('.', ',')}×`;
+}
+
+function RelogioDoAudio({ atual, duracao }: { atual: number; duracao: number }) {
+  return (
+    <span className="audio-time">
+      {formatarTempo(atual)} / {formatarTempo(duracao)}
+    </span>
+  );
 }
 
 function BotaoReproduzir({
@@ -78,9 +87,15 @@ function SeletorDeVelocidade({
   );
 }
 
+function aplicarVelocidade(elemento: HTMLAudioElement | null, velocidade: VelocidadeDoPlayer) {
+  if (elemento) {
+    elemento.playbackRate = velocidade;
+  }
+}
+
 export function PlayerDeAudio({ src }: { src: string }) {
   const audio = useRef<HTMLAudioElement>(null);
-  const principal = useRef<HTMLDivElement>(null);
+  const playerPrincipal = useRef<HTMLDivElement>(null);
   const [tocando, setTocando] = useState(false);
   const [iniciada, setIniciada] = useState(false);
   const [encerrada, setEncerrada] = useState(false);
@@ -92,18 +107,26 @@ export function PlayerDeAudio({ src }: { src: string }) {
   const mostrarBarra = barraContinuaVisivel({
     playerPrincipalForaDaTela: !principalVisivel,
     audioPresente,
-    reproducaoEmCurso: reproducaoEmCurso({ iniciada, encerrada })
+    emCurso: reproducaoEmCurso({ iniciada, encerrada })
   });
 
   useEffect(() => {
-    const elemento = principal.current;
+    setTocando(false);
+    setIniciada(false);
+    setEncerrada(false);
+    setAtual(0);
+    setDuracao(0);
+  }, [src]);
+
+  useEffect(() => {
+    const elemento = playerPrincipal.current;
 
     if (!elemento || typeof IntersectionObserver === 'undefined') {
       return;
     }
 
     const observador = new IntersectionObserver(([entrada]) => {
-      setPrincipalVisivel(entrada?.isIntersecting !== false);
+      setPrincipalVisivel(entrada?.isIntersecting ?? true);
     });
 
     observador.observe(elemento);
@@ -112,12 +135,8 @@ export function PlayerDeAudio({ src }: { src: string }) {
   }, []);
 
   useEffect(() => {
-    const elemento = audio.current;
-
-    if (elemento) {
-      elemento.playbackRate = velocidade;
-    }
-  }, [velocidade]);
+    aplicarVelocidade(audio.current, velocidade);
+  }, [velocidade, src]);
 
   async function onReproduzir() {
     const elemento = audio.current;
@@ -133,6 +152,7 @@ export function PlayerDeAudio({ src }: { src: string }) {
     }
 
     try {
+      aplicarVelocidade(elemento, velocidade);
       await elemento.play();
       setTocando(true);
       setIniciada(true);
@@ -149,36 +169,57 @@ export function PlayerDeAudio({ src }: { src: string }) {
       return;
     }
 
-    elemento.currentTime = segundos;
-    setAtual(segundos);
-    setEncerrada(duracao > 0 && segundos >= duracao);
+    const destino = posicaoDoAudio(segundos, duracao);
+    elemento.currentTime = destino;
+    setAtual(destino);
+
+    if (duracao > 0 && destino >= duracao) {
+      elemento.pause();
+      setTocando(false);
+      setEncerrada(true);
+      return;
+    }
+
+    setEncerrada(false);
+  }
+
+  function onReproduzirClique() {
+    void onReproduzir();
   }
 
   return (
     <>
-      <div ref={principal} className="audio-player" title="Player de áudio">
+      <div ref={playerPrincipal} className="audio-player" title="Player de áudio">
         {audioPresente ? (
           <audio
+            key={src}
             ref={audio}
             src={src}
             onTimeUpdate={(event) => {
               const segundos = event.currentTarget.currentTime;
+
+              if (!Number.isFinite(segundos)) {
+                return;
+              }
+
               setAtual((anterior) =>
-                Math.floor(anterior) === Math.floor(segundos) ? anterior : segundos
+                Math.round(anterior * 10) === Math.round(segundos * 10) ? anterior : segundos
               );
             }}
             onLoadedMetadata={(event) => {
               const media = event.currentTarget;
+              const carregada = media.duration;
 
-              if (Number.isFinite(media.duration) && media.duration > 0) {
-                setDuracao(media.duration);
-                setAtual(media.currentTime);
-                media.playbackRate = velocidade;
+              if (Number.isFinite(carregada) && carregada > 0) {
+                setDuracao(carregada);
+                setAtual(posicaoDoAudio(media.currentTime, carregada));
+                aplicarVelocidade(media, velocidade);
               }
             }}
             onEnded={(event) => {
+              const fim = event.currentTarget.duration;
               setTocando(false);
-              setAtual(event.currentTarget.duration);
+              setAtual(Number.isFinite(fim) ? fim : duracao);
               setEncerrada(true);
             }}
             onPause={() => setTocando(false)}
@@ -189,36 +230,22 @@ export function PlayerDeAudio({ src }: { src: string }) {
             }}
           />
         ) : null}
-        <BotaoReproduzir
-          tocando={tocando}
-          onReproduzir={() => {
-            void onReproduzir();
-          }}
-        />
-        <span className="audio-time">
-          {formatarTempo(atual)} / {formatarTempo(duracao)}
-        </span>
+        <BotaoReproduzir tocando={tocando} onReproduzir={onReproduzirClique} />
+        <RelogioDoAudio atual={atual} duracao={duracao} />
         <div className="audio-onda" aria-hidden="true" />
         <SeletorDeVelocidade velocidade={velocidade} onEscolher={setVelocidade} />
       </div>
       {mostrarBarra ? (
         <div className="audio-barra-continua" title="Player de áudio">
-          <BotaoReproduzir
-            tocando={tocando}
-            onReproduzir={() => {
-              void onReproduzir();
-            }}
-          />
-          <span className="audio-time">
-            {formatarTempo(atual)} / {formatarTempo(duracao)}
-          </span>
+          <BotaoReproduzir tocando={tocando} onReproduzir={onReproduzirClique} />
+          <RelogioDoAudio atual={atual} duracao={duracao} />
           <input
             className="audio-progresso"
             type="range"
             min={0}
             max={duracao || 0}
             step={0.1}
-            value={atual}
+            value={Number.isFinite(atual) ? atual : 0}
             aria-label="Progresso"
             onChange={(event) => {
               onSeek(Number(event.currentTarget.value));

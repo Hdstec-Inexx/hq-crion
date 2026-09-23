@@ -16,25 +16,30 @@ export function reproducaoEmCurso({
   return iniciada && !encerrada;
 }
 
-export function saltoDeTrintaSegundos(atual: number, duracao: number) {
-  const origem = Number.isFinite(atual) && atual > 0 ? atual : 0;
-  const destino = origem + 30;
-
-  if (!Number.isFinite(duracao) || duracao <= 0) {
-    return destino;
+export function posicaoDoAudio(segundos: number, duracao: number) {
+  if (!Number.isFinite(segundos) || segundos < 0) {
+    return 0;
   }
 
-  return Math.min(destino, duracao);
+  if (!Number.isFinite(duracao) || duracao <= 0) {
+    return segundos;
+  }
+
+  return Math.min(segundos, duracao);
+}
+
+export function saltoDeTrintaSegundos(atual: number, duracao: number) {
+  return posicaoDoAudio(posicaoDoAudio(atual, duracao) + 30, duracao);
 }
 
 export function barraContinuaVisivel({
   playerPrincipalForaDaTela,
   audioPresente,
-  reproducaoEmCurso
+  emCurso
 }: {
   playerPrincipalForaDaTela: boolean;
   audioPresente: boolean;
-  reproducaoEmCurso: boolean;
+  emCurso: boolean;
 }) {
-  return playerPrincipalForaDaTela && audioPresente && reproducaoEmCurso;
+  return playerPrincipalForaDaTela && audioPresente && emCurso;
 }

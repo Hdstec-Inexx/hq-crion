@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   barraContinuaVisivel,
+  posicaoDoAudio,
   reproducaoEmCurso,
   saltoDeTrintaSegundos,
   velocidadeDoPlayer,
@@ -17,7 +18,7 @@ test('barra continua só com player principal fora da tela, áudio presente e re
     barraContinuaVisivel({
       playerPrincipalForaDaTela: true,
       audioPresente: true,
-      reproducaoEmCurso: true
+      emCurso: true
     }),
     true
   );
@@ -28,7 +29,7 @@ test('barra não aparece sem áudio, com áudio encerrado ou com o player princi
     barraContinuaVisivel({
       playerPrincipalForaDaTela: true,
       audioPresente: false,
-      reproducaoEmCurso: true
+      emCurso: true
     }),
     false
   );
@@ -36,7 +37,7 @@ test('barra não aparece sem áudio, com áudio encerrado ou com o player princi
     barraContinuaVisivel({
       playerPrincipalForaDaTela: true,
       audioPresente: true,
-      reproducaoEmCurso: false
+      emCurso: false
     }),
     false
   );
@@ -44,7 +45,7 @@ test('barra não aparece sem áudio, com áudio encerrado ou com o player princi
     barraContinuaVisivel({
       playerPrincipalForaDaTela: false,
       audioPresente: true,
-      reproducaoEmCurso: true
+      emCurso: true
     }),
     false
   );
@@ -64,4 +65,10 @@ test('salto avança 30 segundos e não passa da duração', () => {
 test('velocidade fora da lista cai em 1×', () => {
   assert.equal(velocidadeDoPlayer(1.25), 1.25);
   assert.equal(velocidadeDoPlayer(3), 1);
+});
+
+test('posição do áudio ignora NaN e não passa da duração', () => {
+  assert.equal(posicaoDoAudio(Number.NaN, 120), 0);
+  assert.equal(posicaoDoAudio(40, 120), 40);
+  assert.equal(posicaoDoAudio(200, 120), 120);
 });
