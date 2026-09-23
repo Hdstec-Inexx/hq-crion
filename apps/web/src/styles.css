@@ -535,6 +535,56 @@ a.login-cta {
   );
 }
 
+.audio-velocidade {
+  flex: none;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.audio-barra-continua {
+  position: fixed;
+  z-index: 8;
+  left: 260px;
+  right: 32px;
+  bottom: 16px;
+  height: 52px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+}
+
+.enquadramento.is-collapsed .audio-barra-continua {
+  left: 104px;
+}
+
+.audio-progresso {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--cyan);
+}
+
+.audio-salto {
+  flex: none;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 12px;
+}
+
 .audio-download {
   flex: none;
   height: 52px;
