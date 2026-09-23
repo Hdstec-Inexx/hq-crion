@@ -4,6 +4,7 @@ import {
   perfilSchema,
   ativoDoPerfilSchema,
   motivoUltimoAdmin,
+  redefinirSenhaSchema,
   type ListaDePerfis,
   type Perfil,
   type PerfilComId
@@ -14,7 +15,7 @@ import { urlDaApi } from '../../urlDaApi';
 const apiUrl = urlDaApi();
 
 export type ResultadoDaAdministracao =
-  | { ok: true; perfil: PerfilComId }
+  | { ok: true; perfil?: PerfilComId }
   | {
       ok: false;
       motivo:
@@ -135,6 +136,29 @@ export async function definirAtivoDoPerfil(
     method: 'PUT',
     body: JSON.stringify(parsed.data)
   });
+
+  return lerPerfilAdministrado(response);
+}
+
+export async function redefinirSenhaDoPerfil(
+  sessao: string,
+  id: string,
+  senha: string
+): Promise<ResultadoDaAdministracao> {
+  const parsed = redefinirSenhaSchema.safeParse({ senha });
+
+  if (!parsed.success) {
+    return { ok: false, motivo: 'invalido' };
+  }
+
+  const response = await pedir(sessao, `/perfis/${id}/senha`, {
+    method: 'PUT',
+    body: JSON.stringify(parsed.data)
+  });
+
+  if (response.status === 204) {
+    return { ok: true };
+  }
 
   return lerPerfilAdministrado(response);
 }

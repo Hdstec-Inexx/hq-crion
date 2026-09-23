@@ -76,6 +76,21 @@ test('Gestão autenticada consulta a Régua única: critérios somam 10, com cr�
     );
     assert.equal(protocolo?.valor, 1);
     assert.equal(protocolo?.critico, true);
+    assert.equal(typeof protocolo?.chave, 'string');
+    assert.equal(protocolo && protocolo.chave.length > 0, true);
+    assert.equal(protocolo?.admiteNaoSeAplica, false);
+    const validacao = regua.criterios.find(
+      (criterio) => criterio.nome === 'Validação de e-mail'
+    );
+    assert.equal(validacao?.admiteNaoSeAplica, true);
+    assert.equal(
+      regua.criterios.filter((criterio) => criterio.admiteNaoSeAplica).length,
+      1
+    );
+    assert.equal(
+      new Set(regua.criterios.map((criterio) => criterio.chave)).size,
+      regua.criterios.length
+    );
   } finally {
     await app.close();
   }

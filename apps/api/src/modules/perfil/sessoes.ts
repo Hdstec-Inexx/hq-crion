@@ -1,7 +1,12 @@
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { buscarPorId, perfilDaSessao } from './repositorio.js';
 
-const sessoes = new Map<string, string>();
+type SessaoAberta = {
+  perfilId: string;
+  versao: number;
+};
+
+const sessoes = new Map<string, SessaoAberta>();
 
 export function tokenDaAutorizacao(authorization: string | undefined) {
   if (!authorization?.startsWith('Bearer ')) {
@@ -12,8 +17,8 @@ export function tokenDaAutorizacao(authorization: string | undefined) {
   return token.length > 0 ? token : undefined;
 }
 
-export function registrarSessao(token: string, perfilId: string) {
-  sessoes.set(token, perfilId);
+export function registrarSessao(token: string, perfilId: string, versao: number) {
+  sessoes.set(token, { perfilId, versao });
 }
 
 export function invalidarSessao(token: string) {
@@ -27,15 +32,15 @@ export function registroDaAutorizacao(authorization: string | undefined) {
     return undefined;
   }
 
-  const perfilId = sessoes.get(token);
+  const sessao = sessoes.get(token);
 
-  if (!perfilId) {
+  if (!sessao) {
     return undefined;
   }
 
-  const registro = buscarPorId(perfilId);
+  const registro = buscarPorId(sessao.perfilId);
 
-  if (!registro?.ativo) {
+  if (!registro?.ativo || registro.versao !== sessao.versao) {
     sessoes.delete(token);
     return undefined;
   }
@@ -44,8 +49,8 @@ export function registroDaAutorizacao(authorization: string | undefined) {
 }
 
 export function invalidarSessoesDoPerfil(perfilId: string) {
-  for (const [token, id] of sessoes) {
-    if (id === perfilId) {
+  for (const [token, sessao] of sessoes) {
+    if (sessao.perfilId === perfilId) {
       sessoes.delete(token);
     }
   }

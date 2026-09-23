@@ -28,7 +28,7 @@ export function ReguaPage() {
       </p>
       <section className="regua-painel" aria-label="Critérios da Régua de Avaliação">
         {regua.criterios.map((criterio) => (
-          <article key={criterio.nome} className="regua-criterio">
+          <article key={criterio.chave} className="regua-criterio">
             <div>
               <h2>{criterio.nome}</h2>
               {criterio.critico ? <span className="regua-critico">Crítico</span> : null}

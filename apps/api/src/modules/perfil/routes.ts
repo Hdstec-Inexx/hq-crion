@@ -4,9 +4,10 @@ import {
   loginResponseSchema,
   ativoDoPerfilSchema,
   motivoUltimoAdmin,
-  perfilSchema
+  perfilSchema,
+  redefinirSenhaSchema
 } from '@hq-crion/contracts/perfil';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
@@ -16,8 +17,10 @@ import {
   definirAtivo,
   listarPerfis,
   perfilComId,
-  perfilDaSessao
+  perfilDaSessao,
+  redefinirSenha
 } from './repositorio.js';
+import { senhaConfere } from './senha.js';
 import {
   invalidarSessao,
   invalidarSessoesDoPerfil,
@@ -52,18 +55,6 @@ function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
 }
 
-function senhaConfere(guardada: string, recebida: string) {
-  const esperada = Buffer.from(guardada);
-  const informada = Buffer.from(recebida);
-
-  if (esperada.length !== informada.length) {
-    timingSafeEqual(esperada, esperada);
-    return false;
-  }
-
-  return timingSafeEqual(esperada, informada);
-}
-
 const perfilRoutes: FastifyPluginAsync = async (app) => {
   app.post('/login', async (request, reply) => {
     semCache(reply);
@@ -85,7 +76,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
 
     const perfil = perfilDaSessao(encontrado);
     const sessao = randomUUID();
-    registrarSessao(sessao, encontrado.id);
+    registrarSessao(sessao, encontrado.id, encontrado.versao);
     return loginResponseSchema.parse({
       perfil,
       sessao
@@ -202,6 +193,31 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return perfilComId(resultado);
+  });
+
+  app.put('/perfis/:id/senha', async (request, reply) => {
+    semCache(reply);
+    const recusa = recusarSeNaoForAdmin(request, reply);
+
+    if (recusa) {
+      return recusa;
+    }
+
+    const parsed = redefinirSenhaSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const registro = await redefinirSenha(id, parsed.data.senha);
+
+    if (!registro) {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    invalidarSessoesDoPerfil(registro.id);
+    return reply.code(204).send();
   });
 
   app.post('/sair', async (request, reply) => {

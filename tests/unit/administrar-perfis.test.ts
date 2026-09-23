@@ -16,15 +16,19 @@ import {
 
 process.env.NODE_ENV = 'test';
 
-async function sessaoDe(email: string) {
-  const app = await buildApp();
+async function sessaoDeNoApp(app: Awaited<ReturnType<typeof buildApp>>, email: string) {
   const login = await app.inject({
     method: 'POST',
     url: '/login',
     payload: { email, senha: 'crion-hq' }
   });
   const { sessao } = loginResponseSchema.parse(login.json());
-  return { app, sessao };
+  return sessao;
+}
+
+async function sessaoDe(email: string) {
+  const app = await buildApp();
+  return { app, sessao: await sessaoDeNoApp(app, email) };
 }
 
 test('Curador autenticado recebe negação ao listar Perfis', async () => {
@@ -539,6 +543,148 @@ test('o último Admin ativo não se desativa nem troca de papel', async () => {
     });
     assert.equal(aindaAdmin.statusCode, 200);
     assert.equal(aindaAdmin.json().papel, 'Admin');
+  } finally {
+    await app.close();
+  }
+});
+
+test('Gestão e Curador recebem recusa ao redefinir senha', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const criado = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Igor Pires',
+        email: 'igor.pires@crion',
+        papel: 'Gestão'
+      }
+    });
+    const perfil = perfilComIdSchema.parse(criado.json());
+    const gestao = await sessaoDeNoApp(app, 'ana.souza@crion');
+    const curador = await sessaoDeNoApp(app, 'carla.mendes@crion');
+
+    const recusaGestao = await app.inject({
+      method: 'PUT',
+      url: `/perfis/${perfil.id}/senha`,
+      headers: { authorization: `Bearer ${gestao}` },
+      payload: { senha: 'nova-hq' }
+    });
+    const recusaCurador = await app.inject({
+      method: 'PUT',
+      url: `/perfis/${perfil.id}/senha`,
+      headers: { authorization: `Bearer ${curador}` },
+      payload: { senha: 'nova-hq' }
+    });
+
+    assert.equal(recusaGestao.statusCode, 403);
+    assert.equal(recusaCurador.statusCode, 403);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Admin redefine senha: sessões antigas morrem e a senha nova abre sessão nova', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const criado = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Julia Castro',
+        email: 'julia.castro@crion',
+        papel: 'Curador'
+      }
+    });
+    const perfil = perfilComIdSchema.parse(criado.json());
+    const loginAntigo = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'julia.castro@crion', senha: 'crion-hq' }
+    });
+    const { sessao: sessaoAntiga } = loginResponseSchema.parse(loginAntigo.json());
+
+    const redefinir = await app.inject({
+      method: 'PUT',
+      url: `/perfis/${perfil.id}/senha`,
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { senha: 'nova-hq' }
+    });
+
+    assert.equal(redefinir.statusCode, 204);
+    assert.equal(redefinir.headers['cache-control'], 'no-store');
+
+    const sessaoMorta = await app.inject({
+      method: 'GET',
+      url: '/perfil',
+      headers: { authorization: `Bearer ${sessaoAntiga}` }
+    });
+    assert.equal(sessaoMorta.statusCode, 401);
+
+    const senhaAntiga = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'julia.castro@crion', senha: 'crion-hq' }
+    });
+    assert.equal(senhaAntiga.statusCode, 401);
+
+    const senhaNova = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'julia.castro@crion', senha: 'nova-hq' }
+    });
+    assert.equal(senhaNova.statusCode, 200);
+    const { sessao: sessaoNova } = loginResponseSchema.parse(senhaNova.json());
+    const perfilNovo = await app.inject({
+      method: 'GET',
+      url: '/perfil',
+      headers: { authorization: `Bearer ${sessaoNova}` }
+    });
+    assert.equal(perfilNovo.statusCode, 200);
+    assert.equal(perfilNovo.json().email, 'julia.castro@crion');
+  } finally {
+    await app.close();
+  }
+});
+
+test('o último Admin ativo continua protegido depois de redefinir senha', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const redefinir = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-bruno/senha',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { senha: 'admin-nova' }
+    });
+    assert.equal(redefinir.statusCode, 204);
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'bruno.alves@crion', senha: 'admin-nova' }
+    });
+    const { sessao: sessaoNova } = loginResponseSchema.parse(login.json());
+
+    const desativar = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-bruno/ativo',
+      headers: { authorization: `Bearer ${sessaoNova}` },
+      payload: { ativo: false }
+    });
+    assert.equal(desativar.statusCode, 409);
+    assert.equal(desativar.json().motivo, motivoUltimoAdmin);
+
+    await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-bruno/senha',
+      headers: { authorization: `Bearer ${sessaoNova}` },
+      payload: { senha: 'crion-hq' }
+    });
   } finally {
     await app.close();
   }

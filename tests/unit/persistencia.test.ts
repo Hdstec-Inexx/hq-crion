@@ -96,6 +96,27 @@ test('suíte de aceite opta pelo Postgres sem tirar o teste comum da memória', 
   );
 });
 
+test('a migration seguinte recusa fato que o domínio não tem', () => {
+  const sql = readFileSync(
+    join(diretorioDeMigracoes(), '002_fatos_do_dominio.sql'),
+    'utf8'
+  );
+
+  assert.match(sql, /custo NUMERIC/);
+  assert.match(sql, /transferencia BOOLEAN NOT NULL/);
+  assert.match(sql, /lower\(email\)/);
+  assert.match(sql, /chave TEXT NOT NULL/);
+  assert.match(sql, /admite_nao_se_aplica/);
+  assert.match(sql, /resolvido_por_id/);
+  assert.match(sql, /resolvido_em/);
+  assert.match(sql, /criado_em/);
+  assert.match(sql, /atualizado_em/);
+  assert.match(sql, /evento_na_fonte_em/);
+  assert.match(sql, /versao INTEGER/);
+  assert.doesNotMatch(sql, /INSERT INTO hq_atendimento/i);
+  assert.doesNotMatch(sql, /sessao/i);
+});
+
 test('SKIP_SEED pula só a demonstração; a semente estrutural não recebe esse flag', () => {
   assert.equal(deveSemear({ skipSeed: true, jaSemeado: false }), false);
   assert.equal(deveSemear({ skipSeed: false, jaSemeado: true }), false);
@@ -166,6 +187,7 @@ test('segunda aplicação não repete a migration', async () => {
   await aplicarMigracoes(pool);
 
   assert.equal(aplicadas.has('001_deposito_relacional.sql'), true);
+  assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
   assert.equal(
     vistos.slice(marco).some((texto) => texto.includes('hq_perfil')),
     false

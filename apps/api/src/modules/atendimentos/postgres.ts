@@ -11,6 +11,7 @@ import type { PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaNota,
   avaliacaoDaIaTemVeredito,
+  criteriosComChave,
   recusaDaAvaliacao,
   recusaDaConferencia,
   type RegistroDeAtendimento
@@ -49,6 +50,7 @@ SELECT
   a.motivo,
   a.transferencia,
   a.custo,
+  a.evento_na_fonte_em,
   a.tempo_de_espera_em_segundos,
   a.ferramentas,
   ia.nota AS nota_ia,
@@ -92,6 +94,29 @@ WHERE ($7::text IS NULL OR a.id = $7)
   )
 `;
 
+function formatarCusto(valor: unknown) {
+  if (valor === null || valor === undefined || valor === '') {
+    return undefined;
+  }
+
+  const numeroDoCusto = typeof valor === 'number' ? valor : Number(valor);
+
+  if (!Number.isFinite(numeroDoCusto)) {
+    return String(valor);
+  }
+
+  return `R$ ${numeroDoCusto.toFixed(2).replace('.', ',')}`;
+}
+
+function custoNumerico(valor: string | undefined) {
+  if (!valor) {
+    return 0;
+  }
+
+  const numeroDoCusto = Number(valor.replace(/[^\d,-]/g, '').replace(',', '.'));
+  return Number.isFinite(numeroDoCusto) ? numeroDoCusto : 0;
+}
+
 function numero(valor: unknown) {
   return typeof valor === 'number' ? valor : Number(valor);
 }
@@ -105,12 +130,14 @@ function iso(valor: unknown) {
 }
 
 function criterioDe(linha: {
+  chave?: string;
   nome: string;
   estado: CriterioAvaliado['estado'];
   pontos: unknown;
   critico: boolean;
 }): CriterioAvaliado {
   return {
+    ...(linha.chave ? { chave: linha.chave } : {}),
     nome: linha.nome,
     estado: linha.estado,
     pontos: numero(linha.pontos),
@@ -151,6 +178,7 @@ async function mapaDeCriterios(
   for (const linha of resultado.rows as Array<{
     atendimento_id?: string;
     avaliacao_id?: string;
+    chave?: string;
     nome: string;
     estado: CriterioAvaliado['estado'];
     pontos: unknown;
@@ -184,7 +212,7 @@ function montarRegistro(
     audio: string | null;
     motivo: string;
     transferencia: boolean | null;
-    custo: string | null;
+    custo: string | number | null;
     tempo_de_espera_em_segundos: number | null;
     ferramentas: RegistroDeAtendimento['ferramentas'] | null;
     nota_ia: unknown;
@@ -226,6 +254,8 @@ function montarRegistro(
         }
       : undefined;
 
+  const custo = formatarCusto(linha.custo);
+
   return {
     id: linha.id,
     administradora: linha.administradora,
@@ -237,7 +267,7 @@ function montarRegistro(
     status: linha.status,
     curadoria: Boolean(linha.tem_curadoria),
     conversa: linha.id,
-    ...(linha.custo ? { custo: linha.custo } : {}),
+    ...(custo ? { custo } : {}),
     audio: linha.audio ?? `/media/${linha.id}.wav`,
     downloadDeAudio: linha.audio ?? `/media/${linha.id}.wav`,
     transcricao: linha.transcricao ?? [],
@@ -255,7 +285,7 @@ function montarRegistro(
     ...(linha.duracao_em_segundos !== null
       ? { duracaoEmSegundos: linha.duracao_em_segundos }
       : {}),
-    ...(linha.transferencia !== null ? { transferencia: linha.transferencia } : {}),
+    transferencia: Boolean(linha.transferencia),
     ...(linha.tempo_de_espera_em_segundos !== null
       ? { tempoDeEsperaEmSegundos: linha.tempo_de_espera_em_segundos }
       : {}),
@@ -289,7 +319,7 @@ async function lerRegistros(
   const linhas = resultado.rows as Parameters<typeof montarRegistro>[0][];
   const criteriosIa = await mapaDeCriterios(
     cliente,
-    `SELECT atendimento_id, nome, estado, pontos, critico
+    `SELECT atendimento_id, chave, nome, estado, pontos, critico
      FROM hq_criterio_da_avaliacao_da_ia
      WHERE atendimento_id = ANY($1::text[])
      ORDER BY ordem`,
@@ -298,7 +328,7 @@ async function lerRegistros(
   );
   const criteriosCurador = await mapaDeCriterios(
     cliente,
-    `SELECT avaliacao_id, nome, estado, pontos, critico
+    `SELECT avaliacao_id, chave, nome, estado, pontos, critico
      FROM hq_criterio_da_avaliacao_do_curador
      WHERE avaliacao_id = ANY($1::text[])
      ORDER BY ordem`,
@@ -409,10 +439,11 @@ async function inserirCriterios(
   id: string,
   criterios: readonly CriterioAvaliado[]
 ) {
-  for (const [indice, criterio] of criterios.entries()) {
+  for (const [indice, criterio] of criteriosComChave(criterios).entries()) {
     await cliente.query(sql, [
       id,
       indice + 1,
+      criterio.chave,
       criterio.nome,
       criterio.estado,
       criterio.pontos,
@@ -432,8 +463,8 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
     await inserirCriterios(
       cliente,
       `INSERT INTO hq_criterio_da_avaliacao_da_ia
-         (atendimento_id, ordem, nome, estado, pontos, critico)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+         (atendimento_id, ordem, chave, nome, estado, pontos, critico)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       registro.id,
       registro.avaliacaoDaIa.criterios
     );
@@ -460,8 +491,8 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
   await inserirCriterios(
     cliente,
     `INSERT INTO hq_criterio_da_avaliacao_do_curador
-       (avaliacao_id, ordem, nome, estado, pontos, critico)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+       (avaliacao_id, ordem, chave, nome, estado, pontos, critico)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     avaliacaoId,
     registro.avaliacaoDoCurador.criterios
   );
@@ -519,8 +550,9 @@ export function valoresDoAtendimento(registro: RegistroDeAtendimento) {
     JSON.stringify(registro.transcricao),
     registro.audio,
     registro.motivo,
-    registro.transferencia ?? null,
-    registro.custo ?? null,
+    registro.transferencia ?? false,
+    custoNumerico(registro.custo),
+    registro.iniciadoEm,
     registro.tempoDeEsperaEmSegundos ?? null,
     registro.ferramentas ? JSON.stringify(registro.ferramentas) : null
   ];
@@ -563,8 +595,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         await inserirCriterios(
           cliente,
           `INSERT INTO hq_criterio_da_avaliacao_da_ia
-             (atendimento_id, ordem, nome, estado, pontos, critico)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+             (atendimento_id, ordem, chave, nome, estado, pontos, critico)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           id,
           entrada.criterios
         );
@@ -599,8 +631,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         await inserirCriterios(
           cliente,
           `INSERT INTO hq_criterio_da_avaliacao_do_curador
-             (avaliacao_id, ordem, nome, estado, pontos, critico)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+             (avaliacao_id, ordem, chave, nome, estado, pontos, critico)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           avaliacaoId,
           entrada.criterios
         );
@@ -616,7 +648,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         return 'ok' as const;
       });
     },
-    async resolverComentario(id) {
+    async resolverComentario(id, adminId) {
       return emTransacao(pool, async (cliente) => {
         const atual = await cliente.query(
           `SELECT status FROM hq_comentario WHERE id = $1`,
@@ -633,8 +665,10 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         }
 
         await cliente.query(
-          `UPDATE hq_comentario SET status = 'Resolvido' WHERE id = $1 AND status = 'Pendente'`,
-          [id]
+          `UPDATE hq_comentario
+           SET status = 'Resolvido', resolvido_por_id = $2, resolvido_em = now()
+           WHERE id = $1 AND status = 'Pendente'`,
+          [id, adminId]
         );
         const registros = await registrosDeComentario(cliente, id);
         return registros[0] ?? ('ausente' as const);

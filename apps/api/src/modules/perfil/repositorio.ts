@@ -9,8 +9,9 @@ import {
 } from '@hq-crion/contracts/perfil';
 import { randomUUID } from 'node:crypto';
 import type { ClienteSql } from '../../db/cliente.js';
+import { hashDaSenha } from './senha.js';
 
-export type RegistroDePerfil = PerfilComId & { senha: string };
+export type RegistroDePerfil = PerfilComId & { senha: string; versao: number };
 
 export const perfisDaSemente: readonly RegistroDePerfil[] = [
   {
@@ -18,24 +19,27 @@ export const perfisDaSemente: readonly RegistroDePerfil[] = [
     nome: 'Ana Souza',
     email: 'ana.souza@crion',
     papel: 'Gestão',
-    senha: 'crion-hq',
-    ativo: true
+    senha: hashDaSenha('crion-hq'),
+    ativo: true,
+    versao: 1
   },
   {
     id: 'perfil-carla',
     nome: 'Carla Mendes',
     email: 'carla.mendes@crion',
     papel: 'Curador',
-    senha: 'crion-hq',
-    ativo: true
+    senha: hashDaSenha('crion-hq'),
+    ativo: true,
+    versao: 1
   },
   {
     id: 'perfil-bruno',
     nome: 'Bruno Alves',
     email: 'bruno.alves@crion',
     papel: 'Admin',
-    senha: 'crion-hq',
-    ativo: true
+    senha: hashDaSenha('crion-hq'),
+    ativo: true,
+    versao: 1
   }
 ];
 
@@ -49,7 +53,7 @@ export function usarDepositoDePerfis(cliente: ClienteSql | null) {
 
 export async function lerPerfisDoDeposito(cliente: ClienteSql) {
   const resultado = await cliente.query(
-    'SELECT id, nome, email, senha, papel, ativo FROM hq_perfil'
+    'SELECT id, nome, email, senha, papel, ativo, versao FROM hq_perfil'
   );
   const linhas = resultado.rows as Array<{
     id: string;
@@ -58,6 +62,7 @@ export async function lerPerfisDoDeposito(cliente: ClienteSql) {
     senha: string;
     papel: string;
     ativo: boolean;
+    versao: number | string;
   }>;
 
   if (linhas.length === 0) {
@@ -70,7 +75,8 @@ export async function lerPerfisDoDeposito(cliente: ClienteSql) {
     email: linha.email,
     senha: linha.senha,
     papel: papelSchema.parse(linha.papel),
-    ativo: linha.ativo
+    ativo: linha.ativo,
+    versao: Number(linha.versao)
   }));
 }
 
@@ -144,21 +150,23 @@ export async function criarPerfil(identidade: Perfil) {
     nome: identidade.nome,
     email: identidade.email,
     papel: identidade.papel,
-    senha: 'crion-hq',
-    ativo: true
+    senha: hashDaSenha('crion-hq'),
+    ativo: true,
+    versao: 1
   };
 
   if (deposito) {
     await deposito.query(
-      `INSERT INTO hq_perfil (id, nome, email, senha, papel, ativo)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO hq_perfil (id, nome, email, senha, papel, ativo, versao)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
         registro.id,
         registro.nome,
         registro.email,
         registro.senha,
         registro.papel,
-        registro.ativo
+        registro.ativo,
+        registro.versao
       ]
     );
   }
@@ -241,5 +249,24 @@ export async function definirAtivo(
   }
 
   registro.ativo = ativo;
+  return registro;
+}
+
+export async function redefinirSenha(id: string, senha: string) {
+  const registro = buscarPorId(id);
+
+  if (!registro) {
+    return undefined;
+  }
+
+  const hash = hashDaSenha(senha);
+  const versao = registro.versao + 1;
+  await gravarPerfil(
+    'UPDATE hq_perfil SET senha = $2, versao = $3 WHERE id = $1',
+    [id, hash, versao],
+    false
+  );
+  registro.senha = hash;
+  registro.versao = versao;
   return registro;
 }

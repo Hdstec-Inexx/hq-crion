@@ -22,6 +22,7 @@ import { recorteDaQuery, type ModoDaListagem } from './filtros.js';
 import {
   aprovacaoDaNota,
   detalhePublico,
+  recusaNaoSeAplica,
   type RegistroDeAtendimento
 } from './registro.js';
 
@@ -322,6 +323,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
+    if (recusaNaoSeAplica(lido.data.checklist)) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
     const { id } = request.params as { id: string };
     const resultado = await app.atendimentos.conferir(id, {
       curador: { id: registro.id, nome: registro.nome },
@@ -361,6 +366,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
+    if (recusaNaoSeAplica(lido.data.criterios)) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
     const { id } = request.params as { id: string };
     const resultado = await app.atendimentos.gravarAvaliacaoDaIa(id, lido.data);
 
@@ -390,7 +399,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const resultado = await app.atendimentos.resolverComentario(id);
+    const resultado = await app.atendimentos.resolverComentario(id, registro.id);
 
     if (resultado === 'ausente') {
       return reply.code(404).send({ statusCode: 404 });

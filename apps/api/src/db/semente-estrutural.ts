@@ -9,10 +9,18 @@ export async function semearEstrutura(pool: PoolDeDeposito) {
   await emTransacao(pool, async (cliente) => {
     for (const perfil of perfisDaSemente) {
       await cliente.query(
-        `INSERT INTO hq_perfil (id, nome, email, senha, papel, ativo)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO hq_perfil (id, nome, email, senha, papel, ativo, versao)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (id) DO NOTHING`,
-        [perfil.id, perfil.nome, perfil.email, perfil.senha, perfil.papel, perfil.ativo]
+        [
+          perfil.id,
+          perfil.nome,
+          perfil.email,
+          perfil.senha,
+          perfil.papel,
+          perfil.ativo,
+          perfil.versao
+        ]
       );
     }
 
@@ -34,10 +42,18 @@ export async function semearEstrutura(pool: PoolDeDeposito) {
 
     for (const [indice, criterio] of reguaUnica.criterios.entries()) {
       await cliente.query(
-        `INSERT INTO hq_criterio_da_regua (regua_id, ordem, nome, valor, critico)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO hq_criterio_da_regua (regua_id, ordem, nome, valor, critico, chave, admite_nao_se_aplica)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (regua_id, ordem) DO NOTHING`,
-        [idDaLinhaUnica, indice + 1, criterio.nome, criterio.valor, criterio.critico]
+        [
+          idDaLinhaUnica,
+          indice + 1,
+          criterio.nome,
+          criterio.valor,
+          criterio.critico,
+          criterio.chave,
+          criterio.admiteNaoSeAplica
+        ]
       );
     }
 
