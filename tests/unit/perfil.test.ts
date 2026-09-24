@@ -104,6 +104,22 @@ test('login recusado não fica em cache', async () => {
   }
 });
 
+test('login recusa senha longa demais', async () => {
+  const app = await buildApp();
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'ana.souza@crion', senha: 'a'.repeat(200) }
+    });
+
+    assert.equal(response.statusCode, 401);
+  } finally {
+    await app.close();
+  }
+});
+
 test('Gestão autentica e recebe Perfil cujo destino inicial é Dashboard', async () => {
   const app = await buildApp();
 

@@ -425,3 +425,29 @@ test('Curador não lista Curadorias Realizadas; Gestão não lista Minhas Curado
     await app.close();
   }
 });
+
+test('conferência recusa Não se aplica fora do Critério que admite esse estado', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: checklistDaConferencia().map((criterio) =>
+          criterio.nome === 'Saudação'
+            ? { ...criterio, estado: 'Não se aplica' }
+            : criterio
+        ),
+        notaDaRegua: 8.5,
+        notaDaAvaliacaoDaIa: 8.5
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});

@@ -1,4 +1,4 @@
-import type { AtendimentoDetalhe } from '@hq-crion/contracts/atendimento';
+import type { AtendimentoDetalhe, CriterioAvaliado } from '@hq-crion/contracts/atendimento';
 import { reguaUnica } from '../regua/regua-unica.js';
 
 export type FerramentasDoAtendimento = {
@@ -16,6 +16,8 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
   concluidoEm?: string;
   comentarioStatus?: 'Pendente' | 'Resolvido';
   comentarioId?: string;
+  comentarioResolvidoPorId?: string;
+  comentarioResolvidoEm?: string;
   duracaoEmSegundos?: number;
   transferencia?: boolean;
   tempoDeEsperaEmSegundos?: number;
@@ -24,6 +26,38 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
 
 export function aprovacaoDaNota(nota: number): 'Aprovado' | 'Reprovado' {
   return nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado';
+}
+
+export function recusaNaoSeAplica(criterios: readonly CriterioAvaliado[]) {
+  return criterios.some((criterio) => {
+    if (criterio.estado !== 'Não se aplica') {
+      return false;
+    }
+
+    const daRegua = criterioDaRegua(criterio);
+    return daRegua ? !daRegua.admiteNaoSeAplica : true;
+  });
+}
+
+function criterioDaRegua(criterio: CriterioAvaliado) {
+  if (criterio.chave) {
+    const porChave = reguaUnica.criterios.find((item) => item.chave === criterio.chave);
+
+    if (!porChave || (criterio.nome && criterio.nome !== porChave.nome)) {
+      return undefined;
+    }
+
+    return porChave;
+  }
+
+  return reguaUnica.criterios.find((item) => item.nome === criterio.nome);
+}
+
+export function criteriosComChave(criterios: readonly CriterioAvaliado[]): CriterioAvaliado[] {
+  return criterios.map((criterio) => {
+    const daRegua = criterioDaRegua(criterio);
+    return daRegua ? { ...criterio, chave: daRegua.chave, nome: daRegua.nome } : criterio;
+  });
 }
 
 export function recusaDaAvaliacao(item: { status: string } | undefined) {
@@ -72,6 +106,8 @@ export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe 
     tempoDeEsperaEmSegundos: _tempoDeEsperaEmSegundos,
     ferramentas: _ferramentas,
     comentarioId: _comentarioId,
+    comentarioResolvidoPorId: _comentarioResolvidoPorId,
+    comentarioResolvidoEm: _comentarioResolvidoEm,
     ...publico
   } = item;
 

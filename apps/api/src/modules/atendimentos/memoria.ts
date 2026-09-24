@@ -59,7 +59,7 @@ export function repositorioEmMemoria(): PortaDeAtendimentos {
 
       return 'ok';
     },
-    async resolverComentario(id) {
+    async resolverComentario(id, adminId) {
       const item = registros.find(
         (registro) => registro.comentarioId === id || registro.id === id
       );
@@ -73,6 +73,8 @@ export function repositorioEmMemoria(): PortaDeAtendimentos {
       }
 
       item.comentarioStatus = 'Resolvido';
+      item.comentarioResolvidoPorId = adminId;
+      item.comentarioResolvidoEm = new Date().toISOString();
       return item;
     },
     async consultarListagem(recorte, query, modo, perfilId) {

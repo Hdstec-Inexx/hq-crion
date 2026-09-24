@@ -22,7 +22,7 @@ export type PortaDeAtendimentos = {
     entrada: GravacaoDaAvaliacaoDaIa
   ): Promise<ResultadoDaAvaliacao>;
   conferir(id: string, entrada: EntradaDeConferencia): Promise<ResultadoDaConferencia>;
-  resolverComentario(id: string): Promise<ResultadoDoComentario>;
+  resolverComentario(id: string, adminId: string): Promise<ResultadoDoComentario>;
   consultarListagem(
     recorte: Recorte,
     query: Record<string, string | undefined>,

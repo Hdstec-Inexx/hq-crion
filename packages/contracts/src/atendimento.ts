@@ -83,6 +83,7 @@ export const estadoDoCriterioSchema = z.enum([
 ]);
 
 export const criterioAvaliadoSchema = z.object({
+  chave: z.string().min(1).optional(),
   nome: z.string().min(1),
   estado: estadoDoCriterioSchema,
   pontos: z.number(),

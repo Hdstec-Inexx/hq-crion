@@ -16,7 +16,11 @@ export const perfilSchema = z.object({
 
 export const loginRequestSchema = z.object({
   email: emailSchema,
-  senha: z.string().min(1)
+  senha: z.string().min(1).max(128)
+});
+
+export const redefinirSenhaSchema = z.object({
+  senha: z.string().min(1).max(128)
 });
 
 export const loginResponseSchema = z.object({
@@ -42,6 +46,7 @@ export const listaDePerfisSchema = z.object({
 export type Papel = z.infer<typeof papelSchema>;
 export type Perfil = z.infer<typeof perfilSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
+export type RedefinirSenha = z.infer<typeof redefinirSenhaSchema>;
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
 export type PerfilComId = z.infer<typeof perfilComIdSchema>;
 export type MotivoUltimoAdmin = typeof motivoUltimoAdmin;

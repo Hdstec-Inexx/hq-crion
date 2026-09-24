@@ -110,6 +110,7 @@ function criteriosDaAvaliacao(conferida: boolean) {
 
     return {
       nome: criterio.nome,
+      chave: criterio.chave,
       estado,
       pontos: criterio.valor,
       critico: criterio.critico
@@ -132,7 +133,7 @@ function fatosInternos(item: AtendimentoListItem): Pick<
   'duracaoEmSegundos' | 'transferencia' | 'tempoDeEsperaEmSegundos' | 'ferramentas'
 > {
   if (item.status !== 'Concluído') {
-    return { tempoDeEsperaEmSegundos: 25 };
+    return { tempoDeEsperaEmSegundos: 25, transferencia: false };
   }
 
   if (item.id === 'a1') {

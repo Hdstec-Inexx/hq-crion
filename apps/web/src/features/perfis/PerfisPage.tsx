@@ -19,6 +19,7 @@ import {
   alterarPerfil,
   criarPerfil,
   definirAtivoDoPerfil,
+  redefinirSenhaDoPerfil,
   type ResultadoDaAdministracao
 } from './api';
 
@@ -112,12 +113,15 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
     void executar((sessao) => definirAtivoDoPerfil(sessao, perfil.id, !perfil.ativo));
   }
 
+  function onRedefinir(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const senha = String(new FormData(event.currentTarget).get('senha') ?? '');
+    void executar((sessao) => redefinirSenhaDoPerfil(sessao, perfil.id, senha));
+  }
+
   return (
-    <form
-      className={perfil.ativo ? 'perfil-cartao' : 'perfil-cartao perfil-inativo'}
-      onSubmit={onSubmit}
-      aria-label={perfil.nome}
-    >
+    <div className={perfil.ativo ? 'perfil-bloco' : 'perfil-bloco perfil-inativo'}>
+      <form className="perfil-cartao" onSubmit={onSubmit} aria-label={perfil.nome}>
       <label className="login-field">
         Nome
         <input name="nome" type="text" defaultValue={perfil.nome} required />
@@ -146,7 +150,17 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
         </button>
       </div>
       {perfil.ativo ? null : <p className="perfil-estado">Desativado</p>}
-    </form>
+      </form>
+      <form className="perfil-senha" onSubmit={onRedefinir} aria-label={`Senha de ${perfil.nome}`}>
+        <label className="login-field">
+          Nova senha
+          <input name="senha" type="password" autoComplete="new-password" required />
+        </label>
+        <button className="perfil-situacao" type="submit" disabled={enviando}>
+          Redefinir senha
+        </button>
+      </form>
+    </div>
   );
 }
 
@@ -192,7 +206,7 @@ export function PerfisPage() {
         <h1>{tituloDaPagina(location.pathname, perfil.papel)}</h1>
       </div>
       <p className="regua-resumo">
-        O Admin cria, altera e desativa Perfis. Um Perfil desativado não entra.
+        O Admin cria, altera, desativa Perfis e redefine senha. Um Perfil desativado não entra.
         O último Admin ativo permanece. Perfil não pertence a uma Administradora.
       </p>
       <form className="perfil-cartao perfil-novo" onSubmit={onCriar}>

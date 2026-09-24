@@ -18,7 +18,7 @@ if (!rodaAceite) {
 
   const { Pool } = createRequire(new URL('../../apps/api/package.json', import.meta.url))('pg') as {
     Pool: new (config: { connectionString: string }) => {
-      query(sql: string): Promise<unknown>;
+      query(sql: string, valores?: unknown[]): Promise<{ rows: unknown[] }>;
       end(): Promise<void>;
     };
   };
@@ -556,5 +556,114 @@ if (!rodaAceite) {
         );
       }
     );
+  });
+
+  test('o depósito recusa custo textual, Transferência ausente, e-mail em outra caixa e Não se aplica indevido', async () => {
+    await comApp({ skipSeed: true }, async (app) => {
+      const admin = await sessaoDe(app, 'bruno.alves@crion');
+      const curador = await sessaoDe(app, 'carla.mendes@crion');
+
+      await pool.query(`
+        INSERT INTO hq_atendimento
+          (id, agente_id, status, iniciado_em, transcricao, motivo, transferencia, custo, evento_na_fonte_em)
+        VALUES
+          ('dep-ok', 'affix-0800', 'Concluído', now(), '[]'::jsonb, 'Rede credenciada', false, 1.42, now())
+      `);
+
+      await assert.rejects(
+        () =>
+          pool.query(`
+            INSERT INTO hq_atendimento
+              (id, agente_id, status, iniciado_em, transcricao, motivo, transferencia, custo, evento_na_fonte_em)
+            VALUES
+              ('dep-custo', 'affix-0800', 'Concluído', now(), '[]'::jsonb, 'Rede credenciada', false, 'R$ 1,42', now())
+          `)
+      );
+      await assert.rejects(
+        () =>
+          pool.query(`
+            INSERT INTO hq_atendimento
+              (id, agente_id, status, iniciado_em, transcricao, motivo, custo, evento_na_fonte_em)
+            VALUES
+              ('dep-transf', 'affix-0800', 'Concluído', now(), '[]'::jsonb, 'Rede credenciada', 1.10, now())
+          `)
+      );
+      await assert.rejects(
+        () =>
+          pool.query(`
+            INSERT INTO hq_perfil (id, nome, email, senha, papel, ativo)
+            VALUES ('perfil-caixa', 'Ana Outra', 'Ana.Souza@crion', 'x', 'Gestão', true)
+          `)
+      );
+
+      const saudacao = await pool.query(
+        `SELECT chave FROM hq_criterio_da_regua WHERE nome = 'Saudação'`
+      );
+      const chaveSaudacao = (saudacao.rows[0] as { chave: string }).chave;
+      await pool.query(
+        `INSERT INTO hq_avaliacao_da_ia (atendimento_id, nota) VALUES ('dep-ok', 8)`
+      );
+      await assert.rejects(() =>
+        pool.query(
+          `INSERT INTO hq_criterio_da_avaliacao_da_ia
+             (atendimento_id, ordem, chave, nome, estado, pontos, critico)
+           VALUES ('dep-ok', 1, $1, 'Saudação', 'Não se aplica', 1, false)`,
+          [chaveSaudacao]
+        )
+      );
+
+      const veredito = {
+        nota: 9,
+        criterios: criterios()
+      };
+      await app.inject({
+        method: 'POST',
+        url: '/atendimentos/dep-ok/avaliacao-da-ia',
+        headers: { authorization: `Bearer ${admin}` },
+        payload: veredito
+      });
+      const conferencia = await app.inject({
+        method: 'POST',
+        url: '/atendimentos/dep-ok/conferencia',
+        headers: { authorization: `Bearer ${curador}` },
+        payload: {
+          checklist: criterios(),
+          notaDaRegua: 9,
+          notaDaAvaliacaoDaIa: 9,
+          comentario: 'fechar depois'
+        }
+      });
+      assert.equal(conferencia.statusCode, 200, conferencia.body);
+      const fila = await app.inject({
+        method: 'GET',
+        url: '/manutencao?status=Pendente',
+        headers: { authorization: `Bearer ${admin}` }
+      });
+      const item = (fila.json().itens as { id: string; texto: string }[]).find(
+        (comentario) => comentario.texto === 'fechar depois'
+      );
+      assert.ok(item);
+      const resolucao = await app.inject({
+        method: 'POST',
+        url: `/manutencao/${item.id}/resolver`,
+        headers: { authorization: `Bearer ${admin}` }
+      });
+      assert.equal(resolucao.statusCode, 200, resolucao.body);
+      const gravado = await pool.query(
+        `SELECT texto, status, resolvido_por_id, resolvido_em
+         FROM hq_comentario WHERE id = $1`,
+        [item.id]
+      );
+      const linha = gravado.rows[0] as {
+        texto: string;
+        status: string;
+        resolvido_por_id: string;
+        resolvido_em: Date;
+      };
+      assert.equal(linha.texto, 'fechar depois');
+      assert.equal(linha.status, 'Resolvido');
+      assert.equal(linha.resolvido_por_id, 'perfil-bruno');
+      assert.ok(linha.resolvido_em);
+    });
   });
 }
