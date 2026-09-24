@@ -586,6 +586,23 @@ test('Gestão e Curador recebem recusa ao redefinir senha', async () => {
   }
 });
 
+test('Admin não redefine senha longa demais', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-carla/senha',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { senha: 'a'.repeat(200) }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
 test('Admin redefine senha: sessões antigas morrem e a senha nova abre sessão nova', async () => {
   const { app, sessao } = await sessaoDe('bruno.alves@crion');
 

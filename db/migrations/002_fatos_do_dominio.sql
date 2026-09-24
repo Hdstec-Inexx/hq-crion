@@ -174,3 +174,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+DROP TRIGGER IF EXISTS hq_comentario_so_status ON hq_comentario;
+CREATE TRIGGER hq_comentario_so_status
+  BEFORE UPDATE OR DELETE ON hq_comentario
+  FOR EACH ROW EXECUTE FUNCTION hq_comentario_so_status();

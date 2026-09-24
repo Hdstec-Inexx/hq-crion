@@ -50,7 +50,6 @@ SELECT
   a.motivo,
   a.transferencia,
   a.custo,
-  a.evento_na_fonte_em,
   a.tempo_de_espera_em_segundos,
   a.ferramentas,
   ia.nota AS nota_ia,

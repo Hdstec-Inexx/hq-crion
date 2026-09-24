@@ -15,12 +15,13 @@ import {
   buscarPorEmail,
   criarPerfil,
   definirAtivo,
+  gravarHashSeTextoClaro,
   listarPerfis,
   perfilComId,
   perfilDaSessao,
   redefinirSenha
 } from './repositorio.js';
-import { senhaConfere } from './senha.js';
+import { senhaConfere, hashParaPerfilAusente } from './senha.js';
 import {
   invalidarSessao,
   invalidarSessoesDoPerfil,
@@ -65,14 +66,16 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const encontrado = buscarPorEmail(parsed.data.email);
-
-    const senhaOk = encontrado
-      ? senhaConfere(encontrado.senha, parsed.data.senha)
-      : false;
+    const senhaOk = senhaConfere(
+      encontrado?.senha ?? hashParaPerfilAusente,
+      parsed.data.senha
+    );
 
     if (!encontrado || !senhaOk || !encontrado.ativo) {
       return reply.code(401).send({ statusCode: 401 });
     }
+
+    await gravarHashSeTextoClaro(encontrado, parsed.data.senha);
 
     const perfil = perfilDaSessao(encontrado);
     const sessao = randomUUID();

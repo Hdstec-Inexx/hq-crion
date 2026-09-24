@@ -16,11 +16,11 @@ export const perfilSchema = z.object({
 
 export const loginRequestSchema = z.object({
   email: emailSchema,
-  senha: z.string().min(1)
+  senha: z.string().min(1).max(128)
 });
 
 export const redefinirSenhaSchema = z.object({
-  senha: z.string().min(1)
+  senha: z.string().min(1).max(128)
 });
 
 export const loginResponseSchema = z.object({

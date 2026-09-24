@@ -113,6 +113,7 @@ test('a migration seguinte recusa fato que o domínio não tem', () => {
   assert.match(sql, /atualizado_em/);
   assert.match(sql, /evento_na_fonte_em/);
   assert.match(sql, /versao INTEGER/);
+  assert.match(sql, /CREATE TRIGGER hq_comentario_so_status/);
   assert.doesNotMatch(sql, /INSERT INTO hq_atendimento/i);
   assert.doesNotMatch(sql, /sessao/i);
 });

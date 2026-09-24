@@ -9,7 +9,7 @@ import {
 } from '@hq-crion/contracts/perfil';
 import { randomUUID } from 'node:crypto';
 import type { ClienteSql } from '../../db/cliente.js';
-import { hashDaSenha } from './senha.js';
+import { hashDaSenha, senhaEstaHasheada } from './senha.js';
 
 export type RegistroDePerfil = PerfilComId & { senha: string; versao: number };
 
@@ -69,15 +69,27 @@ export async function lerPerfisDoDeposito(cliente: ClienteSql) {
     throw new Error('O depósito não tem Perfil semeado.');
   }
 
-  return linhas.map((linha) => ({
-    id: linha.id,
-    nome: linha.nome,
-    email: linha.email,
-    senha: linha.senha,
-    papel: papelSchema.parse(linha.papel),
-    ativo: linha.ativo,
-    versao: Number(linha.versao)
-  }));
+  const perfis: RegistroDePerfil[] = [];
+
+  for (const linha of linhas) {
+    const senha = senhaEstaHasheada(linha.senha) ? linha.senha : hashDaSenha(linha.senha);
+
+    if (senha !== linha.senha) {
+      await cliente.query('UPDATE hq_perfil SET senha = $2 WHERE id = $1', [linha.id, senha]);
+    }
+
+    perfis.push({
+      id: linha.id,
+      nome: linha.nome,
+      email: linha.email,
+      senha,
+      papel: papelSchema.parse(linha.papel),
+      ativo: linha.ativo,
+      versao: Number(linha.versao)
+    });
+  }
+
+  return perfis;
 }
 
 export function aplicarPerfis(perfis: RegistroDePerfil[]) {
@@ -269,4 +281,14 @@ export async function redefinirSenha(id: string, senha: string) {
   registro.senha = hash;
   registro.versao = versao;
   return registro;
+}
+
+export async function gravarHashSeTextoClaro(registro: RegistroDePerfil, senhaEmClaro: string) {
+  if (senhaEstaHasheada(registro.senha)) {
+    return;
+  }
+
+  const hash = hashDaSenha(senhaEmClaro);
+  await gravarPerfil('UPDATE hq_perfil SET senha = $2 WHERE id = $1', [registro.id, hash], false);
+  registro.senha = hash;
 }
