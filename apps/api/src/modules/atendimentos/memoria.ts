@@ -2,7 +2,8 @@ import { catalogoDeAtendimentos } from './catalogo.js';
 import {
   aplicarConsultaDaListagem,
   aplicarConsultaDaManutencao,
-  aplicarConsultaDoDashboard
+  aplicarConsultaDoDashboard,
+  consultaDoPercurso
 } from './consulta.js';
 import type { PortaDeAtendimentos } from './porta.js';
 import { aprovacaoDaNota, avaliacaoDaIaTemVeredito, camposDeMidia, recusaDaAvaliacao, recusaDaConferencia, type RegistroDeAtendimento } from './registro.js';
@@ -128,6 +129,15 @@ export function repositorioEmMemoria(
     },
     async consultarManutencao(recorte, query) {
       return aplicarConsultaDaManutencao(registros, recorte, query);
+    },
+    async consultarPercursoDaManutencao(atendimentoId, recorte, query) {
+      const atual = registros.find((registro) => registro.id === atendimentoId);
+
+      if (!atual) {
+        return 'ausente' as const;
+      }
+
+      return consultaDoPercurso(registros, atual, recorte, query);
     }
   };
 }

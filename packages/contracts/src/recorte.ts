@@ -104,6 +104,69 @@ export const listasComRecorte = [
 
 export type ListaComRecorte = (typeof listasComRecorte)[number];
 
+const chavesDoFiltroDaFila = [
+  'administradora',
+  'agente',
+  'inicio',
+  'fim',
+  'status',
+  'conversa'
+] as const;
+
+export function filtrosDaFilaDeManutencao(busca: URLSearchParams) {
+  const query = new URLSearchParams();
+
+  for (const chave of chavesDoFiltroDaFila) {
+    const valor = busca.get(chave)?.trim();
+
+    if (valor) {
+      query.set(chave, valor);
+    }
+  }
+
+  return query;
+}
+
+export function destinoDaFilaDeManutencao(busca: URLSearchParams) {
+  const query = filtrosDaFilaDeManutencao(busca);
+  const qs = query.toString();
+
+  return qs ? `/manutencao?${qs}` : '/manutencao';
+}
+
+export function proximoDestinoDoPercurso(entrada: {
+  atendimentoAtual: string;
+  pendentesNoAtendimento: number;
+  proximoAtendimentoId: string | null;
+  busca: URLSearchParams;
+}) {
+  if (entrada.pendentesNoAtendimento > 0) {
+    return destinoDoDetalheNaFila(entrada.atendimentoAtual, entrada.busca);
+  }
+
+  if (entrada.proximoAtendimentoId) {
+    return destinoDoDetalheNaFila(entrada.proximoAtendimentoId, entrada.busca);
+  }
+
+  return destinoDaFilaDeManutencao(entrada.busca);
+}
+
+function destinoDoDetalheNaFila(id: string, busca: URLSearchParams) {
+  const query = filtrosDaFilaDeManutencao(busca);
+  const ordenada = new URLSearchParams();
+  ordenada.set('lista', '/manutencao');
+
+  for (const chave of chavesDoFiltroDaFila) {
+    const valor = query.get(chave);
+
+    if (valor) {
+      ordenada.set(chave, valor);
+    }
+  }
+
+  return `/atendimentos/${encodeURIComponent(id)}?${ordenada.toString()}`;
+}
+
 export function destinoDaLista(
   recorte: Recorte,
   lista: string = '/atendimentos'

@@ -6,14 +6,20 @@ import {
   type AtendimentoDetalhe,
   type Avaliacao,
   type AvaliacaoDoCurador,
-  type EstadoDoCriterio
+  type EstadoDoCriterio,
+  type PercursoDaFilaDeManutencao
 } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
-import { destinoDaLista, lerRecorte } from '@hq-crion/contracts/recorte';
+import {
+  destinoDaFilaDeManutencao,
+  destinoDaLista,
+  lerRecorte,
+  proximoDestinoDoPercurso
+} from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useState } from 'react';
-import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
-import { buscarAtendimento, gravarConferencia } from './api';
+import { buscarAtendimento, buscarPercursoDaFila, gravarConferencia, marcarComentarioResolvido } from './api';
 import { PlayerDeAudio } from './PlayerDeAudio';
 
 function formatarNota(nota: number) {
@@ -206,11 +212,17 @@ function FormularioConferencia({
 export function DetalheAtendimento() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const [atendimento, setAtendimento] = useState<AtendimentoDetalhe | null>(null);
   const [erro, setErro] = useState<'nao-encontrado' | 'detalhe' | null>(null);
-  const volta = listaComRecorte(searchParams);
+  const [percurso, setPercurso] = useState<PercursoDaFilaDeManutencao | null>(null);
+  const [erroResolucao, setErroResolucao] = useState(false);
+  const [resolvendo, setResolvendo] = useState(false);
+  const vindoDaFila = searchParams.get('lista') === '/manutencao';
+  const operaPercurso = perfil.papel === 'Admin' && vindoDaFila;
+  const volta = vindoDaFila ? destinoDaFilaDeManutencao(searchParams) : listaComRecorte(searchParams);
 
   useEffect(() => {
     if (!id) {
@@ -243,6 +255,76 @@ export function DetalheAtendimento() {
 
     return () => controller.abort();
   }, [id]);
+
+  useEffect(() => {
+    if (!operaPercurso || !id) {
+      setPercurso(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    buscarPercursoDaFila(id, searchParams, controller.signal)
+      .then((resultado) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setPercurso(resultado);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setPercurso(null);
+      });
+
+    return () => controller.abort();
+  }, [id, operaPercurso, searchParams]);
+
+  async function resolverPendencia() {
+    if (!id || !percurso?.comentarioPendenteId || resolvendo) {
+      return;
+    }
+
+    setErroResolucao(false);
+    setResolvendo(true);
+
+    try {
+      const gravado = await marcarComentarioResolvido(percurso.comentarioPendenteId);
+
+      if (!gravado) {
+        setErroResolucao(true);
+        return;
+      }
+
+      const seguinte = await buscarPercursoDaFila(id, searchParams);
+
+      if (!seguinte) {
+        setErroResolucao(true);
+        return;
+      }
+
+      if (seguinte.pendentesNoAtendimento > 0) {
+        setPercurso(seguinte);
+        return;
+      }
+
+      navigate(
+        proximoDestinoDoPercurso({
+          atendimentoAtual: id,
+          pendentesNoAtendimento: seguinte.pendentesNoAtendimento,
+          proximoAtendimentoId: seguinte.proximoAtendimentoId,
+          busca: searchParams
+        })
+      );
+    } catch {
+      setErroResolucao(true);
+    } finally {
+      setResolvendo(false);
+    }
+  }
 
   return (
     <div>
@@ -327,6 +409,25 @@ export function DetalheAtendimento() {
               />
             ) : null}
           </div>
+          {operaPercurso && percurso?.comentarioPendenteId ? (
+            <div className="percurso-da-fila">
+              {erroResolucao ? (
+                <p className="listagem-erro" role="alert">
+                  Não foi possível marcar o Comentário como Resolvido.
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className="listagem-resolver"
+                disabled={resolvendo}
+                onClick={() => {
+                  void resolverPendencia();
+                }}
+              >
+                Marcar Resolvido
+              </button>
+            </div>
+          ) : null}
           <section className="transcricao" aria-label="Transcrição">
             <h2>Transcrição</h2>
             <div className="transcricao-colunas">

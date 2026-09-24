@@ -1,12 +1,21 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
-import { destinoDaLista, periodoMesCivil } from '../../packages/contracts/src/recorte.js';
+import {
+  destinoDaLista,
+  periodoMesCivil,
+  proximoDestinoDoPercurso
+} from '../../packages/contracts/src/recorte.js';
 import { areasDaCasca } from '../../packages/contracts/src/casca.js';
 import { reguaUnica } from '../../apps/api/src/modules/regua/regua-unica.js';
 
 process.env.NODE_ENV = 'test';
+
+const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 async function sessaoDe(
   app: Awaited<ReturnType<typeof buildApp>>,
@@ -29,6 +38,59 @@ function checklistDaConferencia() {
     critico: criterio.critico
   }));
 }
+
+const buscaDoPercurso = new URLSearchParams(
+  'lista=/manutencao&administradora=Alter&agente=alter-1&inicio=2026-09-01&fim=2026-09-30&status=Resolvido&conversa=conv-a2&pagina=2'
+);
+
+test('próximo destino permanece no Atendimento enquanto há Comentário pendente', () => {
+  assert.equal(
+    proximoDestinoDoPercurso({
+      atendimentoAtual: 'a2',
+      pendentesNoAtendimento: 2,
+      proximoAtendimentoId: 'a3',
+      busca: buscaDoPercurso
+    }),
+    '/atendimentos/a2?lista=%2Fmanutencao&administradora=Alter&agente=alter-1&inicio=2026-09-01&fim=2026-09-30&status=Resolvido&conversa=conv-a2'
+  );
+});
+
+test('próximo destino abre o Atendimento seguinte e, sem ele, volta à fila com filtros', () => {
+  assert.equal(
+    proximoDestinoDoPercurso({
+      atendimentoAtual: 'a2',
+      pendentesNoAtendimento: 0,
+      proximoAtendimentoId: 'a3',
+      busca: buscaDoPercurso
+    }),
+    '/atendimentos/a3?lista=%2Fmanutencao&administradora=Alter&agente=alter-1&inicio=2026-09-01&fim=2026-09-30&status=Resolvido&conversa=conv-a2'
+  );
+  assert.equal(
+    proximoDestinoDoPercurso({
+      atendimentoAtual: 'a2',
+      pendentesNoAtendimento: 0,
+      proximoAtendimentoId: null,
+      busca: buscaDoPercurso
+    }),
+    '/manutencao?administradora=Alter&agente=alter-1&inicio=2026-09-01&fim=2026-09-30&status=Resolvido&conversa=conv-a2'
+  );
+});
+
+test('resolver na lista não inicia o percurso; o detalhe da fila sim', () => {
+  const fila = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/FilaDeManutencao.tsx'),
+    'utf8'
+  );
+  const detalhe = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/DetalheAtendimento.tsx'),
+    'utf8'
+  );
+
+  assert.doesNotMatch(fila, /proximoDestinoDoPercurso|buscarPercursoDaFila|useNavigate/);
+  assert.match(detalhe, /proximoDestinoDoPercurso/);
+  assert.match(detalhe, /buscarPercursoDaFila/);
+  assert.match(detalhe, /destinoDaFilaDeManutencao/);
+});
 
 test('voltar à Fila de Manutenção preserva Recorte na URL', () => {
   assert.equal(
@@ -354,6 +416,232 @@ test('comentário da conferência entra na fila como Pendente', async () => {
     assert.ok(item);
     assert.equal(item.status, 'Pendente');
     assert.equal(item.texto, 'Ajustar o tom da Clara Affix no 0800.');
+  } finally {
+    await app.close();
+  }
+});
+
+test('Gestão e Curador não operam o percurso da fila', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoGestao = await sessaoDe(app, 'ana.souza@crion');
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const recusaGestao = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2',
+      headers: { authorization: `Bearer ${sessaoGestao}` }
+    });
+    const recusaCurador = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    const recusaAnonima = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2'
+    });
+
+    assert.equal(recusaGestao.statusCode, 403);
+    assert.equal(recusaCurador.statusCode, 403);
+    assert.equal(recusaAnonima.statusCode, 401);
+  } finally {
+    await app.close();
+  }
+});
+
+test('com Comentário pendente no Atendimento, o percurso não abre o seguinte', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    const conferencia = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: checklistDaConferencia(),
+        notaDaRegua: 9,
+        notaDaAvaliacaoDaIa: 9,
+        comentario: 'Rever a Clara Conectaplan.'
+      }
+    });
+    const percurso = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+
+    assert.equal(conferencia.statusCode, 200);
+    assert.equal(percurso.statusCode, 200);
+    assert.equal(percurso.json().pendentesNoAtendimento, 1);
+    assert.equal(percurso.json().comentarioPendenteId, 'a2');
+    assert.equal(percurso.json().proximoAtendimentoId, null);
+  } finally {
+    await app.close();
+  }
+});
+
+test('resolver o último pendente consulta o próximo no mesmo filtro', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: checklistDaConferencia(),
+        notaDaRegua: 9,
+        notaDaAvaliacaoDaIa: 9,
+        comentario: 'Rever a Clara Conectaplan.'
+      }
+    });
+    const resolucao = await app.inject({
+      method: 'POST',
+      url: '/manutencao/a2/resolver',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const seguinte = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2&status=Resolvido',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const outraConversa = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2&conversa=conv-a2&status=Resolvido',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const mesmoRecorte = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2&administradora=Alter&agente=alter-1',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+
+    assert.equal(resolucao.statusCode, 200);
+    assert.equal('destino' in resolucao.json(), false);
+    assert.equal(seguinte.statusCode, 200);
+    assert.equal(seguinte.json().pendentesNoAtendimento, 0);
+    assert.equal(seguinte.json().proximoAtendimentoId, 'a3');
+    assert.equal(outraConversa.json().proximoAtendimentoId, null);
+    assert.equal(mesmoRecorte.json().proximoAtendimentoId, null);
+  } finally {
+    await app.close();
+  }
+});
+
+test('sem posterior, o percurso segue no pendente anterior do mesmo filtro', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: checklistDaConferencia(),
+        notaDaRegua: 8.5,
+        notaDaAvaliacaoDaIa: 8.5,
+        comentario: 'Ajustar o tom da Clara Affix no 0800.'
+      }
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/manutencao/a2/resolver',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const percurso = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+
+    assert.equal(percurso.statusCode, 200);
+    assert.equal(percurso.json().pendentesNoAtendimento, 0);
+    assert.equal(percurso.json().proximoAtendimentoId, 'a1');
+  } finally {
+    await app.close();
+  }
+});
+
+test('sem próximo no período, a consulta volta à fila com Recorte e filtros', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a-fora/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: checklistDaConferencia(),
+        notaDaRegua: 5,
+        notaDaAvaliacaoDaIa: 5,
+        comentario: 'Comentário fora do mês civil.'
+      }
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/manutencao/a-fora/resolver',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const noMes = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a-fora',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const em2020 = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a-fora&inicio=2020-01-01&fim=2020-01-31&administradora=Affix&agente=affix-0800&status=Pendente',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const busca = new URLSearchParams(
+      'administradora=Affix&agente=affix-0800&inicio=2020-01-01&fim=2020-01-31&status=Pendente&lista=/manutencao'
+    );
+
+    assert.equal(noMes.statusCode, 200);
+    assert.equal(noMes.json().proximoAtendimentoId, 'a2');
+    assert.equal(em2020.statusCode, 200);
+    assert.equal(em2020.json().pendentesNoAtendimento, 0);
+    assert.equal(em2020.json().proximoAtendimentoId, null);
+    assert.equal(
+      proximoDestinoDoPercurso({
+        atendimentoAtual: 'a-fora',
+        pendentesNoAtendimento: em2020.json().pendentesNoAtendimento,
+        proximoAtendimentoId: em2020.json().proximoAtendimentoId,
+        busca
+      }),
+      '/manutencao?administradora=Affix&agente=affix-0800&inicio=2020-01-01&fim=2020-01-31&status=Pendente'
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /manutencao/proximo rejeita Recorte inválido e Atendimento ausente', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'bruno.alves@crion');
+    const recorte = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=a2&administradora=Affix&agente=alter-1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const ausente = await app.inject({
+      method: 'GET',
+      url: '/manutencao/proximo?atendimento=nao-existe',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(recorte.statusCode, 400);
+    assert.equal(ausente.statusCode, 404);
   } finally {
     await app.close();
   }

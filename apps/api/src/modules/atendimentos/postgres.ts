@@ -4,7 +4,8 @@ import type { Recorte } from '@hq-crion/contracts/recorte';
 import {
   aplicarConsultaDaListagem,
   aplicarConsultaDaManutencao,
-  aplicarConsultaDoDashboard
+  aplicarConsultaDoDashboard,
+  consultaDoPercurso
 } from './consulta.js';
 import { periodoDaQuery, type ModoDaListagem } from './filtros.js';
 import type { PortaDeAtendimentos } from './porta.js';
@@ -696,6 +697,17 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
     async consultarManutencao(recorte, query) {
       const registros = await registrosDeComentario(pool, undefined, { recorte, query });
       return aplicarConsultaDaManutencao(registros, recorte, query);
+    },
+    async consultarPercursoDaManutencao(atendimentoId, recorte, query) {
+      const atuais = await lerRegistros(pool, { id: atendimentoId });
+      const atual = atuais[0];
+
+      if (!atual) {
+        return 'ausente' as const;
+      }
+
+      const comentarios = await registrosDeComentario(pool);
+      return consultaDoPercurso(comentarios, atual, recorte, query);
     }
   };
 }

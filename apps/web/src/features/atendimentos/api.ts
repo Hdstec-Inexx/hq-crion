@@ -2,6 +2,7 @@ import {
   atendimentoDetalheSchema,
   comentarioDaFilaSchema,
   filaDeManutencaoResponseSchema,
+  percursoDaFilaDeManutencaoSchema,
   listagemResponseSchema,
   type ConferenciaRequest
 } from '@hq-crion/contracts/atendimento';
@@ -181,4 +182,36 @@ export async function marcarComentarioResolvido(id: string) {
   }
 
   return comentarioDaFilaSchema.parse(await response.json());
+}
+
+export async function buscarPercursoDaFila(
+  atendimentoId: string,
+  query: URLSearchParams,
+  signal?: AbortSignal
+) {
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    return null;
+  }
+
+  const params = queryDaListagem(query);
+  params.set('atendimento', atendimentoId);
+  const response = await fetch(`${apiUrl}/manutencao/proximo?${params.toString()}`, {
+    signal,
+    headers: {
+      ...autorizacao(sessao),
+      'Cache-Control': 'no-store'
+    }
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error('percurso-indisponivel');
+  }
+
+  return percursoDaFilaDeManutencaoSchema.parse(await response.json());
 }

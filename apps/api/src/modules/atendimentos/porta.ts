@@ -38,4 +38,15 @@ export type PortaDeAtendimentos = {
     recorte: Recorte,
     query: Record<string, string | undefined>
   ): Promise<RegistroDeAtendimento[]>;
+  consultarPercursoDaManutencao(
+    atendimentoId: string,
+    recorte: Recorte,
+    query: Record<string, string | undefined>
+  ): Promise<PercursoDaManutencao | 'ausente'>;
+};
+
+export type PercursoDaManutencao = {
+  pendentesNoAtendimento: number;
+  comentarioPendenteId: string | null;
+  proximoAtendimentoId: string | null;
 };
