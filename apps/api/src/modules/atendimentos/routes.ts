@@ -4,6 +4,7 @@ import {
   custoVisivelPara,
   downloadVisivelPara,
   filaDeManutencaoResponseSchema,
+  percursoDaFilaDeManutencaoSchema,
   gravacaoDaAvaliacaoDaIaSchema,
   listagemResponseSchema,
   comentarioDaFilaSchema,
@@ -226,6 +227,36 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       total: pagina.total,
       itens: itens.slice(pagina.inicio, pagina.fim)
     });
+  });
+
+  app.get('/manutencao/proximo', async (request, reply) => {
+    semCache(reply);
+    const registro = exigirPapel(request, reply, 'Admin');
+
+    if (!registro) {
+      return;
+    }
+
+    const query = request.query as Record<string, string | undefined>;
+    const atendimentoId =
+      typeof query.atendimento === 'string' ? query.atendimento.trim() : '';
+    const recorte = recorteDaQuery(query);
+
+    if (!atendimentoId || atendimentoId.length > 200 || !recorte) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    const percurso = await app.atendimentos.consultarPercursoDaManutencao(
+      atendimentoId,
+      recorte,
+      query
+    );
+
+    if (percurso === 'ausente') {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    return percursoDaFilaDeManutencaoSchema.parse(percurso);
   });
 
   app.get('/atendimentos/:id', async (request, reply) => {

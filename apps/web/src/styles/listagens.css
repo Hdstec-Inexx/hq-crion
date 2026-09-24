@@ -221,6 +221,10 @@
   line-height: 1.45;
 }
 
+.percurso-da-fila {
+  margin: 16px 0 0;
+}
+
 .listagem-resolver {
   border: 0;
   background: var(--cyan);

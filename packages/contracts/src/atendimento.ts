@@ -68,6 +68,13 @@ export const comentarioDaFilaSchema = z.object({
   status: statusDoComentarioSchema
 });
 
+export const percursoDaFilaDeManutencaoSchema = z.object({
+  pendentesNoAtendimento: z.number().int().min(0),
+  comentarioPendenteId: z.string().min(1).nullable(),
+  textoPendente: z.string().min(1).nullable(),
+  proximoAtendimentoId: z.string().min(1).nullable()
+});
+
 export const filaDeManutencaoResponseSchema = z.object({
   recorte: recorteSchema,
   pagina: z.number().int().min(1),
@@ -168,6 +175,7 @@ export type ListagemResponse = z.infer<typeof listagemResponseSchema>;
 export type StatusDoComentario = z.infer<typeof statusDoComentarioSchema>;
 export type ComentarioDaFila = z.infer<typeof comentarioDaFilaSchema>;
 export type FilaDeManutencaoResponse = z.infer<typeof filaDeManutencaoResponseSchema>;
+export type PercursoDaFilaDeManutencao = z.infer<typeof percursoDaFilaDeManutencaoSchema>;
 export type EstadoDoCriterio = z.infer<typeof estadoDoCriterioSchema>;
 export type CriterioAvaliado = z.infer<typeof criterioAvaliadoSchema>;
 export type Avaliacao = z.infer<typeof avaliacaoSchema>;
