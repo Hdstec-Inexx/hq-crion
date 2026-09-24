@@ -1,10 +1,3 @@
-export const schemaSql = `
-CREATE TABLE IF NOT EXISTS hq_boot (
-  chave TEXT PRIMARY KEY,
-  valor TEXT NOT NULL
-);
-`;
-
 const colunasDoAtendimento = `
   id, agente_id, status, iniciado_em, concluido_em, duracao_em_segundos,
   transcricao, audio, motivo, transferencia, custo, evento_na_fonte_em,

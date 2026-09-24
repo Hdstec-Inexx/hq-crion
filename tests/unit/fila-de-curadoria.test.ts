@@ -295,6 +295,9 @@ test('conferência do Curador persiste snapshot e tira o Atendimento da fila', a
       ),
       payload.checklist.map((criterio) => [criterio.nome, criterio.estado])
     );
+    assert.ok(
+      detalhe.avaliacaoDoCurador.criterios.every((criterio: { chave?: string }) => criterio.chave)
+    );
 
     const fila = await app.inject({
       method: 'GET',

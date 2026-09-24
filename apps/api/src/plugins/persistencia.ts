@@ -4,7 +4,6 @@ import { aplicarMigracoes } from '../db/migrar.js';
 import { semearEstrutura } from '../db/semente-estrutural.js';
 import { repositorioEmMemoria } from '../modules/atendimentos/memoria.js';
 import {
-  aplicarSchema,
   repositorioPostgres,
   semearSeNecessario
 } from '../modules/atendimentos/postgres.js';
@@ -96,7 +95,6 @@ export default fp(
 
     try {
       await aplicarMigracoes(pool);
-      await aplicarSchema(pool);
       await semearEstrutura(pool);
       await semearSeNecessario(pool, app.config.SKIP_SEED);
       const perfis = await lerPerfisDoDeposito(pool);

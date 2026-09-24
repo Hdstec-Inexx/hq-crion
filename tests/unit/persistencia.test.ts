@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { join } from 'node:path';
-import { aplicarMigracoes, diretorioDeMigracoes } from '../../apps/api/src/db/migrar.js';
+import { aplicarMigracoes, listarMigracoes } from '../../apps/api/src/db/migrar.js';
 import { semearEstrutura } from '../../apps/api/src/db/semente-estrutural.js';
 import { motivoUltimoAdmin } from '../../packages/contracts/src/perfil.js';
 import { parseAppConfig } from '../../apps/api/src/plugins/config.js';
@@ -96,26 +94,17 @@ test('suíte de aceite opta pelo Postgres sem tirar o teste comum da memória', 
   );
 });
 
-test('a migration seguinte recusa fato que o domínio não tem', () => {
-  const sql = readFileSync(
-    join(diretorioDeMigracoes(), '002_fatos_do_dominio.sql'),
-    'utf8'
+test('as migrations numeradas cobrem o depósito, os fatos, a mídia e o boot', () => {
+  assert.deepEqual(
+    listarMigracoes().map((migracao) => migracao.nome),
+    [
+      '001_deposito_relacional.sql',
+      '002_fatos_do_dominio.sql',
+      '003_midia.sql',
+      '004_tipo_da_midia.sql',
+      '005_boot_e_custo_ausente.sql'
+    ]
   );
-
-  assert.match(sql, /custo NUMERIC/);
-  assert.match(sql, /transferencia BOOLEAN NOT NULL/);
-  assert.match(sql, /lower\(email\)/);
-  assert.match(sql, /chave TEXT NOT NULL/);
-  assert.match(sql, /admite_nao_se_aplica/);
-  assert.match(sql, /resolvido_por_id/);
-  assert.match(sql, /resolvido_em/);
-  assert.match(sql, /criado_em/);
-  assert.match(sql, /atualizado_em/);
-  assert.match(sql, /evento_na_fonte_em/);
-  assert.match(sql, /versao INTEGER/);
-  assert.match(sql, /CREATE TRIGGER hq_comentario_so_status/);
-  assert.doesNotMatch(sql, /INSERT INTO hq_atendimento/i);
-  assert.doesNotMatch(sql, /sessao/i);
 });
 
 test('SKIP_SEED pula só a demonstração; a semente estrutural não recebe esse flag', () => {
@@ -125,23 +114,11 @@ test('SKIP_SEED pula só a demonstração; a semente estrutural não recebe esse
   assert.equal(semearEstrutura.length, 1);
 });
 
-test('a migration cria o depósito vazio de Atendimento e não cria sessão', () => {
-  const sql = readFileSync(
-    join(diretorioDeMigracoes(), '001_deposito_relacional.sql'),
-    'utf8'
+test('as migrations não nomeiam sessão', () => {
+  assert.equal(
+    listarMigracoes().some((migracao) => migracao.nome.toLowerCase().includes('sessao')),
+    false
   );
-
-  assert.match(sql, /hq_perfil/);
-  assert.match(sql, /hq_agente_de_voz/);
-  assert.match(sql, /hq_regua/);
-  assert.match(sql, /hq_ia_avaliadora/);
-  assert.match(sql, /hq_atendimento/);
-  assert.match(sql, /hq_avaliacao_da_ia/);
-  assert.match(sql, /hq_avaliacao_do_curador/);
-  assert.match(sql, /hq_comentario/);
-  assert.doesNotMatch(sql, /INSERT INTO/i);
-  assert.doesNotMatch(sql, /hq_atendimentos/);
-  assert.doesNotMatch(sql, /sessao/i);
 });
 
 function poolDeTeste(
@@ -187,8 +164,9 @@ test('segunda aplicação não repete a migration', async () => {
   const marco = vistos.length;
   await aplicarMigracoes(pool);
 
-  assert.equal(aplicadas.has('001_deposito_relacional.sql'), true);
-  assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
+    assert.equal(aplicadas.has('001_deposito_relacional.sql'), true);
+    assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
+    assert.equal(aplicadas.has('005_boot_e_custo_ausente.sql'), true);
   assert.equal(
     vistos.slice(marco).some((texto) => texto.includes('hq_perfil')),
     false

@@ -6,7 +6,15 @@ import {
   consultaDoPercurso
 } from './consulta.js';
 import type { PortaDeAtendimentos } from './porta.js';
-import { aprovacaoDaNota, avaliacaoDaIaTemVeredito, camposDeMidia, recusaDaAvaliacao, recusaDaConferencia, type RegistroDeAtendimento } from './registro.js';
+import {
+  aprovacaoDaNota,
+  avaliacaoDaIaTemVeredito,
+  camposDeMidia,
+  criteriosComChave,
+  recusaDaAvaliacao,
+  recusaDaConferencia,
+  type RegistroDeAtendimento
+} from './registro.js';
 
 function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendimento) {
   const atual = registros.find((registro) => registro.id === novo.id);
@@ -30,6 +38,14 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
 
   if (novo.tempoDeEsperaEmSegundos !== undefined) {
     atual.tempoDeEsperaEmSegundos = novo.tempoDeEsperaEmSegundos;
+  }
+
+  if (novo.transferencia !== undefined) {
+    atual.transferencia = novo.transferencia;
+  }
+
+  if (novo.custo) {
+    atual.custo = novo.custo;
   }
 
   if (novo.audio) {
@@ -73,7 +89,7 @@ export function repositorioEmMemoria(
       item.avaliacaoDaIa = {
         nota: entrada.nota,
         aprovacao: aprovacaoDaNota(entrada.nota),
-        criterios: entrada.criterios
+        criterios: criteriosComChave(entrada.criterios)
       };
 
       return 'ok';
@@ -91,7 +107,7 @@ export function repositorioEmMemoria(
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
         aprovacao: aprovacaoDaNota(entrada.nota),
-        criterios: entrada.criterios,
+        criterios: criteriosComChave(entrada.criterios),
         notaDaAvaliacaoDaIa: item.avaliacaoDaIa.nota,
         curador: entrada.curador.nome,
         ...(entrada.comentario ? { comentario: entrada.comentario } : {})
@@ -99,6 +115,7 @@ export function repositorioEmMemoria(
 
       if (entrada.comentario) {
         item.comentarioStatus = 'Pendente';
+        item.comentarioId = item.id;
       }
 
       return 'ok';

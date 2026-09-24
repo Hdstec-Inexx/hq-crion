@@ -59,7 +59,9 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
       fonte = app.config.ELEVENLABS_API_KEY
         ? await listarConversasElevenLabs({
             apiKey: app.config.ELEVENLABS_API_KEY,
-            baseUrl: app.config.ELEVENLABS_BASE_URL
+            baseUrl: app.config.ELEVENLABS_BASE_URL,
+            maxPaginas: 5,
+            pararSemAbertas: true
           })
         : [];
     } catch {

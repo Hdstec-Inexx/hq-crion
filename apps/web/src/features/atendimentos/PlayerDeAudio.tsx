@@ -1,5 +1,6 @@
 import { caminhoDeMidiaPermitido } from '@hq-crion/contracts/atendimento';
 import { useEffect, useRef, useState } from 'react';
+import { buscarObjetoDaMidia } from './api';
 import {
   barraContinuaVisivel,
   posicaoDoAudio,
@@ -93,9 +94,10 @@ function aplicarVelocidade(elemento: HTMLAudioElement | null, velocidade: Veloci
   }
 }
 
-export function PlayerDeAudio({ src }: { src: string }) {
+export function PlayerDeAudio({ caminho }: { caminho: string }) {
   const audio = useRef<HTMLAudioElement>(null);
   const playerPrincipal = useRef<HTMLDivElement>(null);
+  const [src, setSrc] = useState('');
   const [tocando, setTocando] = useState(false);
   const [iniciada, setIniciada] = useState(false);
   const [encerrada, setEncerrada] = useState(false);
@@ -103,7 +105,7 @@ export function PlayerDeAudio({ src }: { src: string }) {
   const [duracao, setDuracao] = useState(0);
   const [velocidade, setVelocidade] = useState<VelocidadeDoPlayer>(1);
   const [principalVisivel, setPrincipalVisivel] = useState(true);
-  const audioPresente = caminhoDeMidiaPermitido(src);
+  const audioPresente = Boolean(src);
   const mostrarBarra = barraContinuaVisivel({
     playerPrincipalForaDaTela: !principalVisivel,
     audioPresente,
@@ -116,7 +118,35 @@ export function PlayerDeAudio({ src }: { src: string }) {
     setEncerrada(false);
     setAtual(0);
     setDuracao(0);
-  }, [src]);
+
+    if (!caminhoDeMidiaPermitido(caminho)) {
+      setSrc('');
+      return;
+    }
+
+    const controller = new AbortController();
+    let objeto = '';
+
+    void buscarObjetoDaMidia(caminho, controller.signal).then((url) => {
+      if (controller.signal.aborted || !url) {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+        return;
+      }
+
+      objeto = url;
+      setSrc(url);
+    });
+
+    return () => {
+      controller.abort();
+      if (objeto) {
+        URL.revokeObjectURL(objeto);
+      }
+      setSrc('');
+    };
+  }, [caminho]);
 
   useEffect(() => {
     const elemento = playerPrincipal.current;

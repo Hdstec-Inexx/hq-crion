@@ -649,21 +649,10 @@ if (!rodaAceite) {
         headers: { authorization: `Bearer ${admin}` }
       });
       assert.equal(resolucao.statusCode, 200, resolucao.body);
-      const gravado = await pool.query(
-        `SELECT texto, status, resolvido_por_id, resolvido_em
-         FROM hq_comentario WHERE id = $1`,
-        [item.id]
-      );
-      const linha = gravado.rows[0] as {
-        texto: string;
-        status: string;
-        resolvido_por_id: string;
-        resolvido_em: Date;
-      };
-      assert.equal(linha.texto, 'fechar depois');
-      assert.equal(linha.status, 'Resolvido');
-      assert.equal(linha.resolvido_por_id, 'perfil-bruno');
-      assert.ok(linha.resolvido_em);
+      assert.equal(resolucao.json().texto, 'fechar depois');
+      assert.equal(resolucao.json().status, 'Resolvido');
+      assert.equal(resolucao.json().resolvidoPor, 'Bruno Alves');
+      assert.ok(resolucao.json().resolvidoEm);
     });
   });
 }

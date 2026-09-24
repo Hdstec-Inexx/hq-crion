@@ -13,7 +13,14 @@ export type PayloadElevenLabs = {
   has_audio?: boolean;
   start_time_unix_secs?: number;
   call_duration_secs?: number;
-  transcript?: { role: string; message: string; time_in_call_secs?: number }[];
+  metadata?: { cost?: number };
+  transcript?: {
+    role: string;
+    message?: string;
+    time_in_call_secs?: number;
+    tool_name?: string;
+    tool_calls?: { tool_name?: string }[];
+  }[];
 };
 
 export type AtendimentoColetado = RegistroDeAtendimento & {
@@ -33,6 +40,38 @@ export function conversaAbertaNaFonte(status: string | undefined) {
   return status === 'in-progress' || status === 'initiated';
 }
 
+function nomesDeFerramenta(payload: PayloadElevenLabs) {
+  const nomes: string[] = [];
+
+  for (const turno of payload.transcript ?? []) {
+    if (turno.tool_name) {
+      nomes.push(turno.tool_name);
+    }
+
+    for (const chamada of turno.tool_calls ?? []) {
+      if (chamada.tool_name) {
+        nomes.push(chamada.tool_name);
+      }
+    }
+  }
+
+  return nomes;
+}
+
+export function transferenciaDaFonte(payload: PayloadElevenLabs) {
+  return nomesDeFerramenta(payload).some((nome) => /transfer/i.test(nome));
+}
+
+export function custoDaFonte(payload: PayloadElevenLabs) {
+  const bruto = payload.metadata?.cost;
+
+  if (typeof bruto !== 'number' || !Number.isFinite(bruto) || bruto < 0) {
+    return undefined;
+  }
+
+  return `R$ ${bruto.toFixed(2).replace('.', ',')}`;
+}
+
 export function atendimentoDaFonteElevenLabs(
   payload: PayloadElevenLabs
 ): RegistroDeAtendimento | undefined {
@@ -46,15 +85,23 @@ export function atendimentoDaFonteElevenLabs(
     ? new Date(payload.start_time_unix_secs * 1000).toISOString()
     : new Date().toISOString();
   const concluido = payload.status === 'done' || payload.status === 'completed';
-  const transcricao = (payload.transcript ?? []).map((turno) => {
+  const transcricao = (payload.transcript ?? []).flatMap((turno) => {
+    const texto = turno.message?.trim();
+
+    if (!texto) {
+      return [];
+    }
+
     const comTempo = typeof turno.time_in_call_secs === 'number';
 
-    return {
-      locutor: locutorDe(turno.role),
+    return [
+      {
+        locutor: locutorDe(turno.role),
         quando: comTempo ? quandoDaFonte(turno.time_in_call_secs as number) : '—',
-      texto: turno.message,
-      comTempo
-    };
+        texto,
+        comTempo
+      }
+    ];
   });
   const tempoDeEsperaEmSegundos = tempoDeEsperaDaTranscricao(
     transcricao.map((turno) => ({
@@ -62,6 +109,7 @@ export function atendimentoDaFonteElevenLabs(
       quando: turno.comTempo ? turno.quando : ''
     }))
   );
+  const custo = custoDaFonte(payload);
 
   return {
     id: payload.conversation_id,
@@ -75,6 +123,8 @@ export function atendimentoDaFonteElevenLabs(
     curadoria: false,
     conversa: payload.conversation_id,
     transcricao: transcricao.map(({ locutor, quando, texto }) => ({ locutor, quando, texto })),
+    transferencia: transferenciaDaFonte(payload),
+    ...(custo ? { custo } : {}),
     ...(tempoDeEsperaEmSegundos !== undefined ? { tempoDeEsperaEmSegundos } : {}),
     ...(concluido ? { concluidoEm: iniciadoEm } : {}),
     ...(payload.call_duration_secs !== undefined
@@ -155,25 +205,59 @@ async function baixarAudio(
     return undefined;
   }
 
-  const midia = Buffer.from(await resposta.arrayBuffer());
+  const midia = await lerCorpoLimitado(resposta, limiteDeMidia);
 
-  if (midia.byteLength === 0 || midia.byteLength > limiteDeMidia) {
+  if (!midia || midia.byteLength === 0) {
     return undefined;
   }
 
   return { conteudo: midia, tipo };
 }
 
+async function lerCorpoLimitado(resposta: Response, limite: number) {
+  const leitor = resposta.body?.getReader();
+
+  if (!leitor) {
+    const midia = Buffer.from(await resposta.arrayBuffer());
+    return midia.byteLength > limite ? undefined : midia;
+  }
+
+  const partes: Uint8Array[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await leitor.read();
+
+    if (done) {
+      break;
+    }
+
+    total += value.byteLength;
+
+    if (total > limite) {
+      await leitor.cancel();
+      return undefined;
+    }
+
+    partes.push(value);
+  }
+
+  return Buffer.concat(partes);
+}
+
 export async function listarConversasElevenLabs(input: {
   apiKey: string;
   baseUrl: string;
   fetchImpl?: typeof fetch;
+  maxPaginas?: number;
+  pararSemAbertas?: boolean;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const conversas: PayloadElevenLabs[] = [];
   let cursor: string | undefined;
+  const maxPaginas = input.maxPaginas ?? limiteDePaginas;
 
-  for (let pagina = 0; pagina < limiteDePaginas; pagina += 1) {
+  for (let pagina = 0; pagina < maxPaginas; pagina += 1) {
     const caminho = cursor
       ? `/v1/convai/conversations?cursor=${encodeURIComponent(cursor)}`
       : '/v1/convai/conversations';
@@ -187,7 +271,15 @@ export async function listarConversasElevenLabs(input: {
       throw new Error('ElevenLabs não listou as conversas');
     }
 
-    conversas.push(...(corpo.conversations ?? []));
+    const paginaAtual = corpo.conversations ?? [];
+    conversas.push(...paginaAtual);
+
+    if (
+      input.pararSemAbertas &&
+      !paginaAtual.some((item) => conversaAbertaNaFonte(item.status))
+    ) {
+      break;
+    }
 
     if (!corpo.has_more || !corpo.next_cursor || corpo.next_cursor === cursor) {
       break;

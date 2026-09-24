@@ -18,7 +18,7 @@ import {
   recusaDaConferencia,
   type RegistroDeAtendimento
 } from './registro.js';
-import { inserirAtendimentoSeAusenteSql, inserirAtendimentoSql, schemaSql } from './schema.js';
+import { inserirAtendimentoSeAusenteSql, inserirAtendimentoSql } from './schema.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
 import { deveSemear } from './semente.js';
 
@@ -111,11 +111,11 @@ function formatarCusto(valor: unknown) {
 
 function custoNumerico(valor: string | undefined) {
   if (!valor) {
-    return 0;
+    return null;
   }
 
   const numeroDoCusto = Number(valor.replace(/[^\d,-]/g, '').replace(',', '.'));
-  return Number.isFinite(numeroDoCusto) ? numeroDoCusto : 0;
+  return Number.isFinite(numeroDoCusto) ? numeroDoCusto : null;
 }
 
 function numero(valor: unknown) {
@@ -285,7 +285,9 @@ function montarRegistro(
     ...(linha.duracao_em_segundos !== null
       ? { duracaoEmSegundos: linha.duracao_em_segundos }
       : {}),
-    transferencia: Boolean(linha.transferencia),
+    ...(linha.transferencia === null || linha.transferencia === undefined
+      ? {}
+      : { transferencia: Boolean(linha.transferencia) }),
     ...(linha.tempo_de_espera_em_segundos !== null
       ? { tempoDeEsperaEmSegundos: linha.tempo_de_espera_em_segundos }
       : {}),
@@ -343,6 +345,9 @@ function registroDoComentario(linha: {
   comentario_id: string;
   texto: string;
   status: 'Pendente' | 'Resolvido';
+  resolvido_por_id?: string | null;
+  resolvido_em?: unknown;
+  resolvido_por_nome?: string | null;
   id: string;
   agente_id: string;
   agente: string;
@@ -367,17 +372,15 @@ function registroDoComentario(linha: {
     ...camposDeMidia(linha.audio),
     transcricao: [],
     comentarioStatus: linha.status,
+    ...(linha.resolvido_por_id ? { comentarioResolvidoPorId: linha.resolvido_por_id } : {}),
+    ...(linha.resolvido_por_nome
+      ? { comentarioResolvidoPorNome: linha.resolvido_por_nome }
+      : {}),
+    ...(linha.resolvido_em ? { comentarioResolvidoEm: iso(linha.resolvido_em) } : {}),
     avaliacaoDoCurador: {
       nota: 0,
       aprovacao: 'Reprovado',
-      criterios: [
-        {
-          nome: 'Comentário',
-          estado: 'Não se aplica',
-          pontos: 1,
-          critico: false
-        }
-      ],
+      criterios: [],
       notaDaAvaliacaoDaIa: 0,
       curador: 'Curador',
       comentario: linha.texto
@@ -399,6 +402,9 @@ async function registrosDeComentario(
        c.id AS comentario_id,
        c.texto,
        c.status,
+       c.resolvido_por_id,
+       c.resolvido_em,
+       p.nome AS resolvido_por_nome,
        a.id,
        a.agente_id,
        ag.nome AS agente,
@@ -410,6 +416,7 @@ async function registrosDeComentario(
      FROM hq_comentario c
      JOIN hq_atendimento a ON a.id = c.atendimento_id
      JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
+     LEFT JOIN hq_perfil p ON p.id = c.resolvido_por_id
      WHERE ($1::text IS NULL OR c.id = $1)
        AND ($2::text IS NULL OR ag.administradora = $2)
        AND ($3::text IS NULL OR a.agente_id = $3)
@@ -565,10 +572,6 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
   );
 }
 
-export async function aplicarSchema(cliente: ExecutorSql) {
-  await cliente.query(schemaSql);
-}
-
 export async function semearSeNecessario(cliente: PoolSql, skipSeed: boolean) {
   const estado = await cliente.query(
     `SELECT valor FROM hq_boot WHERE chave = 'seed'`
@@ -602,7 +605,7 @@ export function valoresDoAtendimento(registro: RegistroDeAtendimento) {
     JSON.stringify(registro.transcricao),
     registro.audio ?? null,
     registro.motivo,
-    registro.transferencia ?? false,
+    registro.transferencia === true,
     custoNumerico(registro.custo),
     registro.iniciadoEm,
     registro.tempoDeEsperaEmSegundos ?? null,

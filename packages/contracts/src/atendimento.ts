@@ -65,7 +65,9 @@ export const comentarioDaFilaSchema = z.object({
   conversa: z.string().min(1),
   data: z.string().min(1),
   texto: z.string().min(1),
-  status: statusDoComentarioSchema
+  status: statusDoComentarioSchema,
+  resolvidoPor: z.string().min(1).optional(),
+  resolvidoEm: z.string().min(1).optional()
 });
 
 export const percursoDaFilaDeManutencaoSchema = z.object({

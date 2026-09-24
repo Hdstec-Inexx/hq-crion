@@ -230,6 +230,9 @@ export function FilaDeManutencao() {
                     </Link>
                     <div className="listagem-meta">
                       {item.conversa} · {item.status}
+                      {item.status === 'Resolvido' && item.resolvidoPor && item.resolvidoEm
+                        ? ` · ${item.resolvidoPor} · ${formatarQuando(item.resolvidoEm)}`
+                        : ''}
                     </div>
                     <p className="listagem-comentario">{item.texto}</p>
                   </div>

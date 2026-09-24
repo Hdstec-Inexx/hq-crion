@@ -17,6 +17,7 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
   comentarioStatus?: 'Pendente' | 'Resolvido';
   comentarioId?: string;
   comentarioResolvidoPorId?: string;
+  comentarioResolvidoPorNome?: string;
   comentarioResolvidoEm?: string;
   duracaoEmSegundos?: number;
   transferencia?: boolean;
@@ -115,6 +116,7 @@ export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe 
     ferramentas: _ferramentas,
     comentarioId: _comentarioId,
     comentarioResolvidoPorId: _comentarioResolvidoPorId,
+    comentarioResolvidoPorNome: _comentarioResolvidoPorNome,
     comentarioResolvidoEm: _comentarioResolvidoEm,
     ...publico
   } = item;

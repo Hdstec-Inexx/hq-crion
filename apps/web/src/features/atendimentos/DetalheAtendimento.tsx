@@ -19,7 +19,7 @@ import {
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
-import { buscarAtendimento, buscarPercursoDaFila, gravarConferencia, marcarComentarioResolvido } from './api';
+import { buscarAtendimento, buscarObjetoDaMidia, buscarPercursoDaFila, gravarConferencia, marcarComentarioResolvido } from './api';
 import { PlayerDeAudio } from './PlayerDeAudio';
 
 function formatarNota(nota: number) {
@@ -104,7 +104,14 @@ function PainelAvaliacao({
   );
 }
 
-const estadosDoCriterio: EstadoDoCriterio[] = ['Atendido', 'Não atendido', 'Não se aplica'];
+function estadosDoCriterioNaConferencia(criterio: { chave?: string; nome: string }): EstadoDoCriterio[] {
+  const admite =
+    criterio.chave === 'validacao-de-e-mail' || criterio.nome === 'Validação de e-mail';
+
+  return admite
+    ? ['Atendido', 'Não atendido', 'Não se aplica']
+    : ['Atendido', 'Não atendido'];
+}
 
 function FormularioConferencia({
   atendimento,
@@ -120,6 +127,7 @@ function FormularioConferencia({
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const checklist = atendimento.avaliacaoDaIa.criterios.map((criterio) => ({
+      ...(criterio.chave ? { chave: criterio.chave } : {}),
       nome: criterio.nome,
       estado: String(data.get(`estado-${criterio.nome}`) ?? '') as EstadoDoCriterio,
       pontos: criterio.pontos,
@@ -167,7 +175,7 @@ function FormularioConferencia({
             </span>
             {criterio.critico ? <span className="criterio-critico">Crítico</span> : null}
             <select name={`estado-${criterio.nome}`} defaultValue={criterio.estado} required>
-              {estadosDoCriterio.map((estado) => (
+              {estadosDoCriterioNaConferencia(criterio).map((estado) => (
                 <option key={estado} value={estado}>
                   {estado}
                 </option>
@@ -332,6 +340,26 @@ export function DetalheAtendimento() {
     }
   }
 
+  async function baixarAudio() {
+    const caminho = atendimento?.downloadDeAudio;
+
+    if (!caminho) {
+      return;
+    }
+
+    const objeto = await buscarObjetoDaMidia(caminho);
+
+    if (!objeto) {
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = objeto;
+    link.download = caminho.slice(caminho.lastIndexOf('/') + 1);
+    link.click();
+    URL.revokeObjectURL(objeto);
+  }
+
   return (
     <div>
       <div className="pagina-head">
@@ -384,13 +412,13 @@ export function DetalheAtendimento() {
             ) : null}
           </dl>
           <div className="audio-faixa">
-            <PlayerDeAudio src={atendimento.audio ?? ''} />
+            <PlayerDeAudio caminho={atendimento.audio ?? ''} />
             {downloadVisivelPara(perfil.papel) &&
             atendimento.downloadDeAudio &&
             caminhoDeMidiaPermitido(atendimento.downloadDeAudio) ? (
-              <a className="audio-download" href={atendimento.downloadDeAudio} download>
+              <button className="audio-download" type="button" onClick={() => void baixarAudio()}>
                 Download de Áudio
-              </a>
+              </button>
             ) : null}
           </div>
           {perfil.papel === 'Curador' &&

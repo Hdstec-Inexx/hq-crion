@@ -32,6 +32,12 @@ function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
     return null;
   }
 
+  const resolvidoPor =
+    item.comentarioResolvidoPorNome ??
+    (item.comentarioResolvidoPorId
+      ? buscarPorId(item.comentarioResolvidoPorId)?.nome
+      : undefined);
+
   return {
     id: item.comentarioId ?? item.id,
     atendimentoId: item.id,
@@ -41,7 +47,9 @@ function itemDaFilaDeManutencao(item: RegistroDeAtendimento) {
     conversa: item.conversa,
     data: item.iniciadoEm,
     texto,
-    status: item.comentarioStatus ?? 'Pendente'
+    status: item.comentarioStatus ?? 'Pendente',
+    ...(resolvidoPor ? { resolvidoPor } : {}),
+    ...(item.comentarioResolvidoEm ? { resolvidoEm: item.comentarioResolvidoEm } : {})
   };
 }
 
@@ -217,7 +225,11 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     const itens = (await app.atendimentos.consultarManutencao(recorte, query))
       .map(itemDaFilaDeManutencao)
-      .filter((item) => item !== null);
+      .filter((item) => item !== null)
+      .sort((a, b) => {
+        const porData = a.data.localeCompare(b.data);
+        return porData !== 0 ? porData : a.id.localeCompare(b.id, 'en');
+      });
     const pagina = paginaDaLista(itens.length, query.pagina);
 
     return filaDeManutencaoResponseSchema.parse({

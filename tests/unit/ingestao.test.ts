@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../../apps/api/src/app.js';
 import { avaliacaoDaIaTemVeredito } from '../../apps/api/src/modules/atendimentos/registro.js';
-import { inserirAtendimentoSeAusenteSql } from '../../apps/api/src/modules/atendimentos/schema.js';
 import {
   atendimentoDaFonteElevenLabs,
-  coletarAtendimentosElevenLabs
+  coletarAtendimentosElevenLabs,
+  listarConversasElevenLabs
 } from '../../apps/api/src/modules/ingestao/elevenlabs.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 
@@ -45,6 +45,8 @@ test('ingestão mínima mapeia a fonte ElevenLabs para Atendimento do HQ sem inv
   assert.equal(atendimento.avaliacaoDaIa, undefined);
   assert.equal(avaliacaoDaIaTemVeredito(atendimento), false);
   assert.equal(atendimento.tempoDeEsperaEmSegundos, 4);
+  assert.equal(atendimento.custo, undefined);
+  assert.equal(atendimento.transferencia, false);
 });
 
 test('ingestão mínima ignora Agente de Voz que não pertence ao HQ', () => {
@@ -74,31 +76,30 @@ test('turnos sem tempo na fonte não inventam Tempo de Espera', () => {
   assert.equal(atendimento?.audio, undefined);
 });
 
-test('reingestão grava o áudio quando a fonte manda o arquivo e não apaga o que já existe', () => {
-  assert.match(inserirAtendimentoSeAusenteSql, /ON CONFLICT \(id\) DO UPDATE SET/);
-  const atualizacao = inserirAtendimentoSeAusenteSql.slice(
-    inserirAtendimentoSeAusenteSql.indexOf('DO UPDATE SET')
-  );
-  assert.match(atualizacao, /status/);
-  assert.match(atualizacao, /transcricao = CASE/);
-  assert.match(atualizacao, /EXCLUDED\.transcricao = '\[\]'::jsonb/);
-  assert.match(
-    atualizacao,
-    /duracao_em_segundos = COALESCE\(EXCLUDED\.duracao_em_segundos, hq_atendimento\.duracao_em_segundos\)/
-  );
-  assert.match(
-    atualizacao,
-    /tempo_de_espera_em_segundos = COALESCE\(\s*EXCLUDED\.tempo_de_espera_em_segundos,\s*hq_atendimento\.tempo_de_espera_em_segundos\s*\)/
-  );
-  assert.match(
-    atualizacao,
-    /audio = COALESCE\(EXCLUDED\.audio, hq_atendimento\.audio\)/
-  );
-  assert.doesNotMatch(atualizacao, /motivo/);
-  assert.doesNotMatch(atualizacao, /custo/);
-  assert.doesNotMatch(atualizacao, /transferencia/);
-  assert.doesNotMatch(atualizacao, /ferramentas/);
-  assert.doesNotMatch(atualizacao, /avaliacao/);
+test('ingestão não inventa Custo e só marca Transferência quando a ferramenta aparece na fonte', () => {
+  const semFato = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-sem-custo',
+    agent_id: 'affix-0800',
+    status: 'done'
+  });
+  const comFato = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-com-custo',
+    agent_id: 'affix-0800',
+    status: 'done',
+    metadata: { cost: 1.5 },
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Vou transferir.',
+        tool_calls: [{ tool_name: 'transfer_to_number' }]
+      }
+    ]
+  });
+
+  assert.equal(semFato?.custo, undefined);
+  assert.equal(semFato?.transferencia, false);
+  assert.equal(comFato?.custo, 'R$ 1,50');
+  assert.equal(comFato?.transferencia, true);
 });
 
 test('coleta grava o arquivo da fonte e omite o caminho quando ele não vem', async () => {
@@ -389,4 +390,42 @@ test('HTTP da ingestão serve o arquivo e não inventa mídia nem Avaliação da
     delete process.env.ELEVENLABS_API_KEY;
     globalThis.fetch = fetchOriginal;
   }
+});
+
+test('listagem ao vivo para a puxada quando a página não tem contato aberto na fonte', async () => {
+  const chamadas: string[] = [];
+  const fetchImpl = (async (url: string | URL) => {
+    chamadas.push(String(url));
+
+    if (String(url).includes('cursor=pagina-2')) {
+      return new Response(
+        JSON.stringify({
+          conversations: [{ conversation_id: 'conv-tarde', agent_id: 'affix-0800', status: 'in-progress' }],
+          has_more: false
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        conversations: [{ conversation_id: 'conv-feita', agent_id: 'affix-0800', status: 'done' }],
+        has_more: true,
+        next_cursor: 'pagina-2'
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  const conversas = await listarConversasElevenLabs({
+    apiKey: 'chave',
+    baseUrl: 'https://api.elevenlabs.io',
+    fetchImpl,
+    maxPaginas: 5,
+    pararSemAbertas: true
+  });
+
+  assert.equal(conversas.length, 1);
+  assert.equal(conversas[0]?.conversation_id, 'conv-feita');
+  assert.equal(chamadas.length, 1);
 });

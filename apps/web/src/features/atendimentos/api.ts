@@ -1,5 +1,6 @@
 import {
   atendimentoDetalheSchema,
+  caminhoDeMidiaPermitido,
   comentarioDaFilaSchema,
   filaDeManutencaoResponseSchema,
   percursoDaFilaDeManutencaoSchema,
@@ -214,4 +215,26 @@ export async function buscarPercursoDaFila(
   }
 
   return percursoDaFilaDeManutencaoSchema.parse(await response.json());
+}
+
+export async function buscarObjetoDaMidia(caminho: string, signal?: AbortSignal) {
+  const sessao = lerSessao();
+
+  if (!sessao || !caminhoDeMidiaPermitido(caminho)) {
+    return null;
+  }
+
+  const response = await fetch(`${apiUrl}${caminho}`, {
+    signal,
+    headers: {
+      ...autorizacao(sessao),
+      'Cache-Control': 'no-store'
+    }
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return URL.createObjectURL(await response.blob());
 }
