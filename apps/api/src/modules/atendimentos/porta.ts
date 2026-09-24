@@ -23,6 +23,7 @@ export type PortaDeAtendimentos = {
   ): Promise<ResultadoDaAvaliacao>;
   conferir(id: string, entrada: EntradaDeConferencia): Promise<ResultadoDaConferencia>;
   resolverComentario(id: string, adminId: string): Promise<ResultadoDoComentario>;
+  idsConcluidos(ids: readonly string[]): Promise<ReadonlySet<string>>;
   consultarListagem(
     recorte: Recorte,
     query: Record<string, string | undefined>,

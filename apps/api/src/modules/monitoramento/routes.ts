@@ -6,6 +6,7 @@ import {
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { passaNoRecorte, recorteDaQuery } from '../atendimentos/filtros.js';
+import { paginaDaLista } from '../atendimentos/pagina.js';
 import {
   atendimentoDaFonteElevenLabs,
   buscarConversaElevenLabs,
@@ -52,13 +53,20 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
-    const fonte = app.config.ELEVENLABS_API_KEY
-      ? await listarConversasElevenLabs({
-          apiKey: app.config.ELEVENLABS_API_KEY,
-          baseUrl: app.config.ELEVENLABS_BASE_URL
-        })
-      : [];
-    const abertos = [];
+    let fonte;
+
+    try {
+      fonte = app.config.ELEVENLABS_API_KEY
+        ? await listarConversasElevenLabs({
+            apiKey: app.config.ELEVENLABS_API_KEY,
+            baseUrl: app.config.ELEVENLABS_BASE_URL
+          })
+        : [];
+    } catch {
+      return reply.code(502).send({ statusCode: 502 });
+    }
+
+    const candidatos = [];
 
     for (const payload of fonte) {
       if (!conversaAbertaNaFonte(payload.status)) {
@@ -71,28 +79,23 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
         continue;
       }
 
-      const noHq = await app.atendimentos.buscarPorId(payload.conversation_id);
-
-      if (noHq?.status === 'Concluído') {
-        continue;
-      }
-
-      abertos.push(itemDoMonitoramento(atendimento));
+      candidatos.push(atendimento);
     }
-    const tamanho = 50;
-    const total = abertos.length;
-    const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
-    const pagina = Math.min(
-      ultimaPagina,
-      Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
+
+    const concluidos = await app.atendimentos.idsConcluidos(
+      candidatos.map((item) => item.id)
     );
+    const abertos = candidatos
+      .filter((item) => !concluidos.has(item.id))
+      .map(itemDoMonitoramento);
+    const pagina = paginaDaLista(abertos.length, query.pagina);
 
     return monitoramentoListagemResponseSchema.parse({
       recorte,
-      pagina,
-      tamanho,
-      total,
-      itens: abertos.slice((pagina - 1) * tamanho, pagina * tamanho)
+      pagina: pagina.pagina,
+      tamanho: pagina.tamanho,
+      total: pagina.total,
+      itens: abertos.slice(pagina.inicio, pagina.fim)
     });
   });
 
@@ -105,6 +108,11 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
+
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
     const noHq = await app.atendimentos.buscarPorId(id);
 
     if (!app.config.ELEVENLABS_API_KEY || noHq?.status === 'Concluído') {

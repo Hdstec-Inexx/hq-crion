@@ -70,6 +70,7 @@ test('turnos sem tempo na fonte não inventam Tempo de Espera', () => {
   });
 
   assert.equal(atendimento?.tempoDeEsperaEmSegundos, undefined);
+  assert.equal(atendimento?.transcricao[0]?.quando, '—');
   assert.equal(atendimento?.audio, undefined);
 });
 
@@ -79,7 +80,8 @@ test('reingestão grava o áudio quando a fonte manda o arquivo e não apaga o q
     inserirAtendimentoSeAusenteSql.indexOf('DO UPDATE SET')
   );
   assert.match(atualizacao, /status/);
-  assert.match(atualizacao, /transcricao/);
+  assert.match(atualizacao, /transcricao = CASE/);
+  assert.match(atualizacao, /EXCLUDED\.transcricao = '\[\]'::jsonb/);
   assert.match(
     atualizacao,
     /duracao_em_segundos = COALESCE\(EXCLUDED\.duracao_em_segundos, hq_atendimento\.duracao_em_segundos\)/
@@ -152,6 +154,106 @@ test('coleta grava o arquivo da fonte e omite o caminho quando ele não vem', as
   assert.equal(comAudio?.tempoDeEsperaEmSegundos, 4);
   assert.equal(semAudio?.audio, undefined);
   assert.equal(semAudio?.midia, undefined);
+});
+
+test('coleta percorre as páginas, busca o detalhe sem transcrição e limita o arquivo', async () => {
+  const arquivo = Buffer.from('audio-mpeg');
+  const chamadas: string[] = [];
+  const coletados = await coletarAtendimentosElevenLabs({
+    apiKey: 'chave',
+    baseUrl: 'https://api.elevenlabs.io',
+    fetchImpl: (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      chamadas.push(url);
+
+      if (url.endsWith('/audio')) {
+        if (url.includes('conv-falha')) {
+          throw new Error('audio indisponível');
+        }
+
+        const grande = url.includes('conv-grande');
+        return new Response(grande ? Buffer.alloc(64) : arquivo, {
+          status: 200,
+          headers: {
+            'content-type': 'audio/mpeg',
+            ...(grande ? { 'content-length': String(30 * 1024 * 1024) } : {})
+          }
+        });
+      }
+
+      if (url.includes('/conversations/conv-resumo')) {
+        return new Response(
+          JSON.stringify({
+            conversation_id: 'conv-resumo',
+            agent_id: 'affix-0800',
+            status: 'done',
+            has_audio: true,
+            transcript: [
+              { role: 'agent', message: 'Olá.', time_in_call_secs: 1 },
+              { role: 'user', message: 'Preciso.', time_in_call_secs: 4 },
+              { role: 'agent', message: 'Certo.', time_in_call_secs: 9 }
+            ]
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+
+      if (url.includes('cursor=pagina-2')) {
+        return new Response(
+          JSON.stringify({
+            conversations: [
+              {
+                conversation_id: 'conv-pagina-2',
+                agent_id: 'alter-1',
+                status: 'in-progress'
+              }
+            ],
+            has_more: false
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          conversations: [
+            { conversation_id: 'conv-resumo', agent_id: 'affix-0800', status: 'done' },
+            {
+              conversation_id: 'conv-grande',
+              agent_id: 'affix-wa',
+              status: 'done',
+              has_audio: true,
+              transcript: [{ role: 'agent', message: 'Grande.', time_in_call_secs: 1 }]
+            },
+            {
+              conversation_id: 'conv-falha',
+              agent_id: 'conecta-1',
+              status: 'done',
+              has_audio: true,
+              transcript: [{ role: 'agent', message: 'Segue.', time_in_call_secs: 1 }]
+            }
+          ],
+          has_more: true,
+          next_cursor: 'pagina-2'
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    }) as typeof fetch
+  });
+  const resumo = coletados.find((item) => item.id === 'conv-resumo');
+  const grande = coletados.find((item) => item.id === 'conv-grande');
+  const falha = coletados.find((item) => item.id === 'conv-falha');
+
+  assert.equal(resumo?.transcricao[1]?.quando, '0:04');
+  assert.equal(resumo?.tempoDeEsperaEmSegundos, 5);
+  assert.equal(resumo?.audio, '/media/conv-resumo.wav');
+  assert.equal(resumo?.tipoDaMidia, 'audio/mpeg');
+  assert.ok(resumo?.midia && Buffer.compare(resumo.midia, arquivo) === 0);
+  assert.equal(grande?.audio, undefined);
+  assert.equal(falha?.audio, undefined);
+  assert.ok(coletados.some((item) => item.id === 'conv-pagina-2'));
+  assert.ok(chamadas.some((url) => url.includes('/conversations/conv-resumo')));
+  assert.ok(chamadas.some((url) => url.includes('cursor=pagina-2')));
 });
 
 test('HTTP da ingestão serve o arquivo e não inventa mídia nem Avaliação da IA', async () => {

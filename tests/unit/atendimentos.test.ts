@@ -712,7 +712,7 @@ test('GET /atendimentos/:id carrega o Atendimento certo', async () => {
   }
 });
 
-test('Gestão recebe Custo e Download no detalhe', async () => {
+test('Gestão recebe Custo e não recebe Download sem arquivo', async () => {
   const app = await buildApp();
 
   try {
@@ -724,12 +724,14 @@ test('Gestão recebe Custo e Download no detalhe', async () => {
     });
     const body = response.json() as {
       custo?: string;
+      audio?: string;
       downloadDeAudio?: string;
     };
 
     assert.equal(response.statusCode, 200);
     assert.equal(typeof body.custo, 'string');
-    assert.equal(typeof body.downloadDeAudio, 'string');
+    assert.equal('audio' in body, false);
+    assert.equal('downloadDeAudio' in body, false);
   } finally {
     await app.close();
   }

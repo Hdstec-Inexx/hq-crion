@@ -16,6 +16,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
 import { recorteDaQuery, type ModoDaListagem } from './filtros.js';
+import { paginaDaLista } from './pagina.js';
 import {
   aprovacaoDaNota,
   detalhePublico,
@@ -169,21 +170,14 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       registro.id
     );
     const itens = modo === 'fila' ? ordenarFila(comIndicador) : comIndicador;
-    const tamanho = 50;
-    const total = itens.length;
-    const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
-    const pagina = Math.min(
-      ultimaPagina,
-      Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
-    );
-    const paginaItens = itens.slice((pagina - 1) * tamanho, pagina * tamanho);
+    const pagina = paginaDaLista(itens.length, query.pagina);
 
     return listagemResponseSchema.parse({
       recorte,
-      pagina,
-      tamanho,
-      total,
-      itens: paginaItens.map((item) => {
+      pagina: pagina.pagina,
+      tamanho: pagina.tamanho,
+      total: pagina.total,
+      itens: itens.slice(pagina.inicio, pagina.fim).map((item) => {
         const listagem = itemDaListagem(item);
 
         if (custoVisivelPara(registro.papel)) {
@@ -223,20 +217,14 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     const itens = (await app.atendimentos.consultarManutencao(recorte, query))
       .map(itemDaFilaDeManutencao)
       .filter((item) => item !== null);
-    const tamanho = 50;
-    const total = itens.length;
-    const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
-    const pagina = Math.min(
-      ultimaPagina,
-      Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
-    );
+    const pagina = paginaDaLista(itens.length, query.pagina);
 
     return filaDeManutencaoResponseSchema.parse({
       recorte,
-      pagina,
-      tamanho,
-      total,
-      itens: itens.slice((pagina - 1) * tamanho, pagina * tamanho)
+      pagina: pagina.pagina,
+      tamanho: pagina.tamanho,
+      total: pagina.total,
+      itens: itens.slice(pagina.inicio, pagina.fim)
     });
   });
 

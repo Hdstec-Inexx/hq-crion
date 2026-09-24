@@ -26,8 +26,8 @@ const midiaRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    reply.header('Content-Type', 'audio/wav');
-    return reply.send(bytes);
+    reply.header('Content-Type', bytes.tipo);
+    return reply.send(bytes.conteudo);
   });
 };
 

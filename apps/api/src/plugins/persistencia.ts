@@ -109,7 +109,7 @@ export default fp(
       usarDepositoDaIa(pool);
       await ingerirElevenLabs(pool, app.config, app.log);
       app.decorate('atendimentos', repositorioPostgres(pool));
-      app.decorate('lerMidia', async (id: string) => lerMidiaLocal(id) ?? lerMidiaDoDeposito(pool, id));
+      app.decorate('lerMidia', async (id: string) => lerMidiaDoDeposito(pool, id));
     } catch (error) {
       await fecharPool();
       throw error;

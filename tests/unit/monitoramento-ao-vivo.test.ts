@@ -399,3 +399,27 @@ test('detalhe ao vivo deixa de fora zumbi e Atendimento já Concluído', async (
     assert.equal(concluido.statusCode, 404);
   });
 });
+
+test('GET /monitoramento responde 502 quando a fonte falha', async () => {
+  const fetchOriginal = globalThis.fetch;
+  process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
+  process.env.ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+  globalThis.fetch = (async () => new Response('falhou', { status: 503 })) as typeof fetch;
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/monitoramento',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 502);
+    assert.equal(response.json().statusCode, 502);
+  } finally {
+    await app.close();
+    delete process.env.ELEVENLABS_API_KEY;
+    globalThis.fetch = fetchOriginal;
+  }
+});

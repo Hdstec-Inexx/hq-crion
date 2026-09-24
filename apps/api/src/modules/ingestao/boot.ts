@@ -8,7 +8,7 @@ import {
 } from './elevenlabs.js';
 
 function semMidia(item: AtendimentoColetado) {
-  const { midia: _midia, ...registro } = item;
+  const { midia: _midia, tipoDaMidia: _tipo, ...registro } = item;
   return registro;
 }
 
@@ -45,15 +45,20 @@ export async function ingerirElevenLabs(
       continue;
     }
 
-    guardarMidiaLocal(atendimento.id, atendimento.midia);
-    await gravarMidia(cliente, atendimento.id, atendimento.midia);
+    await gravarMidia(cliente, atendimento.id, {
+      conteudo: atendimento.midia,
+      tipo: atendimento.tipoDaMidia ?? 'audio/wav'
+    });
   }
 }
 
 export function registrarMidiaLocal(atendimentos: readonly AtendimentoColetado[]) {
   for (const atendimento of atendimentos) {
     if (atendimento.midia) {
-      guardarMidiaLocal(atendimento.id, atendimento.midia);
+      guardarMidiaLocal(atendimento.id, {
+        conteudo: atendimento.midia,
+        tipo: atendimento.tipoDaMidia ?? 'audio/wav'
+      });
     }
   }
 

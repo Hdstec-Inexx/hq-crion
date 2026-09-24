@@ -29,7 +29,10 @@ ON CONFLICT (id) DO UPDATE SET
     WHEN hq_atendimento.status = 'Concluído' THEN hq_atendimento.status
     ELSE EXCLUDED.status
   END,
-  transcricao = EXCLUDED.transcricao,
+  transcricao = CASE
+    WHEN EXCLUDED.transcricao = '[]'::jsonb THEN hq_atendimento.transcricao
+    ELSE EXCLUDED.transcricao
+  END,
   duracao_em_segundos = COALESCE(EXCLUDED.duracao_em_segundos, hq_atendimento.duracao_em_segundos),
   tempo_de_espera_em_segundos = COALESCE(
     EXCLUDED.tempo_de_espera_em_segundos,
