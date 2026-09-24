@@ -24,6 +24,14 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
   ferramentas?: FerramentasDoAtendimento;
 };
 
+export function camposDeMidia(caminho: string | null | undefined) {
+  if (!caminho) {
+    return {};
+  }
+
+  return { audio: caminho, downloadDeAudio: caminho };
+}
+
 export function aprovacaoDaNota(nota: number): 'Aprovado' | 'Reprovado' {
   return nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado';
 }

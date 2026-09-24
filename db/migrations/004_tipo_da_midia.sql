@@ -1,0 +1,2 @@
+ALTER TABLE hq_midia
+  ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'audio/wav';

@@ -11,6 +11,7 @@ import type { PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaNota,
   avaliacaoDaIaTemVeredito,
+  camposDeMidia,
   criteriosComChave,
   recusaDaAvaliacao,
   recusaDaConferencia,
@@ -267,8 +268,7 @@ function montarRegistro(
     curadoria: Boolean(linha.tem_curadoria),
     conversa: linha.id,
     ...(custo ? { custo } : {}),
-    audio: linha.audio ?? `/media/${linha.id}.wav`,
-    downloadDeAudio: linha.audio ?? `/media/${linha.id}.wav`,
+    ...camposDeMidia(linha.audio),
     transcricao: linha.transcricao ?? [],
     ...(avaliacaoDaIa && avaliacaoDaIa.criterios.length > 0 ? { avaliacaoDaIa } : {}),
     ...(avaliacaoDoCurador && avaliacaoDoCurador.criterios.length > 0
@@ -408,7 +408,7 @@ async function registrosDeComentario(
       status: linha.status_atendimento,
       curadoria: true,
       conversa: linha.id,
-      audio: linha.audio ?? `/media/${linha.id}.wav`,
+      ...camposDeMidia(linha.audio),
       transcricao: [],
       comentarioStatus: linha.status,
       avaliacaoDoCurador: {
@@ -547,7 +547,7 @@ export function valoresDoAtendimento(registro: RegistroDeAtendimento) {
     registro.concluidoEm ?? null,
     registro.duracaoEmSegundos ?? null,
     JSON.stringify(registro.transcricao),
-    registro.audio,
+    registro.audio ?? null,
     registro.motivo,
     registro.transferencia ?? false,
     custoNumerico(registro.custo),
@@ -572,6 +572,18 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
     async buscarPorId(id) {
       const registros = await lerRegistros(pool, { id });
       return registros[0];
+    },
+    async idsConcluidos(ids) {
+      if (ids.length === 0) {
+        return new Set<string>();
+      }
+
+      const resultado = await pool.query(
+        `SELECT id FROM hq_atendimento
+         WHERE status = 'Concluído' AND id = ANY($1::text[])`,
+        [ids]
+      );
+      return new Set((resultado.rows as { id: string }[]).map((linha) => linha.id));
     },
     async gravarAvaliacaoDaIa(id, entrada) {
       return emTransacao(pool, async (cliente) => {

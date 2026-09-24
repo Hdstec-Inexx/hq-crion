@@ -6,19 +6,17 @@ import {
   filaDeManutencaoResponseSchema,
   gravacaoDaAvaliacaoDaIaSchema,
   listagemResponseSchema,
-  monitoramentoDetalheSchema,
-  monitoramentoListagemResponseSchema,
   comentarioDaFilaSchema,
   type AtendimentoDetalhe,
   type AtendimentoListItem,
-  type Avaliacao,
-  type MonitoramentoDetalhe
+  type Avaliacao
 } from '@hq-crion/contracts/atendimento';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
 import { recorteDaQuery, type ModoDaListagem } from './filtros.js';
+import { paginaDaLista } from './pagina.js';
 import {
   aprovacaoDaNota,
   detalhePublico,
@@ -117,25 +115,6 @@ function ordenarFila(itens: RegistroDeAtendimento[]) {
   });
 }
 
-function itemDoMonitoramento(item: RegistroDeAtendimento) {
-  return {
-    id: item.id,
-    administradora: item.administradora,
-    agente: item.agente,
-    agenteId: item.agenteId,
-    iniciadoEm: item.iniciadoEm,
-    motivo: item.motivo,
-    status: 'Em andamento' as const
-  };
-}
-
-function responderMonitoramento(item: RegistroDeAtendimento): MonitoramentoDetalhe {
-  return monitoramentoDetalheSchema.parse({
-    ...itemDoMonitoramento(item),
-    transcricao: item.transcricao
-  });
-}
-
 function comAprovacao<T extends { nota: number }>(avaliacao: T): T & Pick<Avaliacao, 'aprovacao'> {
   return {
     ...avaliacao,
@@ -191,31 +170,14 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       registro.id
     );
     const itens = modo === 'fila' ? ordenarFila(comIndicador) : comIndicador;
-    const tamanho = 50;
-    const total = itens.length;
-    const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
-    const pagina = Math.min(
-      ultimaPagina,
-      Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
-    );
-    const paginaItens = itens.slice((pagina - 1) * tamanho, pagina * tamanho);
-
-    if (modo === 'monitoramento') {
-      return monitoramentoListagemResponseSchema.parse({
-        recorte,
-        pagina,
-        tamanho,
-        total,
-        itens: paginaItens.map(itemDoMonitoramento)
-      });
-    }
+    const pagina = paginaDaLista(itens.length, query.pagina);
 
     return listagemResponseSchema.parse({
       recorte,
-      pagina,
-      tamanho,
-      total,
-      itens: paginaItens.map((item) => {
+      pagina: pagina.pagina,
+      tamanho: pagina.tamanho,
+      total: pagina.total,
+      itens: itens.slice(pagina.inicio, pagina.fim).map((item) => {
         const listagem = itemDaListagem(item);
 
         if (custoVisivelPara(registro.papel)) {
@@ -231,7 +193,6 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
   }
 
   app.get('/atendimentos', (request, reply) => listar(request, reply, 'todos'));
-  app.get('/monitoramento', (request, reply) => listar(request, reply, 'monitoramento'));
   app.get('/fila-de-curadoria', (request, reply) => listar(request, reply, 'fila'));
   app.get('/minhas-curadorias', (request, reply) => listar(request, reply, 'minhas'));
   app.get('/curadorias-realizadas', (request, reply) =>
@@ -256,39 +217,15 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     const itens = (await app.atendimentos.consultarManutencao(recorte, query))
       .map(itemDaFilaDeManutencao)
       .filter((item) => item !== null);
-    const tamanho = 50;
-    const total = itens.length;
-    const ultimaPagina = Math.max(1, Math.ceil(total / tamanho));
-    const pagina = Math.min(
-      ultimaPagina,
-      Math.max(1, Number.parseInt(query.pagina ?? '1', 10) || 1)
-    );
+    const pagina = paginaDaLista(itens.length, query.pagina);
 
     return filaDeManutencaoResponseSchema.parse({
       recorte,
-      pagina,
-      tamanho,
-      total,
-      itens: itens.slice((pagina - 1) * tamanho, pagina * tamanho)
+      pagina: pagina.pagina,
+      tamanho: pagina.tamanho,
+      total: pagina.total,
+      itens: itens.slice(pagina.inicio, pagina.fim)
     });
-  });
-
-  app.get('/monitoramento/:id', async (request, reply) => {
-    semCache(reply);
-    const perfil = perfilDaAutorizacao(request.headers.authorization);
-
-    if (!perfil) {
-      return reply.code(401).send({ statusCode: 401 });
-    }
-
-    const { id } = request.params as { id: string };
-    const encontrado = await app.atendimentos.buscarPorId(id);
-
-    if (!encontrado || encontrado.status !== 'Em andamento') {
-      return reply.code(404).send({ statusCode: 404 });
-    }
-
-    return responderMonitoramento(encontrado);
   });
 
   app.get('/atendimentos/:id', async (request, reply) => {

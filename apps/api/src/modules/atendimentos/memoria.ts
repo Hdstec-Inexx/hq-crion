@@ -5,10 +5,45 @@ import {
   aplicarConsultaDoDashboard
 } from './consulta.js';
 import type { PortaDeAtendimentos } from './porta.js';
-import { aprovacaoDaNota, avaliacaoDaIaTemVeredito, recusaDaAvaliacao, recusaDaConferencia } from './registro.js';
+import { aprovacaoDaNota, avaliacaoDaIaTemVeredito, camposDeMidia, recusaDaAvaliacao, recusaDaConferencia, type RegistroDeAtendimento } from './registro.js';
 
-export function repositorioEmMemoria(): PortaDeAtendimentos {
+function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendimento) {
+  const atual = registros.find((registro) => registro.id === novo.id);
+
+  if (!atual) {
+    registros.push(novo);
+    return;
+  }
+
+  if (novo.transcricao.length > 0) {
+    atual.transcricao = novo.transcricao;
+  }
+
+  if (atual.status !== 'Concluído') {
+    atual.status = novo.status;
+  }
+
+  if (novo.duracaoEmSegundos !== undefined) {
+    atual.duracaoEmSegundos = novo.duracaoEmSegundos;
+  }
+
+  if (novo.tempoDeEsperaEmSegundos !== undefined) {
+    atual.tempoDeEsperaEmSegundos = novo.tempoDeEsperaEmSegundos;
+  }
+
+  if (novo.audio) {
+    Object.assign(atual, camposDeMidia(novo.audio));
+  }
+}
+
+export function repositorioEmMemoria(
+  ingeridos: readonly RegistroDeAtendimento[] = []
+): PortaDeAtendimentos {
   const registros = catalogoDeAtendimentos();
+
+  for (const ingerido of ingeridos) {
+    incorporar(registros, ingerido);
+  }
 
   return {
     async listar() {
@@ -16,6 +51,14 @@ export function repositorioEmMemoria(): PortaDeAtendimentos {
     },
     async buscarPorId(id) {
       return registros.find((registro) => registro.id === id);
+    },
+    async idsConcluidos(ids) {
+      const pedidos = new Set(ids);
+      return new Set(
+        registros
+          .filter((registro) => pedidos.has(registro.id) && registro.status === 'Concluído')
+          .map((registro) => registro.id)
+      );
     },
     async gravarAvaliacaoDaIa(id, entrada) {
       const item = registros.find((registro) => registro.id === id);

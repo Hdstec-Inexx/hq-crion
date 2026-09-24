@@ -8,7 +8,8 @@ import {
   repositorioPostgres,
   semearSeNecessario
 } from '../modules/atendimentos/postgres.js';
-import { ingerirElevenLabs } from '../modules/ingestao/boot.js';
+import { ingerirElevenLabs, coletarDaFonte, registrarMidiaLocal } from '../modules/ingestao/boot.js';
+import { lerMidiaDoDeposito, lerMidiaLocal } from '../modules/midia/deposito.js';
 import {
   aplicarConfiguracaoDaIa,
   lerConfiguracaoDoDeposito,
@@ -67,7 +68,9 @@ export default fp(
     if (fonte === 'memoria') {
       usarDepositoDePerfis(null);
       usarDepositoDaIa(null);
-      app.decorate('atendimentos', repositorioEmMemoria());
+      const coletados = await coletarDaFonte(app.config, app.log);
+      app.decorate('atendimentos', repositorioEmMemoria(registrarMidiaLocal(coletados)));
+      app.decorate('lerMidia', async (id: string) => lerMidiaLocal(id));
       return;
     }
 
@@ -106,6 +109,7 @@ export default fp(
       usarDepositoDaIa(pool);
       await ingerirElevenLabs(pool, app.config, app.log);
       app.decorate('atendimentos', repositorioPostgres(pool));
+      app.decorate('lerMidia', async (id: string) => lerMidiaDoDeposito(pool, id));
     } catch (error) {
       await fecharPool();
       throw error;

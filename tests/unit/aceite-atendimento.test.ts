@@ -208,8 +208,8 @@ if (!rodaAceite) {
         assert.equal(corpo.id, 'a1');
         assert.equal(corpo.motivo, 'Rede credenciada');
         assert.equal(corpo.custo, 'R$ 1,42');
-        assert.equal(corpo.audio, '/media/a1.wav');
-        assert.equal(corpo.downloadDeAudio, '/media/a1.wav');
+        assert.equal('audio' in corpo, false);
+        assert.equal('downloadDeAudio' in corpo, false);
         assert.equal(corpo.avaliacaoDaIa.nota, 8.5);
         assert.ok(
           corpo.transcricao.some(
@@ -460,7 +460,7 @@ if (!rodaAceite) {
         assert.equal('custo' in curadorNoDetalhe.json(), false);
         assert.equal('downloadDeAudio' in curadorNoDetalhe.json(), false);
         assert.equal(curadorNoDetalhe.json().downloadDeAudio, undefined);
-        assert.ok(curadorNoDetalhe.json().audio);
+        assert.equal('audio' in curadorNoDetalhe.json(), false);
 
         const pendentes = manutencao.json().itens as {
           id: string;

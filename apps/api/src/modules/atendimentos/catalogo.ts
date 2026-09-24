@@ -176,8 +176,6 @@ function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
 
   return {
     ...item,
-    audio: `/media/${item.id}.wav`,
-    downloadDeAudio: `/media/${item.id}.wav`,
     transcricao: [
       {
         locutor: 'Agente de Voz',

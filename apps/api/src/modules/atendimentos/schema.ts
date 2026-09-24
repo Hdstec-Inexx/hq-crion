@@ -25,11 +25,18 @@ VALUES (${valoresDoAtendimento})
 export const inserirAtendimentoSeAusenteSql = `
 ${inserirAtendimentoSql}
 ON CONFLICT (id) DO UPDATE SET
-  status = EXCLUDED.status,
-  transcricao = EXCLUDED.transcricao,
+  status = CASE
+    WHEN hq_atendimento.status = 'Concluído' THEN hq_atendimento.status
+    ELSE EXCLUDED.status
+  END,
+  transcricao = CASE
+    WHEN EXCLUDED.transcricao = '[]'::jsonb THEN hq_atendimento.transcricao
+    ELSE EXCLUDED.transcricao
+  END,
   duracao_em_segundos = COALESCE(EXCLUDED.duracao_em_segundos, hq_atendimento.duracao_em_segundos),
   tempo_de_espera_em_segundos = COALESCE(
     EXCLUDED.tempo_de_espera_em_segundos,
     hq_atendimento.tempo_de_espera_em_segundos
-  )
+  ),
+  audio = COALESCE(EXCLUDED.audio, hq_atendimento.audio)
 `;
