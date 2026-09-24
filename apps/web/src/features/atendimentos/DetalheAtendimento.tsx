@@ -296,7 +296,7 @@ export function DetalheAtendimento() {
             ) : null}
           </dl>
           <div className="audio-faixa">
-            <PlayerDeAudio src={atendimento.audio} />
+            <PlayerDeAudio src={atendimento.audio ?? ''} />
             {downloadVisivelPara(perfil.papel) &&
             atendimento.downloadDeAudio &&
             caminhoDeMidiaPermitido(atendimento.downloadDeAudio) ? (

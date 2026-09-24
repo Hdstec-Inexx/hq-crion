@@ -10,13 +10,26 @@ export type PayloadElevenLabs = {
   agent_id: string;
   agent_name?: string;
   status?: string;
+  has_audio?: boolean;
   start_time_unix_secs?: number;
   call_duration_secs?: number;
   transcript?: { role: string; message: string; time_in_call_secs?: number }[];
 };
 
+export type AtendimentoColetado = RegistroDeAtendimento & {
+  midia?: Buffer;
+};
+
 function locutorDe(role: string): 'Agente de Voz' | 'Cliente' {
   return role === 'user' || role === 'cliente' ? 'Cliente' : 'Agente de Voz';
+}
+
+export function caminhoDaMidia(id: string) {
+  return `/media/${id}.wav`;
+}
+
+export function conversaAbertaNaFonte(status: string | undefined) {
+  return status === 'in-progress' || status === 'initiated';
 }
 
 export function atendimentoDaFonteElevenLabs(
@@ -60,8 +73,6 @@ export function atendimentoDaFonteElevenLabs(
     status: concluido ? 'Concluído' : 'Em andamento',
     curadoria: false,
     conversa: payload.conversation_id,
-    audio: `/media/${payload.conversation_id}.wav`,
-    downloadDeAudio: `/media/${payload.conversation_id}.wav`,
     transcricao: transcricao.map(({ locutor, quando, texto }) => ({ locutor, quando, texto })),
     ...(tempoDeEsperaEmSegundos !== undefined ? { tempoDeEsperaEmSegundos } : {}),
     ...(concluido ? { concluidoEm: iniciadoEm } : {}),
@@ -75,30 +86,143 @@ type ListaElevenLabs = {
   conversations?: PayloadElevenLabs[];
 };
 
-export async function coletarAtendimentosElevenLabs(input: {
+function urlDaFonte(baseUrl: string, caminho: string) {
+  return `${baseUrl.replace(/\/$/, '')}${caminho}`;
+}
+
+async function buscarJson(
+  fetchImpl: typeof fetch,
+  url: string,
+  apiKey: string
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+
+  try {
+    const resposta = await fetchImpl(url, {
+      headers: { 'xi-api-key': apiKey },
+      signal: controller.signal
+    });
+
+    if (!resposta.ok) {
+      return undefined;
+    }
+
+    return (await resposta.json()) as unknown;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function baixarAudio(
+  fetchImpl: typeof fetch,
+  baseUrl: string,
+  apiKey: string,
+  id: string
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+
+  try {
+    const resposta = await fetchImpl(
+      urlDaFonte(baseUrl, `/v1/convai/conversations/${encodeURIComponent(id)}/audio`),
+      {
+        headers: { 'xi-api-key': apiKey },
+        signal: controller.signal
+      }
+    );
+    const tipo = resposta.headers.get('content-type') ?? '';
+
+    if (!resposta.ok || tipo.includes('json') || !tipo.includes('audio')) {
+      return undefined;
+    }
+
+    const midia = Buffer.from(await resposta.arrayBuffer());
+    return midia.byteLength > 0 ? midia : undefined;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function listarConversasElevenLabs(input: {
   apiKey: string;
   baseUrl: string;
   fetchImpl?: typeof fetch;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
+  const corpo = (await buscarJson(
+    fetchImpl,
+    urlDaFonte(input.baseUrl, '/v1/convai/conversations'),
+    input.apiKey
+  )) as ListaElevenLabs | undefined;
 
-  try {
-    const resposta = await fetchImpl(`${input.baseUrl}/v1/convai/conversations`, {
-      headers: { 'xi-api-key': input.apiKey },
-      signal: controller.signal
-    });
+  if (!corpo) {
+    throw new Error('ElevenLabs não listou as conversas');
+  }
 
-    if (!resposta.ok) {
-      throw new Error(`ElevenLabs respondeu ${resposta.status}`);
+  return corpo.conversations ?? [];
+}
+
+export async function buscarConversaElevenLabs(input: {
+  apiKey: string;
+  baseUrl: string;
+  id: string;
+  fetchImpl?: typeof fetch;
+}) {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const corpo = (await buscarJson(
+    fetchImpl,
+    urlDaFonte(input.baseUrl, `/v1/convai/conversations/${encodeURIComponent(input.id)}`),
+    input.apiKey
+  )) as PayloadElevenLabs | undefined;
+
+  if (!corpo?.conversation_id) {
+    return undefined;
+  }
+
+  return corpo;
+}
+
+export async function coletarAtendimentosElevenLabs(input: {
+  apiKey: string;
+  baseUrl: string;
+  fetchImpl?: typeof fetch;
+}): Promise<AtendimentoColetado[]> {
+  const conversas = await listarConversasElevenLabs(input);
+  const coletados: AtendimentoColetado[] = [];
+
+  for (const payload of conversas) {
+    const atendimento = atendimentoDaFonteElevenLabs(payload);
+
+    if (!atendimento) {
+      continue;
     }
 
-    const corpo = (await resposta.json()) as ListaElevenLabs;
-    return (corpo.conversations ?? [])
-      .map(atendimentoDaFonteElevenLabs)
-      .filter((item): item is RegistroDeAtendimento => item !== undefined);
-  } finally {
-    clearTimeout(timeout);
+    if (!payload.has_audio) {
+      coletados.push(atendimento);
+      continue;
+    }
+
+    const midia = await baixarAudio(
+      input.fetchImpl ?? fetch,
+      input.baseUrl,
+      input.apiKey,
+      payload.conversation_id
+    );
+
+    if (!midia) {
+      coletados.push(atendimento);
+      continue;
+    }
+
+    const caminho = caminhoDaMidia(atendimento.id);
+    coletados.push({
+      ...atendimento,
+      audio: caminho,
+      downloadDeAudio: caminho,
+      midia
+    });
   }
+
+  return coletados;
 }

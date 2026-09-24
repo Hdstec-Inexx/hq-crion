@@ -126,7 +126,7 @@ export const turnoDaTranscricaoSchema = z.object({
 });
 
 export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
-  audio: caminhoDeMidiaSchema,
+  audio: caminhoDeMidiaSchema.optional(),
   downloadDeAudio: caminhoDeMidiaSchema.optional(),
   transcricao: z.array(turnoDaTranscricaoSchema),
   avaliacaoDaIa: avaliacaoSchema.optional(),

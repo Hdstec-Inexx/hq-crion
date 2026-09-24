@@ -267,8 +267,7 @@ function montarRegistro(
     curadoria: Boolean(linha.tem_curadoria),
     conversa: linha.id,
     ...(custo ? { custo } : {}),
-    audio: linha.audio ?? `/media/${linha.id}.wav`,
-    downloadDeAudio: linha.audio ?? `/media/${linha.id}.wav`,
+    ...(linha.audio ? { audio: linha.audio, downloadDeAudio: linha.audio } : {}),
     transcricao: linha.transcricao ?? [],
     ...(avaliacaoDaIa && avaliacaoDaIa.criterios.length > 0 ? { avaliacaoDaIa } : {}),
     ...(avaliacaoDoCurador && avaliacaoDoCurador.criterios.length > 0
@@ -547,7 +546,7 @@ export function valoresDoAtendimento(registro: RegistroDeAtendimento) {
     registro.concluidoEm ?? null,
     registro.duracaoEmSegundos ?? null,
     JSON.stringify(registro.transcricao),
-    registro.audio,
+    registro.audio ?? null,
     registro.motivo,
     registro.transferencia ?? false,
     custoNumerico(registro.custo),

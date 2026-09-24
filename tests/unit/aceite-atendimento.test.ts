@@ -460,7 +460,7 @@ if (!rodaAceite) {
         assert.equal('custo' in curadorNoDetalhe.json(), false);
         assert.equal('downloadDeAudio' in curadorNoDetalhe.json(), false);
         assert.equal(curadorNoDetalhe.json().downloadDeAudio, undefined);
-        assert.ok(curadorNoDetalhe.json().audio);
+        assert.equal('audio' in curadorNoDetalhe.json(), false);
 
         const pendentes = manutencao.json().itens as {
           id: string;

@@ -5,10 +5,44 @@ import {
   aplicarConsultaDoDashboard
 } from './consulta.js';
 import type { PortaDeAtendimentos } from './porta.js';
-import { aprovacaoDaNota, avaliacaoDaIaTemVeredito, recusaDaAvaliacao, recusaDaConferencia } from './registro.js';
+import { aprovacaoDaNota, avaliacaoDaIaTemVeredito, recusaDaAvaliacao, recusaDaConferencia, type RegistroDeAtendimento } from './registro.js';
 
-export function repositorioEmMemoria(): PortaDeAtendimentos {
+function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendimento) {
+  const atual = registros.find((registro) => registro.id === novo.id);
+
+  if (!atual) {
+    registros.push(novo);
+    return;
+  }
+
+  atual.transcricao = novo.transcricao;
+
+  if (atual.status !== 'Concluído') {
+    atual.status = novo.status;
+  }
+
+  if (novo.duracaoEmSegundos !== undefined) {
+    atual.duracaoEmSegundos = novo.duracaoEmSegundos;
+  }
+
+  if (novo.tempoDeEsperaEmSegundos !== undefined) {
+    atual.tempoDeEsperaEmSegundos = novo.tempoDeEsperaEmSegundos;
+  }
+
+  if (novo.audio) {
+    atual.audio = novo.audio;
+    atual.downloadDeAudio = novo.downloadDeAudio;
+  }
+}
+
+export function repositorioEmMemoria(
+  ingeridos: readonly RegistroDeAtendimento[] = []
+): PortaDeAtendimentos {
   const registros = catalogoDeAtendimentos();
+
+  for (const ingerido of ingeridos) {
+    incorporar(registros, ingerido);
+  }
 
   return {
     async listar() {

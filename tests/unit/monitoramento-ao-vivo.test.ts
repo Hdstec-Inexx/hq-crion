@@ -15,6 +15,106 @@ import {
 
 process.env.NODE_ENV = 'test';
 
+type ConversaDaFonte = {
+  conversation_id: string;
+  agent_id: string;
+  agent_name?: string;
+  status?: string;
+  start_time_unix_secs?: number;
+  transcript?: { role: string; message: string; time_in_call_secs?: number }[];
+};
+
+const agoraUnix = Math.floor(Date.now() / 1000);
+
+function conversasDaFonte(): ConversaDaFonte[] {
+  return [
+    {
+      conversation_id: 'conv-aberta',
+      agent_id: 'affix-wa',
+      agent_name: 'Clara Affix WhatsApp',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix,
+      transcript: [
+        { role: 'agent', message: 'Estou na linha.', time_in_call_secs: 1 },
+        { role: 'user', message: 'Ainda estou aqui.', time_in_call_secs: 4 }
+      ]
+    },
+    {
+      conversation_id: 'conv-antiga',
+      agent_id: 'affix-wa',
+      agent_name: 'Clara Affix WhatsApp',
+      status: 'in-progress',
+      start_time_unix_secs: Date.parse('2020-01-15T10:00:00-03:00') / 1000,
+      transcript: [{ role: 'user', message: 'Contato de janeiro.', time_in_call_secs: 2 }]
+    },
+    {
+      conversation_id: 'conv-outro-agente',
+      agent_id: 'affix-0800',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix,
+      transcript: [{ role: 'agent', message: 'Outro agente.', time_in_call_secs: 1 }]
+    },
+    {
+      conversation_id: 'conv-zumbi',
+      agent_id: 'alter-1',
+      status: 'processing',
+      start_time_unix_secs: agoraUnix,
+      transcript: [{ role: 'agent', message: 'Presa na fonte.', time_in_call_secs: 1 }]
+    },
+    {
+      conversation_id: 'a1',
+      agent_id: 'affix-0800',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix,
+      transcript: [{ role: 'agent', message: 'Já concluído no HQ.', time_in_call_secs: 1 }]
+    },
+    {
+      conversation_id: 'conv-done',
+      agent_id: 'conecta-1',
+      status: 'done',
+      start_time_unix_secs: agoraUnix,
+      transcript: [{ role: 'agent', message: 'Encerrada.', time_in_call_secs: 1 }]
+    }
+  ];
+}
+
+async function comFonte(
+  executar: (app: Awaited<ReturnType<typeof buildApp>>) => Promise<void>,
+  conversas = conversasDaFonte()
+) {
+  const fetchOriginal = globalThis.fetch;
+  process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
+  process.env.ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const id = url.match(/\/conversations\/([^/?]+)/)?.[1];
+
+    if (id) {
+      const encontrada = conversas.find((item) => item.conversation_id === id);
+
+      return new Response(JSON.stringify(encontrada ?? {}), {
+        status: encontrada ? 200 : 404,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+
+    return new Response(JSON.stringify({ conversations: conversas }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    });
+  }) as typeof fetch;
+
+  const app = await buildApp();
+
+  try {
+    await executar(app);
+  } finally {
+    await app.close();
+    delete process.env.ELEVENLABS_API_KEY;
+    globalThis.fetch = fetchOriginal;
+  }
+}
+
 async function sessaoDe(
   app: Awaited<ReturnType<typeof buildApp>>,
   email: string
@@ -83,10 +183,8 @@ test('GET /monitoramento sem sessão responde 401', async () => {
   }
 });
 
-test('recurso ao vivo autentica qualquer Perfil', async () => {
-  const app = await buildApp();
-
-  try {
+test('recurso ao vivo autentica qualquer Perfil e lista só o aberto na fonte', async () => {
+  await comFonte(async (app) => {
     for (const email of [
       'ana.souza@crion',
       'bruno.alves@crion',
@@ -99,9 +197,15 @@ test('recurso ao vivo autentica qualquer Perfil', async () => {
         headers: { authorization: `Bearer ${sessao}` }
       });
 
-      assert.equal(response.statusCode, 200);
+      assert.equal(response.statusCode, 200, response.body);
       const bruto = response.json() as { itens: Array<Record<string, unknown>> };
-      assert.ok(bruto.itens.length > 0);
+      const ids = bruto.itens.map((item) => item.id);
+      assert.ok(ids.includes('conv-aberta'));
+      assert.ok(ids.includes('conv-antiga'));
+      assert.equal(ids.includes('conv-zumbi'), false);
+      assert.equal(ids.includes('a1'), false);
+      assert.equal(ids.includes('conv-done'), false);
+      assert.equal(ids.includes('a4'), false);
       for (const item of bruto.itens) {
         assert.equal(item.status, 'Em andamento');
         assert.equal('nota' in item, false);
@@ -111,15 +215,11 @@ test('recurso ao vivo autentica qualquer Perfil', async () => {
       }
       monitoramentoListagemResponseSchema.parse(bruto);
     }
-  } finally {
-    await app.close();
-  }
+  });
 });
 
 test('Recorte filtra a lista ao vivo', async () => {
-  const app = await buildApp();
-
-  try {
+  await comFonte(async (app) => {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const headers = { authorization: `Bearer ${sessao}` };
     const consolidada = await app.inject({
@@ -157,19 +257,18 @@ test('Recorte filtra a lista ao vivo', async () => {
       assert.equal(item.status, 'Em andamento');
     }
     assert.equal(outroAgente.statusCode, 200);
-    assert.equal(monitoramentoListagemResponseSchema.parse(outroAgente.json()).itens.length, 0);
+    const idsDoOutro = monitoramentoListagemResponseSchema
+      .parse(outroAgente.json())
+      .itens.map((item) => item.id);
+    assert.deepEqual(idsDoOutro, ['conv-outro-agente']);
     assert.ok(
       monitoramentoListagemResponseSchema.parse(consolidada.json()).itens.length >= lista.itens.length
     );
-  } finally {
-    await app.close();
-  }
+  });
 });
 
-test('Monitoramento ao Vivo ignora período da listagem', async () => {
-  const app = await buildApp();
-
-  try {
+test('Monitoramento ao Vivo ignora o mês civil', async () => {
+  await comFonte(async (app) => {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
@@ -177,14 +276,13 @@ test('Monitoramento ao Vivo ignora período da listagem', async () => {
       headers: { authorization: `Bearer ${sessao}` }
     });
 
-    assert.equal(response.statusCode, 200);
+    assert.equal(response.statusCode, 200, response.body);
     const ids = monitoramentoListagemResponseSchema
       .parse(response.json())
       .itens.map((item) => item.id);
-    assert.ok(ids.includes('a4'));
-  } finally {
-    await app.close();
-  }
+    assert.ok(ids.includes('conv-antiga'));
+    assert.ok(ids.includes('conv-aberta'));
+  });
 });
 
 test('GET /monitoramento rejeita par Administradora + Agente inválido', async () => {
@@ -216,25 +314,34 @@ test('GET /monitoramento/:id sem sessão responde 401', async () => {
   }
 });
 
-test('detalhe ao vivo é observacional: texto, sem áudio e sem ação no contato', async () => {
-  const app = await buildApp();
-
-  try {
+test('detalhe ao vivo é texto da fonte e não altera o Atendimento', async () => {
+  const conversas = conversasDaFonte();
+  await comFonte(async (app) => {
     const sessao = await sessaoDe(app, 'carla.mendes@crion');
     const headers = { authorization: `Bearer ${sessao}` };
+    const antes = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/conv-aberta',
+      headers
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/monitoramento/a4',
+      url: '/monitoramento/conv-aberta',
       headers
     });
     const conferencia = await app.inject({
       method: 'POST',
-      url: '/monitoramento/a4/conferencia',
+      url: '/monitoramento/conv-aberta/conferencia',
       headers,
       payload: { checklist: [], notaDaRegua: 8, notaDaAvaliacaoDaIa: 8 }
     });
+    const depois = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/conv-aberta',
+      headers
+    });
 
-    assert.equal(response.statusCode, 200);
+    assert.equal(response.statusCode, 200, response.body);
     const bruto = response.json() as Record<string, unknown>;
     assert.equal('conversa' in bruto, false);
     assert.equal('audio' in bruto, false);
@@ -243,26 +350,52 @@ test('detalhe ao vivo é observacional: texto, sem áudio e sem ação no contat
     assert.equal('avaliacaoDoCurador' in bruto, false);
     const body = monitoramentoDetalheSchema.parse(bruto);
     assert.equal(body.status, 'Em andamento');
-    assert.ok(body.transcricao.length > 0);
+    assert.equal(body.transcricao[1]?.texto, 'Ainda estou aqui.');
     assert.notEqual(conferencia.statusCode, 200);
-  } finally {
-    await app.close();
-  }
-});
+    assert.equal(depois.statusCode, antes.statusCode);
+    assert.equal(depois.body, antes.body);
+  }, conversas);
 
-test('detalhe ao vivo recusa Atendimento já concluído', async () => {
-  const app = await buildApp();
+  conversas[0] = {
+    ...conversas[0],
+    transcript: [
+      { role: 'agent', message: 'Estou na linha.', time_in_call_secs: 1 },
+      { role: 'user', message: 'Texto novo da fonte.', time_in_call_secs: 8 }
+    ]
+  };
 
-  try {
-    const sessao = await sessaoDe(app, 'bruno.alves@crion');
-    const response = await app.inject({
+  await comFonte(async (app) => {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const atualizado = await app.inject({
       method: 'GET',
-      url: '/monitoramento/a1',
+      url: '/monitoramento/conv-aberta',
       headers: { authorization: `Bearer ${sessao}` }
     });
 
-    assert.equal(response.statusCode, 404);
-  } finally {
-    await app.close();
-  }
+    assert.equal(atualizado.statusCode, 200, atualizado.body);
+    assert.equal(
+      monitoramentoDetalheSchema.parse(atualizado.json()).transcricao[1]?.texto,
+      'Texto novo da fonte.'
+    );
+  }, conversas);
+});
+
+test('detalhe ao vivo deixa de fora zumbi e Atendimento já Concluído', async () => {
+  await comFonte(async (app) => {
+    const sessao = await sessaoDe(app, 'bruno.alves@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const zumbi = await app.inject({
+      method: 'GET',
+      url: '/monitoramento/conv-zumbi',
+      headers
+    });
+    const concluido = await app.inject({
+      method: 'GET',
+      url: '/monitoramento/a1',
+      headers
+    });
+
+    assert.equal(zumbi.statusCode, 404);
+    assert.equal(concluido.statusCode, 404);
+  });
 });
