@@ -11,6 +11,8 @@ import {
   proximoDestinoDoPercurso
 } from '../../packages/contracts/src/recorte.js';
 import { areasDaCasca } from '../../packages/contracts/src/casca.js';
+import { consultaDoPercurso } from '../../apps/api/src/modules/atendimentos/consulta.js';
+import type { RegistroDeAtendimento } from '../../apps/api/src/modules/atendimentos/registro.js';
 import { reguaUnica } from '../../apps/api/src/modules/regua/regua-unica.js';
 
 process.env.NODE_ENV = 'test';
@@ -42,6 +44,86 @@ function checklistDaConferencia() {
 const buscaDoPercurso = new URLSearchParams(
   'lista=/manutencao&administradora=Alter&agente=alter-1&inicio=2026-09-01&fim=2026-09-30&status=Resolvido&conversa=conv-a2&pagina=2'
 );
+
+function comentarioDoPercurso(entrada: {
+  id: string;
+  comentarioId: string;
+  texto: string;
+  status: 'Pendente' | 'Resolvido';
+  iniciadoEm: string;
+}): RegistroDeAtendimento {
+  return {
+    id: entrada.id,
+    comentarioId: entrada.comentarioId,
+    comentarioStatus: entrada.status,
+    administradora: 'Alter',
+    agente: 'Clara Alter',
+    agenteId: 'alter-1',
+    iniciadoEm: entrada.iniciadoEm,
+    motivo: 'Boleto',
+    nota: 6,
+    status: 'Concluído',
+    curadoria: true,
+    conversa: 'conv-a2',
+    transcricao: [],
+    avaliacaoDoCurador: {
+      nota: 6,
+      aprovacao: 'Reprovado',
+      criterios: [
+        { nome: 'Comentário', estado: 'Não se aplica', pontos: 1, critico: false }
+      ],
+      notaDaAvaliacaoDaIa: 6,
+      curador: 'Carla Mendes',
+      comentario: entrada.texto
+    }
+  };
+}
+
+test('dois Comentários pendentes no mesmo Atendimento mantêm o percurso nele', () => {
+  const registros = [
+    comentarioDoPercurso({
+      id: 'a2',
+      comentarioId: 'c2',
+      texto: 'Segundo',
+      status: 'Pendente',
+      iniciadoEm: '2026-09-11T10:03:00-03:00'
+    }),
+    comentarioDoPercurso({
+      id: 'a2',
+      comentarioId: 'c1',
+      texto: 'Primeiro',
+      status: 'Pendente',
+      iniciadoEm: '2026-09-11T10:03:00-03:00'
+    }),
+    comentarioDoPercurso({
+      id: 'a3',
+      comentarioId: 'c3',
+      texto: 'Outro',
+      status: 'Pendente',
+      iniciadoEm: '2026-09-11T11:40:00-03:00'
+    })
+  ];
+  const atual = { id: 'a2', iniciadoEm: '2026-09-11T10:03:00-03:00' };
+  const recorte = { administradora: null, agente: null } as const;
+  const comDois = consultaDoPercurso(registros, atual, recorte, {});
+  const comUm = consultaDoPercurso(
+    registros.map((item) =>
+      item.comentarioId === 'c1' ? { ...item, comentarioStatus: 'Resolvido' as const } : item
+    ),
+    atual,
+    recorte,
+    {}
+  );
+
+  assert.equal(comDois.pendentesNoAtendimento, 2);
+  assert.equal(comDois.comentarioPendenteId, 'c1');
+  assert.equal(comDois.textoPendente, 'Primeiro');
+  assert.equal(comDois.proximoAtendimentoId, null);
+  assert.equal(comUm.pendentesNoAtendimento, 1);
+  assert.equal(comUm.comentarioPendenteId, 'c2');
+  assert.equal(comUm.textoPendente, 'Segundo');
+  assert.equal(comUm.proximoAtendimentoId, null);
+});
 
 test('próximo destino permanece no Atendimento enquanto há Comentário pendente', () => {
   assert.equal(
@@ -239,6 +321,32 @@ test('GET /manutencao rejeita Recorte inválido', async () => {
     });
 
     assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /manutencao filtra Comentários pela conversa', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'bruno.alves@crion');
+    const daConversa = await app.inject({
+      method: 'GET',
+      url: '/manutencao?conversa=conv-a2',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const outra = await app.inject({
+      method: 'GET',
+      url: '/manutencao?conversa=conv-a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.deepEqual(
+      daConversa.json().itens.map((item: { atendimentoId: string }) => item.atendimentoId),
+      ['a2']
+    );
+    assert.equal(outra.json().itens.length, 0);
   } finally {
     await app.close();
   }
@@ -477,6 +585,7 @@ test('com Comentário pendente no Atendimento, o percurso não abre o seguinte',
     assert.equal(percurso.statusCode, 200);
     assert.equal(percurso.json().pendentesNoAtendimento, 1);
     assert.equal(percurso.json().comentarioPendenteId, 'a2');
+    assert.equal(percurso.json().textoPendente, 'Rever o prompt de boleto na Clara Alter.');
     assert.equal(percurso.json().proximoAtendimentoId, null);
   } finally {
     await app.close();
@@ -533,7 +642,7 @@ test('resolver o último pendente consulta o próximo no mesmo filtro', async ()
   }
 });
 
-test('sem posterior, o percurso segue no pendente anterior do mesmo filtro', async () => {
+test('sem posterior, o percurso volta à fila e deixa o pendente anterior na lista', async () => {
   const app = await buildApp();
 
   try {
@@ -563,7 +672,16 @@ test('sem posterior, o percurso segue no pendente anterior do mesmo filtro', asy
 
     assert.equal(percurso.statusCode, 200);
     assert.equal(percurso.json().pendentesNoAtendimento, 0);
-    assert.equal(percurso.json().proximoAtendimentoId, 'a1');
+    assert.equal(percurso.json().proximoAtendimentoId, null);
+    assert.equal(
+      proximoDestinoDoPercurso({
+        atendimentoAtual: 'a2',
+        pendentesNoAtendimento: 0,
+        proximoAtendimentoId: null,
+        busca: new URLSearchParams('administradora=Affix&agente=affix-0800&conversa=conv-a1')
+      }),
+      '/manutencao?administradora=Affix&agente=affix-0800&conversa=conv-a1'
+    );
   } finally {
     await app.close();
   }
@@ -639,9 +757,15 @@ test('GET /manutencao/proximo rejeita Recorte inválido e Atendimento ausente', 
       url: '/manutencao/proximo?atendimento=nao-existe',
       headers: { authorization: `Bearer ${sessao}` }
     });
+    const idLongo = await app.inject({
+      method: 'GET',
+      url: `/manutencao/proximo?atendimento=${'a'.repeat(201)}`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
 
     assert.equal(recorte.statusCode, 400);
     assert.equal(ausente.statusCode, 404);
+    assert.equal(idLongo.statusCode, 400);
   } finally {
     await app.close();
   }

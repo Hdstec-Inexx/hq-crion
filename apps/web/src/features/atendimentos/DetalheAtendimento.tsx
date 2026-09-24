@@ -308,6 +308,12 @@ export function DetalheAtendimento() {
 
       if (seguinte.pendentesNoAtendimento > 0) {
         setPercurso(seguinte);
+        const atualizado = await buscarAtendimento(id);
+
+        if (atualizado) {
+          setAtendimento(atualizado);
+        }
+
         return;
       }
 
@@ -411,6 +417,10 @@ export function DetalheAtendimento() {
           </div>
           {operaPercurso && percurso?.comentarioPendenteId ? (
             <div className="percurso-da-fila">
+              {percurso.textoPendente &&
+              percurso.textoPendente !== atendimento.avaliacaoDoCurador?.comentario ? (
+                <p className="listagem-comentario">{percurso.textoPendente}</p>
+              ) : null}
               {erroResolucao ? (
                 <p className="listagem-erro" role="alert">
                   Não foi possível marcar o Comentário como Resolvido.

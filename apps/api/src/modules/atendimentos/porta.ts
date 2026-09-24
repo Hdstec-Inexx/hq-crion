@@ -1,4 +1,8 @@
-import type { GravacaoDaAvaliacaoDaIa, CriterioAvaliado } from '@hq-crion/contracts/atendimento';
+import type {
+  GravacaoDaAvaliacaoDaIa,
+  CriterioAvaliado,
+  PercursoDaFilaDeManutencao
+} from '@hq-crion/contracts/atendimento';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import type { ModoDaListagem } from './filtros.js';
 import type { CuradorDaRevisao, RegistroDeAtendimento } from './registro.js';
@@ -42,11 +46,5 @@ export type PortaDeAtendimentos = {
     atendimentoId: string,
     recorte: Recorte,
     query: Record<string, string | undefined>
-  ): Promise<PercursoDaManutencao | 'ausente'>;
-};
-
-export type PercursoDaManutencao = {
-  pendentesNoAtendimento: number;
-  comentarioPendenteId: string | null;
-  proximoAtendimentoId: string | null;
+  ): Promise<PercursoDaFilaDeManutencao | 'ausente'>;
 };

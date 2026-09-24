@@ -238,10 +238,11 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const atendimentoId = query.atendimento?.trim();
+    const atendimentoId =
+      typeof query.atendimento === 'string' ? query.atendimento.trim() : '';
     const recorte = recorteDaQuery(query);
 
-    if (!atendimentoId || !recorte) {
+    if (!atendimentoId || atendimentoId.length > 200 || !recorte) {
       return reply.code(400).send({ statusCode: 400 });
     }
 

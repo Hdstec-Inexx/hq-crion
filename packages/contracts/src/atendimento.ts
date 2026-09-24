@@ -71,6 +71,7 @@ export const comentarioDaFilaSchema = z.object({
 export const percursoDaFilaDeManutencaoSchema = z.object({
   pendentesNoAtendimento: z.number().int().min(0),
   comentarioPendenteId: z.string().min(1).nullable(),
+  textoPendente: z.string().min(1).nullable(),
   proximoAtendimentoId: z.string().min(1).nullable()
 });
 

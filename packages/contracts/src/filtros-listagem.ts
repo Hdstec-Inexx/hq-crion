@@ -42,7 +42,7 @@ const camposPorRota: Record<string, readonly CampoVisivelDaListagem[]> = {
     'notaIa',
     'limpar'
   ],
-  '/manutencao': ['periodo', 'statusComentario', 'limpar']
+  '/manutencao': ['periodo', 'conversa', 'statusComentario', 'limpar']
 };
 
 export function camposVisiveisDaListagem(rota: string): readonly CampoVisivelDaListagem[] {

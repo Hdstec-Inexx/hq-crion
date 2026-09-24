@@ -339,6 +339,52 @@ async function lerRegistros(
   return linhas.map((linha) => montarRegistro(linha, criteriosIa, criteriosCurador));
 }
 
+function registroDoComentario(linha: {
+  comentario_id: string;
+  texto: string;
+  status: 'Pendente' | 'Resolvido';
+  id: string;
+  agente_id: string;
+  agente: string;
+  administradora: RegistroDeAtendimento['administradora'];
+  iniciado_em: unknown;
+  motivo: string;
+  status_atendimento: string;
+  audio: string | null;
+}): RegistroDeAtendimento {
+  return {
+    id: linha.id,
+    comentarioId: linha.comentario_id,
+    administradora: linha.administradora,
+    agente: linha.agente,
+    agenteId: linha.agente_id,
+    iniciadoEm: iso(linha.iniciado_em),
+    motivo: linha.motivo,
+    nota: 0,
+    status: linha.status_atendimento,
+    curadoria: true,
+    conversa: linha.id,
+    ...camposDeMidia(linha.audio),
+    transcricao: [],
+    comentarioStatus: linha.status,
+    avaliacaoDoCurador: {
+      nota: 0,
+      aprovacao: 'Reprovado',
+      criterios: [
+        {
+          nome: 'Comentário',
+          estado: 'Não se aplica',
+          pontos: 1,
+          critico: false
+        }
+      ],
+      notaDaAvaliacaoDaIa: 0,
+      curador: 'Curador',
+      comentario: linha.texto
+    }
+  };
+}
+
 async function registrosDeComentario(
   cliente: ExecutorSql,
   comentarioId?: string,
@@ -384,53 +430,59 @@ async function registrosDeComentario(
     ]
   );
 
-  return (resultado.rows as Array<{
-    comentario_id: string;
-    texto: string;
-    status: 'Pendente' | 'Resolvido';
-    id: string;
-    agente_id: string;
-    agente: string;
-    administradora: RegistroDeAtendimento['administradora'];
-    iniciado_em: unknown;
-    motivo: string;
-    status_atendimento: string;
-    audio: string | null;
-  }>).map((linha) => {
-    const registro: RegistroDeAtendimento = {
-      id: linha.id,
-      comentarioId: linha.comentario_id,
-      administradora: linha.administradora,
-      agente: linha.agente,
-      agenteId: linha.agente_id,
-      iniciadoEm: iso(linha.iniciado_em),
-      motivo: linha.motivo,
-      nota: 0,
-      status: linha.status_atendimento,
-      curadoria: true,
-      conversa: linha.id,
-      ...camposDeMidia(linha.audio),
-      transcricao: [],
-      comentarioStatus: linha.status,
-      avaliacaoDoCurador: {
-        nota: 0,
-        aprovacao: 'Reprovado',
-        criterios: [
-          {
-            nome: 'Comentário',
-            estado: 'Não se aplica',
-            pontos: 1,
-            critico: false
-          }
-        ],
-        notaDaAvaliacaoDaIa: 0,
-        curador: 'Curador',
-        comentario: linha.texto
-      }
-    };
+  return (resultado.rows as Parameters<typeof registroDoComentario>[0][]).map(
+    registroDoComentario
+  );
+}
 
-    return registro;
-  });
+async function registrosPendentesDoPercurso(
+  cliente: ExecutorSql,
+  atendimentoId: string,
+  recorte: Recorte,
+  query: Record<string, string | undefined>
+) {
+  const periodo = periodoDaQuery(query);
+  const conversa = typeof query.conversa === 'string' ? query.conversa.trim() : '';
+  const resultado = await cliente.query(
+    `SELECT
+       c.id AS comentario_id,
+       c.texto,
+       c.status,
+       a.id,
+       a.agente_id,
+       ag.nome AS agente,
+       ag.administradora,
+       a.iniciado_em,
+       a.motivo,
+       a.status AS status_atendimento,
+       a.audio
+     FROM hq_comentario c
+     JOIN hq_atendimento a ON a.id = c.atendimento_id
+     JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
+     WHERE c.status = 'Pendente'
+       AND (
+         c.atendimento_id = $1
+         OR (
+           ($2::text IS NULL OR ag.administradora = $2)
+           AND ($3::text IS NULL OR a.agente_id = $3)
+           AND (a.iniciado_em AT TIME ZONE 'America/Sao_Paulo')::date >= $4::date
+           AND (a.iniciado_em AT TIME ZONE 'America/Sao_Paulo')::date <= $5::date
+           AND ($6::text IS NULL OR a.id = $6)
+         )
+       )`,
+    [
+      atendimentoId,
+      recorte.administradora,
+      recorte.agente,
+      periodo.inicio,
+      periodo.fim,
+      conversa || null
+    ]
+  );
+
+  return (resultado.rows as Parameters<typeof registroDoComentario>[0][]).map(
+    registroDoComentario
+  );
 }
 
 async function inserirCriterios(
@@ -706,7 +758,12 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         return 'ausente' as const;
       }
 
-      const comentarios = await registrosDeComentario(pool);
+      const comentarios = await registrosPendentesDoPercurso(
+        pool,
+        atendimentoId,
+        recorte,
+        query
+      );
       return consultaDoPercurso(comentarios, atual, recorte, query);
     }
   };

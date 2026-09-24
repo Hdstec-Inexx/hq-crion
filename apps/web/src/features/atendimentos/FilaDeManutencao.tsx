@@ -80,7 +80,7 @@ export function FilaDeManutencao() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const proxima = new URLSearchParams(searchParams);
-    const campos = ['inicio', 'fim', 'status'] as const;
+    const campos = ['inicio', 'fim', 'status', 'conversa'] as const;
 
     for (const campo of campos) {
       const valor = String(data.get(campo) ?? '').trim();
@@ -174,6 +174,15 @@ export function FilaDeManutencao() {
             type="date"
             defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
             key={`fim-${searchParams.get('fim') ?? ''}`}
+          />
+        </label>
+        <label>
+          ID da conversa
+          <input
+            name="conversa"
+            placeholder="Buscar por ID"
+            defaultValue={searchParams.get('conversa') ?? ''}
+            key={`conversa-${searchParams.get('conversa') ?? ''}`}
           />
         </label>
         <label>

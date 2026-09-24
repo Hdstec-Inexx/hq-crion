@@ -152,16 +152,11 @@ export function proximoDestinoDoPercurso(entrada: {
 }
 
 function destinoDoDetalheNaFila(id: string, busca: URLSearchParams) {
-  const query = filtrosDaFilaDeManutencao(busca);
   const ordenada = new URLSearchParams();
   ordenada.set('lista', '/manutencao');
 
-  for (const chave of chavesDoFiltroDaFila) {
-    const valor = query.get(chave);
-
-    if (valor) {
-      ordenada.set(chave, valor);
-    }
+  for (const [chave, valor] of filtrosDaFilaDeManutencao(busca)) {
+    ordenada.set(chave, valor);
   }
 
   return `/atendimentos/${encodeURIComponent(id)}?${ordenada.toString()}`;
