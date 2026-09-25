@@ -4,6 +4,14 @@ export function devePulsar(entrada: { visivel: boolean; msDesdeUltimaBusca: numb
   return entrada.visivel && entrada.msDesdeUltimaBusca >= intervaloDoPulsoMs;
 }
 
+export function esperaDoPulso(ultimaBusca: number, agora: number) {
+  if (ultimaBusca <= 0) {
+    return intervaloDoPulsoMs;
+  }
+
+  return Math.max(0, intervaloDoPulsoMs - (agora - ultimaBusca));
+}
+
 export function aplicarCargaDaLista<T>(entrada: {
   listaAtual: T | null;
   carga: { ok: true; lista: T } | { ok: false };

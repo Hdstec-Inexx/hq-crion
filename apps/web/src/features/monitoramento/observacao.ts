@@ -19,6 +19,28 @@ function indiceDaUltimaFalaDoAgente(turnos: readonly TurnoDaTranscricao[]) {
   return -1;
 }
 
+function transcricaoInteiraDaFonte(
+  tela: readonly TurnoDaTranscricao[],
+  fonte: readonly TurnoDaTranscricao[]
+) {
+  const primeiraDaTela = tela[0];
+  const primeiraDaFonte = fonte[0];
+
+  if (!primeiraDaTela || !primeiraDaFonte || fonte.length < tela.length) {
+    return false;
+  }
+
+  if (primeiraDaTela.locutor !== primeiraDaFonte.locutor) {
+    return false;
+  }
+
+  if (primeiraDaTela.texto === primeiraDaFonte.texto) {
+    return true;
+  }
+
+  return indiceDaUltimaFalaDoAgente(tela) === 0 && primeiraDaFonte.locutor === 'Agente de Voz';
+}
+
 export function mesclarTranscricao(
   tela: readonly TurnoDaTranscricao[],
   fonte: readonly TurnoDaTranscricao[]
@@ -27,31 +49,11 @@ export function mesclarTranscricao(
     return tela.map(copiar);
   }
 
-  if (tela.length === 0) {
+  if (tela.length === 0 || transcricaoInteiraDaFonte(tela, fonte)) {
     return fonte.map(copiar);
   }
 
-  const resultado = tela.map(copiar);
-  const indice = indiceDaUltimaFalaDoAgente(resultado);
-  const correcao = indice >= 0 ? fonte[indice] : undefined;
-
-  if (
-    correcao &&
-    correcao.locutor === 'Agente de Voz' &&
-    correcao.texto !== resultado[indice]?.texto
-  ) {
-    resultado[indice] = copiar(correcao);
-  }
-
-  for (let cursor = tela.length; cursor < fonte.length; cursor += 1) {
-    const fala = fonte[cursor];
-
-    if (fala) {
-      resultado.push(copiar(fala));
-    }
-  }
-
-  return resultado;
+  return tela.map(copiar);
 }
 
 export function observarTranscricao(

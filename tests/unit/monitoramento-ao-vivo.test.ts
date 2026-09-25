@@ -13,7 +13,13 @@ import {
   monitoramentoDetalheSchema,
   type TurnoDaTranscricao
 } from '../../packages/contracts/src/atendimento.js';
-import { mensagemDaListaAoVivo, aplicarCargaDaLista, devePulsar, intervaloDoPulsoMs } from '../../apps/web/src/features/monitoramento/pulso.js';
+import {
+  mensagemDaListaAoVivo,
+  aplicarCargaDaLista,
+  devePulsar,
+  esperaDoPulso,
+  intervaloDoPulsoMs
+} from '../../apps/web/src/features/monitoramento/pulso.js';
 import {
   avisoDaTranscricao,
   observarTranscricao,
@@ -567,6 +573,45 @@ test('a busca na fonte segue página só de concluídos até 5 e a tela fica na 
   }
 });
 
+test('a lista ao vivo descarta id de conversa que não cabe na rota', async () => {
+  const conversas = [
+    {
+      conversation_id: 'conv-segura',
+      agent_id: 'affix-wa',
+      agent_name: 'Clara Affix WhatsApp',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix
+    },
+    {
+      conversation_id: '../login',
+      agent_id: 'affix-wa',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix
+    },
+    {
+      conversation_id: 'a'.repeat(129),
+      agent_id: 'affix-wa',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix
+    }
+  ];
+
+  await comFonte(async (app) => {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/monitoramento',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const ids = monitoramentoListagemResponseSchema
+      .parse(response.json())
+      .itens.map((item) => item.id);
+
+    assert.equal(response.statusCode, 200, response.body);
+    assert.deepEqual(ids, ['conv-segura']);
+  }, conversas);
+});
+
 test('sem a chave da fonte a lista não finge Recorte vazio', async () => {
   const fetchOriginal = globalThis.fetch;
   let chamadas = 0;
@@ -613,6 +658,9 @@ test('pulso de 10 segundos busca com a área visível, espera oculta e conserva 
   assert.equal(devePulsar({ visivel: true, msDesdeUltimaBusca: 10_000 }), true);
   assert.equal(devePulsar({ visivel: true, msDesdeUltimaBusca: 9_999 }), false);
   assert.equal(devePulsar({ visivel: false, msDesdeUltimaBusca: 10_000 }), false);
+  assert.equal(esperaDoPulso(0, 50_000), 10_000);
+  assert.equal(esperaDoPulso(1_000, 1_001), 9_999);
+  assert.equal(esperaDoPulso(1_000, 11_000), 0);
 
   const lista = { id: 'conv-aberta' };
   const conservada = aplicarCargaDaLista({
@@ -695,6 +743,61 @@ test('transcrição ao vivo semeia, acrescenta, corrige, não corta e permanece'
     transcricao: corrigida.transcricao
   });
   assert.deepEqual(repetida.transcricao, corrigida.transcricao);
+
+  const comInsercao = observarTranscricao(
+    {
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:01', texto: 'Olá.' },
+        { locutor: 'Cliente', quando: '0:04', texto: 'Oi.' },
+        { locutor: 'Agente de Voz', quando: '0:08', texto: 'Vou ver.' }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:01', texto: 'Olá.' },
+        { locutor: 'Cliente', quando: '0:04', texto: 'Oi.' },
+        { locutor: 'Cliente', quando: '0:06', texto: 'Espera.' },
+        { locutor: 'Agente de Voz', quando: '0:08', texto: 'Vou verificar.' }
+      ]
+    }
+  );
+  assert.equal(comInsercao.transcricao.length, 4);
+  assert.equal(comInsercao.transcricao[0]?.texto, 'Olá.');
+  assert.equal(comInsercao.transcricao[2]?.texto, 'Espera.');
+  assert.equal(comInsercao.transcricao[3]?.texto, 'Vou verificar.');
+  assert.equal(
+    comInsercao.transcricao.filter((turno) => turno.locutor === 'Agente de Voz' && turno.quando === '0:08')
+      .length,
+    1
+  );
+
+  const semCorteDoInicio = observarTranscricao(
+    {
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:01', texto: 'Olá.' },
+        { locutor: 'Cliente', quando: '0:04', texto: 'Oi.' },
+        { locutor: 'Agente de Voz', quando: '0:08', texto: 'Vou ver.' }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:08', texto: 'Outra abertura.' },
+        { locutor: 'Cliente', quando: '0:10', texto: 'Nova.' },
+        { locutor: 'Agente de Voz', quando: '0:12', texto: 'Segue.' },
+        { locutor: 'Cliente', quando: '0:14', texto: 'Certo.' }
+      ]
+    }
+  );
+  assert.equal(semCorteDoInicio.transcricao[0]?.texto, 'Olá.');
+  assert.equal(semCorteDoInicio.transcricao.length, 3);
+  assert.equal(
+    semCorteDoInicio.transcricao.filter((turno) => turno.locutor === 'Agente de Voz').at(-1)?.texto,
+    'Vou ver.'
+  );
 
   const encerrada = observarTranscricao(corrigida, {
     aberto: false,

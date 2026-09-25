@@ -15,6 +15,8 @@ import {
   type LeituraAoVivo
 } from '../ingestao/elevenlabs.js';
 
+const idDeConversaAoVivo = /^[A-Za-z0-9_-]{1,128}$/;
+
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
 }
@@ -100,7 +102,11 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
 
       const atendimento = leituraAoVivoDaFonte(payload);
 
-      if (!atendimento || !passaNoRecorteAoVivo(atendimento, recorte)) {
+      if (
+        !atendimento ||
+        !idDeConversaAoVivo.test(atendimento.id) ||
+        !passaNoRecorteAoVivo(atendimento, recorte)
+      ) {
         continue;
       }
 
@@ -135,7 +141,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
 
     const { id } = request.params as { id: string };
 
-    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    if (!idDeConversaAoVivo.test(id)) {
       return reply.code(404).send({ statusCode: 404 });
     }
 

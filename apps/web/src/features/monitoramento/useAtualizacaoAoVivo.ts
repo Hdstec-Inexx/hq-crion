@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { devePulsar, intervaloDoPulsoMs } from './pulso';
+import { devePulsar, esperaDoPulso } from './pulso';
 
 export function abortou(error: unknown) {
   return error instanceof Error && error.name === 'AbortError';
@@ -46,17 +46,14 @@ export function useAtualizacaoAoVivo(
     function agendar() {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        if (cancelado) {
+        if (cancelado || document.visibilityState !== 'visible') {
           return;
         }
 
-        const visivel = document.visibilityState === 'visible';
+        const decorrido = ultimaBusca === 0 ? esperaDoPulso(0, Date.now()) : Date.now() - ultimaBusca;
 
-        if (!devePulsar({ visivel, msDesdeUltimaBusca: Date.now() - ultimaBusca })) {
-          if (visivel) {
-            agendar();
-          }
-
+        if (!devePulsar({ visivel: true, msDesdeUltimaBusca: decorrido })) {
+          agendar();
           return;
         }
 
@@ -65,7 +62,7 @@ export function useAtualizacaoAoVivo(
             agendar();
           }
         });
-      }, intervaloDoPulsoMs);
+      }, esperaDoPulso(ultimaBusca, Date.now()));
     }
 
     function aoMudarVisibilidade() {
@@ -73,7 +70,7 @@ export function useAtualizacaoAoVivo(
         return;
       }
 
-      const decorrido = ultimaBusca === 0 ? intervaloDoPulsoMs : Date.now() - ultimaBusca;
+      const decorrido = ultimaBusca === 0 ? esperaDoPulso(0, Date.now()) : Date.now() - ultimaBusca;
 
       if (!devePulsar({ visivel: true, msDesdeUltimaBusca: decorrido })) {
         agendar();
