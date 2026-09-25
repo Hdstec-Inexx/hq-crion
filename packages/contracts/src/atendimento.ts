@@ -144,7 +144,7 @@ export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
 
 export const monitoramentoListItemSchema = z.object({
   id: z.string().min(1),
-  administradora: administradoraSchema,
+  administradora: administradoraSchema.nullable(),
   agente: z.string().min(1),
   agenteId: z.string().min(1),
   iniciadoEm: z.string().min(1),
@@ -157,12 +157,13 @@ export const monitoramentoListagemResponseSchema = z.object({
   pagina: z.number().int().min(1),
   tamanho: z.literal(50),
   total: z.number().int().min(0),
-  itens: z.array(monitoramentoListItemSchema)
+  itens: z.array(monitoramentoListItemSchema),
+  fonteConfigurada: z.boolean()
 });
 
 export const monitoramentoDetalheSchema = z.object({
   id: z.string().min(1),
-  administradora: administradoraSchema,
+  administradora: administradoraSchema.nullable(),
   agente: z.string().min(1),
   agenteId: z.string().min(1),
   iniciadoEm: z.string().min(1),
