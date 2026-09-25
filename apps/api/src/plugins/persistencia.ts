@@ -30,6 +30,19 @@ declare module 'fastify' {
 
 export type FonteDePersistencia = 'memoria' | 'postgres';
 
+const timeoutPadraoDoPlugin = 10_000;
+const timeoutDeProducaoDoPlugin = 120_000;
+
+export function timeoutDoPluginPersistencia(env: { NODE_ENV?: string }) {
+  return env.NODE_ENV === 'production'
+    ? timeoutDeProducaoDoPlugin
+    : timeoutPadraoDoPlugin;
+}
+
+export function ingestaoEsperaOPlugin(fonte: FonteDePersistencia) {
+  return fonte === 'memoria';
+}
+
 export function fonteDePersistencia(env: {
   NODE_ENV?: string;
   DATABASE_URL?: string;
@@ -105,9 +118,16 @@ export default fp(
       aplicarConfiguracaoDaIa(configuracao);
       usarDepositoDePerfis(pool);
       usarDepositoDaIa(pool);
-      await ingerirElevenLabs(pool, app.config, app.log);
       app.decorate('atendimentos', repositorioPostgres(pool));
       app.decorate('lerMidia', async (id: string) => lerMidiaDoDeposito(pool, id));
+      if (!ingestaoEsperaOPlugin(fonte)) {
+        void ingerirElevenLabs(pool, app.config, app.log).catch((error) => {
+          app.log.warn(
+            { err: error },
+            'Ingestão mínima ElevenLabs falhou; o HQ segue com o DB Crion'
+          );
+        });
+      }
     } catch (error) {
       await fecharPool();
       throw error;

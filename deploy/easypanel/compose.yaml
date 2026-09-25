@@ -34,8 +34,8 @@ services:
         ]
       interval: 10s
       timeout: 5s
-      retries: 6
-      start_period: 20s
+      retries: 12
+      start_period: 90s
     user: "10001:10001"
     security_opt:
       - no-new-privileges:true
