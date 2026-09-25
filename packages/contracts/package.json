@@ -1,0 +1,55 @@
+{
+  "name": "@hq-crion/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": ["dist"],
+  "exports": {
+    "./health": {
+      "types": "./src/health.ts",
+      "default": "./dist/health.js"
+    },
+    "./perfil": {
+      "types": "./src/perfil.ts",
+      "default": "./dist/perfil.js"
+    },
+    "./casca": {
+      "types": "./src/casca.ts",
+      "default": "./dist/casca.js"
+    },
+    "./regua": {
+      "types": "./src/regua.ts",
+      "default": "./dist/regua.js"
+    },
+    "./recorte": {
+      "types": "./src/recorte.ts",
+      "default": "./dist/recorte.js"
+    },
+    "./atendimento": {
+      "types": "./src/atendimento.ts",
+      "default": "./dist/atendimento.js"
+    },
+    "./filtros-listagem": {
+      "types": "./src/filtros-listagem.ts",
+      "default": "./dist/filtros-listagem.js"
+    },
+    "./dashboard": {
+      "types": "./src/dashboard.ts",
+      "default": "./dist/dashboard.js"
+    },
+    "./ia-avaliadora": {
+      "types": "./src/ia-avaliadora.ts",
+      "default": "./dist/ia-avaliadora.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit false --outDir dist",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "zod": "^4.0.10"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
