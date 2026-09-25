@@ -154,6 +154,9 @@ test('Critérios compactos abrem checkboxes e somem da Fila', () => {
   assert.match(barra, /Critérios Atendidos/);
   assert.doesNotMatch(barra, /<select[\s\S]*multiple/);
   assert.match(multiselect, /type="checkbox"/);
+  assert.match(multiselect, /listagem-multiselect-criterios-opcao-texto/);
+  assert.match(css, /\.listagem-multiselect-criterios-opcao input\[type='checkbox'\]/);
+  assert.match(css, /flex-wrap: nowrap/);
   assert.match(multiselect, /Selecionar todos/);
   assert.match(multiselect, /rotuloDosCriteriosSelecionados/);
   assert.match(multiselect, /useFecharAoClicarFora/);

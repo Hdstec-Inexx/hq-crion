@@ -93,7 +93,7 @@ export function MultiselectCriterios({
                   checked={marcado}
                   onChange={() => alternar(nome)}
                 />
-                {nome}
+                <span className="listagem-multiselect-criterios-opcao-texto">{nome}</span>
               </label>
             );
           })}
