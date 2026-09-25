@@ -4,7 +4,11 @@ import { aplicarMigracoes, listarMigracoes } from '../../apps/api/src/db/migrar.
 import { semearEstrutura } from '../../apps/api/src/db/semente-estrutural.js';
 import { motivoUltimoAdmin } from '../../packages/contracts/src/perfil.js';
 import { parseAppConfig } from '../../apps/api/src/plugins/config.js';
-import { fonteDePersistencia } from '../../apps/api/src/plugins/persistencia.js';
+import {
+  fonteDePersistencia,
+  ingestaoEsperaOPlugin,
+  timeoutDoPluginPersistencia
+} from '../../apps/api/src/plugins/persistencia.js';
 import { deveSemear } from '../../apps/api/src/modules/atendimentos/semente.js';
 import {
   buscarPorId,
@@ -42,6 +46,16 @@ test('produção sem CORS_ORIGIN público recusa o default de localhost', () => 
       }),
     /CORS_ORIGIN/
   );
+});
+
+test('produção dá ao plugin persistencia mais que os 10s padrão do Fastify', () => {
+  assert.equal(timeoutDoPluginPersistencia({ NODE_ENV: 'production' }) > 10_000, true);
+  assert.equal(timeoutDoPluginPersistencia({ NODE_ENV: 'test' }), 10_000);
+});
+
+test('Postgres não segura o listen na ingestão ElevenLabs', () => {
+  assert.equal(ingestaoEsperaOPlugin('postgres'), false);
+  assert.equal(ingestaoEsperaOPlugin('memoria'), true);
 });
 
 test('produção com DATABASE_URL usa o adapter Postgres, não o catálogo em memória', () => {

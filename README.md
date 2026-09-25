@@ -21,7 +21,7 @@ corepack pnpm prototype
 
 Compose de referência em `deploy/easypanel/compose.yaml`: serviços `api` e `web`, Postgres **externo** via `DATABASE_URL` (banco Crion, nunca o do HQ GEAP), só `expose`. Variáveis em `.env.example` (`DATABASE_URL`, `CORS_ORIGIN`, `VITE_API_URL`, `SESSION_SECRET`, `SKIP_SEED`, ElevenLabs e armazenamento).
 
-Com `DATABASE_URL`, a migration termina antes do listen. Perfil, Agente de Voz, Régua e a configuração da IA Avaliadora são semeados sempre; `SKIP_SEED=true` pula só os Atendimentos de demonstração. A sessão vale só enquanto o processo está no ar. Listagens e Dashboard seguem o catálogo atual, e a ingestão mínima ElevenLabs entra se houver chave.
+Com `DATABASE_URL`, a migration e a semente estrutural terminam antes do listen. Perfil, Agente de Voz, Régua e a configuração da IA Avaliadora são semeados sempre; `SKIP_SEED=true` pula só os Atendimentos de demonstração. A sessão vale só enquanto o processo está no ar. Listagens e Dashboard seguem o catálogo atual. A ingestão mínima ElevenLabs, se houver chave, não segura o listen.
 
 Healthcheck da API: `GET /health` sem sessão. A web só sobe com a API saudável e expõe `/healthz`.
 
