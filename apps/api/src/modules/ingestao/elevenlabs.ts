@@ -1,4 +1,5 @@
-import { agentesDeVoz } from '@hq-crion/contracts/recorte';
+import type { TurnoDaTranscricao } from '@hq-crion/contracts/atendimento';
+import { agentesDeVoz, type Administradora } from '@hq-crion/contracts/recorte';
 import { camposDeMidia, type RegistroDeAtendimento } from '../atendimentos/registro.js';
 import {
   quandoDaFonte,
@@ -72,20 +73,8 @@ export function custoDaFonte(payload: PayloadElevenLabs) {
   return `R$ ${bruto.toFixed(2).replace('.', ',')}`;
 }
 
-export function atendimentoDaFonteElevenLabs(
-  payload: PayloadElevenLabs
-): RegistroDeAtendimento | undefined {
-  const agente = agentesDeVoz.find((item) => item.id === payload.agent_id);
-
-  if (!agente) {
-    return undefined;
-  }
-
-  const iniciadoEm = payload.start_time_unix_secs
-    ? new Date(payload.start_time_unix_secs * 1000).toISOString()
-    : new Date().toISOString();
-  const concluido = payload.status === 'done' || payload.status === 'completed';
-  const transcricao = (payload.transcript ?? []).flatMap((turno) => {
+function turnosDaFonte(payload: PayloadElevenLabs) {
+  return (payload.transcript ?? []).flatMap((turno) => {
     const texto = turno.message?.trim();
 
     if (!texto) {
@@ -103,6 +92,56 @@ export function atendimentoDaFonteElevenLabs(
       }
     ];
   });
+}
+
+function iniciadoEmDaFonte(payload: PayloadElevenLabs) {
+  return payload.start_time_unix_secs
+    ? new Date(payload.start_time_unix_secs * 1000).toISOString()
+    : new Date().toISOString();
+}
+
+export type LeituraAoVivo = {
+  id: string;
+  administradora: Administradora | null;
+  agente: string;
+  agenteId: string;
+  iniciadoEm: string;
+  motivo: string;
+  transcricao: TurnoDaTranscricao[];
+};
+
+export function leituraAoVivoDaFonte(payload: PayloadElevenLabs): LeituraAoVivo | undefined {
+  if (!payload.conversation_id || !payload.agent_id) {
+    return undefined;
+  }
+
+  const agente = agentesDeVoz.find((item) => item.id === payload.agent_id);
+  const nomeDaFonte = payload.agent_name?.trim();
+  const turnos = turnosDaFonte(payload);
+
+  return {
+    id: payload.conversation_id,
+    administradora: agente?.administradora ?? null,
+    agente: nomeDaFonte || agente?.nome || payload.agent_id,
+    agenteId: payload.agent_id,
+    iniciadoEm: iniciadoEmDaFonte(payload),
+    motivo: 'Não informado',
+    transcricao: turnos.map(({ locutor, quando, texto }) => ({ locutor, quando, texto }))
+  };
+}
+
+export function atendimentoDaFonteElevenLabs(
+  payload: PayloadElevenLabs
+): RegistroDeAtendimento | undefined {
+  const agente = agentesDeVoz.find((item) => item.id === payload.agent_id);
+
+  if (!agente) {
+    return undefined;
+  }
+
+  const iniciadoEm = iniciadoEmDaFonte(payload);
+  const concluido = payload.status === 'done' || payload.status === 'completed';
+  const transcricao = turnosDaFonte(payload);
   const tempoDeEsperaEmSegundos = tempoDeEsperaDaTranscricao(
     transcricao.map((turno) => ({
       locutor: turno.locutor,
@@ -250,7 +289,6 @@ export async function listarConversasElevenLabs(input: {
   baseUrl: string;
   fetchImpl?: typeof fetch;
   maxPaginas?: number;
-  pararSemAbertas?: boolean;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const conversas: PayloadElevenLabs[] = [];
@@ -271,15 +309,7 @@ export async function listarConversasElevenLabs(input: {
       throw new Error('ElevenLabs não listou as conversas');
     }
 
-    const paginaAtual = corpo.conversations ?? [];
-    conversas.push(...paginaAtual);
-
-    if (
-      input.pararSemAbertas &&
-      !paginaAtual.some((item) => conversaAbertaNaFonte(item.status))
-    ) {
-      break;
-    }
+    conversas.push(...(corpo.conversations ?? []));
 
     if (!corpo.has_more || !corpo.next_cursor || corpo.next_cursor === cursor) {
       break;
@@ -298,11 +328,21 @@ export async function buscarConversaElevenLabs(input: {
   fetchImpl?: typeof fetch;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const corpo = (await buscarJson(
+  const resposta = await respostaDaFonte(
     fetchImpl,
     urlDaFonte(input.baseUrl, `/v1/convai/conversations/${encodeURIComponent(input.id)}`),
     input.apiKey
-  )) as PayloadElevenLabs | undefined;
+  );
+
+  if (resposta.status === 404) {
+    return undefined;
+  }
+
+  if (!resposta.ok) {
+    throw new Error('ElevenLabs não devolveu a conversa');
+  }
+
+  const corpo = (await resposta.json()) as PayloadElevenLabs;
 
   if (!corpo?.conversation_id) {
     return undefined;

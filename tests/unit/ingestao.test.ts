@@ -392,7 +392,7 @@ test('HTTP da ingestão serve o arquivo e não inventa mídia nem Avaliação da
   }
 });
 
-test('listagem ao vivo para a puxada quando a página não tem contato aberto na fonte', async () => {
+test('listagem da fonte segue a próxima página mesmo só com concluídos', async () => {
   const chamadas: string[] = [];
   const fetchImpl = (async (url: string | URL) => {
     chamadas.push(String(url));
@@ -421,11 +421,11 @@ test('listagem ao vivo para a puxada quando a página não tem contato aberto na
     apiKey: 'chave',
     baseUrl: 'https://api.elevenlabs.io',
     fetchImpl,
-    maxPaginas: 5,
-    pararSemAbertas: true
+    maxPaginas: 5
   });
 
-  assert.equal(conversas.length, 1);
+  assert.equal(conversas.length, 2);
   assert.equal(conversas[0]?.conversation_id, 'conv-feita');
-  assert.equal(chamadas.length, 1);
+  assert.equal(conversas[1]?.conversation_id, 'conv-tarde');
+  assert.equal(chamadas.length, 2);
 });
