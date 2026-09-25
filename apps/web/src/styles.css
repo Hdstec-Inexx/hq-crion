@@ -108,6 +108,26 @@ button {
   min-height: 8rem;
 }
 
+.senha-com-botao {
+  display: grid;
+  gap: 8px;
+}
+
+.mostrar-senha {
+  justify-self: start;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.perfil-campo-senha {
+  grid-column: 1 / -1;
+}
+
 .login-error {
   margin: 0 0 12px;
   color: var(--danger);

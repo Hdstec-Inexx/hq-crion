@@ -208,7 +208,8 @@ test('o depósito recusa desativar o Admin quando o outro Admin já saiu', async
   await criarPerfil({
     nome: 'Outro Admin',
     email: 'outro.admin@crion',
-    papel: 'Admin'
+    papel: 'Admin',
+    senha: 'senha-inicial'
   });
   const textos: string[] = [];
   usarDepositoDePerfis({

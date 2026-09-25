@@ -8,8 +8,11 @@ import {
   tituloDaPagina
 } from '../../packages/contracts/src/casca.js';
 import {
+  alternarVisibilidadeDaSenha,
+  campoDaSenha,
   loginResponseSchema,
-  perfilSchema
+  perfilSchema,
+  type VisibilidadeDaSenha
 } from '../../packages/contracts/src/perfil.js';
 import { perfilDaAutorizacao } from '../../apps/api/src/modules/perfil/sessoes.js';
 
@@ -285,6 +288,27 @@ test('casca libera as áreas do papel com rótulos curtos', () => {
 
 test('h1 do deep link usa o termo Atendimento', () => {
   assert.equal(tituloDaPagina('/atendimentos/a1', 'Gestão'), 'Atendimento');
+});
+
+test('o campo de senha alterna entre Mostrar senha e Ocultar senha', () => {
+  let visibilidade: VisibilidadeDaSenha = 'oculta';
+
+  assert.deepEqual(campoDaSenha(visibilidade), {
+    tipo: 'password',
+    rotulo: 'Mostrar senha'
+  });
+
+  visibilidade = alternarVisibilidadeDaSenha(visibilidade);
+  assert.deepEqual(campoDaSenha(visibilidade), {
+    tipo: 'text',
+    rotulo: 'Ocultar senha'
+  });
+
+  visibilidade = alternarVisibilidadeDaSenha(visibilidade);
+  assert.deepEqual(campoDaSenha(visibilidade), {
+    tipo: 'password',
+    rotulo: 'Mostrar senha'
+  });
 });
 
 test('papel não permanece em área que a casca não libera', () => {

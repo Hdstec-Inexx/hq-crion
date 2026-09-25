@@ -14,14 +14,36 @@ export const perfilSchema = z.object({
   papel: papelSchema
 });
 
+const senhaNovaSchema = z.string().min(8).max(128);
+
+export const criarPerfilSchema = perfilSchema.extend({
+  senha: senhaNovaSchema
+});
+
 export const loginRequestSchema = z.object({
   email: emailSchema,
   senha: z.string().min(1).max(128)
 });
 
 export const redefinirSenhaSchema = z.object({
-  senha: z.string().min(1).max(128)
+  senha: senhaNovaSchema
 });
+
+export type VisibilidadeDaSenha = 'oculta' | 'visivel';
+
+export function campoDaSenha(visibilidade: VisibilidadeDaSenha) {
+  if (visibilidade === 'visivel') {
+    return { tipo: 'text' as const, rotulo: 'Ocultar senha' };
+  }
+
+  return { tipo: 'password' as const, rotulo: 'Mostrar senha' };
+}
+
+export function alternarVisibilidadeDaSenha(
+  visibilidade: VisibilidadeDaSenha
+): VisibilidadeDaSenha {
+  return visibilidade === 'oculta' ? 'visivel' : 'oculta';
+}
 
 export const loginResponseSchema = z.object({
   perfil: perfilSchema,
@@ -45,6 +67,7 @@ export const listaDePerfisSchema = z.object({
 
 export type Papel = z.infer<typeof papelSchema>;
 export type Perfil = z.infer<typeof perfilSchema>;
+export type CriarPerfil = z.infer<typeof criarPerfilSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type RedefinirSenha = z.infer<typeof redefinirSenhaSchema>;
 export type LoginResponse = z.infer<typeof loginResponseSchema>;

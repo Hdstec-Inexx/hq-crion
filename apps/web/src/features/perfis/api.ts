@@ -3,8 +3,10 @@ import {
   perfilComIdSchema,
   perfilSchema,
   ativoDoPerfilSchema,
+  criarPerfilSchema,
   motivoUltimoAdmin,
   redefinirSenhaSchema,
+  type CriarPerfil,
   type ListaDePerfis,
   type Perfil,
   type PerfilComId
@@ -67,9 +69,9 @@ export async function listarPerfis(
 
 export async function criarPerfil(
   sessao: string,
-  identidade: Perfil
+  pedido: CriarPerfil
 ): Promise<ResultadoDaAdministracao> {
-  const parsed = perfilSchema.safeParse(identidade);
+  const parsed = criarPerfilSchema.safeParse(pedido);
 
   if (!parsed.success) {
     return { ok: false, motivo: 'invalido' };
