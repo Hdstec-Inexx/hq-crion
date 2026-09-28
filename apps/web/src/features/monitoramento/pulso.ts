@@ -4,8 +4,25 @@ export function devePulsar(entrada: { visivel: boolean; msDesdeUltimaBusca: numb
   return entrada.visivel && entrada.msDesdeUltimaBusca >= intervaloDoPulsoMs;
 }
 
-export function esperaDoPulso(ultimaBusca: number, agora: number) {
-  if (ultimaBusca <= 0) {
+export function deveBuscarDeNovo(entrada: {
+  visivel: boolean;
+  emCurso: boolean;
+  ultimaBusca: number | null;
+  agora: number;
+}) {
+  if (!entrada.visivel || entrada.emCurso) {
+    return false;
+  }
+
+  if (entrada.ultimaBusca === null) {
+    return true;
+  }
+
+  return entrada.agora - entrada.ultimaBusca >= intervaloDoPulsoMs;
+}
+
+export function esperaDoPulso(ultimaBusca: number | null, agora: number) {
+  if (ultimaBusca === null || ultimaBusca <= 0) {
     return intervaloDoPulsoMs;
   }
 
