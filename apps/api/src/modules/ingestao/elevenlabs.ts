@@ -228,6 +228,8 @@ type ListaElevenLabs = {
 
 const limiteDeMidia = 25 * 1024 * 1024;
 const limiteDePaginas = 20;
+const esperaDaFonteMs = 8_000;
+const tentativasDaFonte = 2;
 
 function urlDaFonte(baseUrl: string, caminho: string) {
   return `${baseUrl.replace(/\/$/, '')}${caminho}`;
@@ -242,31 +244,47 @@ async function respostaDaFonte(
   fetchImpl: typeof fetch,
   url: string,
   apiKey: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  esperaMs = esperaDaFonteMs
 ) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
-  const cancelar = () => controller.abort();
-  signal?.addEventListener('abort', cancelar, { once: true });
+  let ultimoErro: unknown;
 
-  try {
-    return await fetchImpl(url, {
-      headers: { 'xi-api-key': apiKey },
-      signal: controller.signal
-    });
-  } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener('abort', cancelar);
+  for (let tentativa = 0; tentativa < tentativasDaFonte; tentativa += 1) {
+    buscaCancelada(signal);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), esperaMs);
+    const cancelar = () => controller.abort();
+    signal?.addEventListener('abort', cancelar, { once: true });
+
+    try {
+      return await fetchImpl(url, {
+        headers: { 'xi-api-key': apiKey },
+        signal: controller.signal
+      });
+    } catch (error) {
+      ultimoErro = error;
+      const estourouTempo = controller.signal.aborted && !signal?.aborted;
+
+      if (!estourouTempo) {
+        throw error;
+      }
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', cancelar);
+    }
   }
+
+  throw ultimoErro;
 }
 
 async function buscarJson(
   fetchImpl: typeof fetch,
   url: string,
   apiKey: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  esperaMs = esperaDaFonteMs
 ) {
-  const resposta = await respostaDaFonte(fetchImpl, url, apiKey, signal);
+  const resposta = await respostaDaFonte(fetchImpl, url, apiKey, signal, esperaMs);
 
   if (!resposta.ok) {
     return undefined;
@@ -353,6 +371,7 @@ export async function listarConversasElevenLabs(input: {
   fetchImpl?: typeof fetch;
   maxPaginas?: number;
   signal?: AbortSignal;
+  esperaMs?: number;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const conversas: PayloadElevenLabs[] = [];
@@ -368,7 +387,8 @@ export async function listarConversasElevenLabs(input: {
       fetchImpl,
       urlDaFonte(input.baseUrl, caminho),
       input.apiKey,
-      input.signal
+      input.signal,
+      input.esperaMs
     )) as ListaElevenLabs | undefined;
 
     if (!corpo) {
