@@ -210,6 +210,11 @@
   font-weight: 600;
 }
 
+.transcricao-espera {
+  margin: 0 0 12px;
+  color: var(--mute);
+}
+
 .listagem-paginacao {
   display: flex;
   align-items: center;
