@@ -1,5 +1,10 @@
 import type { TurnoDaTranscricao } from '@hq-crion/contracts/atendimento';
-import { agentesDeVoz, type Administradora } from '@hq-crion/contracts/recorte';
+import {
+  administradoras,
+  agentesDeVoz,
+  type Administradora,
+  type Recorte
+} from '@hq-crion/contracts/recorte';
 import { camposDeMidia, type RegistroDeAtendimento } from '../atendimentos/registro.js';
 import {
   quandoDaFonte,
@@ -110,6 +115,48 @@ export type LeituraAoVivo = {
   transcricao: TurnoDaTranscricao[];
 };
 
+export function administradoraNoNomeDoAgente(nome: string): Administradora | null {
+  const texto = nome.toLocaleLowerCase('pt-BR');
+  const achadas = administradoras.filter((nomeAdm) =>
+    texto.includes(nomeAdm.toLocaleLowerCase('pt-BR'))
+  );
+
+  if (achadas.length === 0) {
+    return null;
+  }
+
+  return achadas.reduce((maior, atual) => (atual.length > maior.length ? atual : maior));
+}
+
+export function cabeNoRecorteAoVivo(
+  item: { administradora: Administradora | null; agente: string; agenteId: string },
+  recorte: Recorte
+) {
+  if (!recorte.administradora && !recorte.agente) {
+    return true;
+  }
+
+  const administradora = item.administradora ?? administradoraNoNomeDoAgente(item.agente);
+
+  if (recorte.administradora && administradora !== recorte.administradora) {
+    return false;
+  }
+
+  if (!recorte.agente) {
+    return true;
+  }
+
+  if (item.agenteId === recorte.agente) {
+    return true;
+  }
+
+  const doCatalogo = agentesDeVoz.find((agente) => agente.id === recorte.agente);
+
+  return doCatalogo
+    ? item.agente.toLocaleLowerCase('pt-BR').includes(doCatalogo.nome.toLocaleLowerCase('pt-BR'))
+    : false;
+}
+
 export function leituraAoVivoDaFonte(payload: PayloadElevenLabs): LeituraAoVivo | undefined {
   if (!payload.conversation_id || !payload.agent_id) {
     return undefined;
@@ -117,12 +164,13 @@ export function leituraAoVivoDaFonte(payload: PayloadElevenLabs): LeituraAoVivo 
 
   const agente = agentesDeVoz.find((item) => item.id === payload.agent_id);
   const nomeDaFonte = payload.agent_name?.trim();
+  const nome = nomeDaFonte || agente?.nome || payload.agent_id;
   const turnos = turnosDaFonte(payload);
 
   return {
     id: payload.conversation_id,
     administradora: agente?.administradora ?? null,
-    agente: nomeDaFonte || agente?.nome || payload.agent_id,
+    agente: nome,
     agenteId: payload.agent_id,
     iniciadoEm: iniciadoEmDaFonte(payload),
     motivo: 'Não informado',

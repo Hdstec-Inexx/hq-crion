@@ -14,6 +14,18 @@ type MensagemDaFonte = {
   agent_response_correction_event?: { corrected_agent_response?: string };
 };
 
+type SocketDeEvento = {
+  readyState: number;
+  OPEN: number;
+  send: (data: string) => void;
+};
+
+export function enviarEvento(socket: SocketDeEvento, evento: EventoDaObservacao) {
+  if (socket.readyState === socket.OPEN) {
+    socket.send(JSON.stringify(evento));
+  }
+}
+
 export function urlDoMonitorDaFonte(baseUrl: string, id: string) {
   const base = new URL(baseUrl);
   base.protocol = base.protocol === 'http:' ? 'ws:' : 'wss:';

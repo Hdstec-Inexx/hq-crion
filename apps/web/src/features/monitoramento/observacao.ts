@@ -28,7 +28,7 @@ function mesmoInstante(a: TurnoDaTranscricao, b: TurnoDaTranscricao) {
 }
 
 function jaEstaNaTela(tela: readonly TurnoDaTranscricao[], turno: TurnoDaTranscricao) {
-  return tela.some((item) => mesmoTurno(item, turno));
+  return tela.some((item) => item.locutor === turno.locutor && item.texto === turno.texto);
 }
 
 function transcricaoInteiraDaFonte(
@@ -66,7 +66,7 @@ function mesclarFragmento(
 
   for (let tamanho = maior; tamanho >= 1; tamanho -= 1) {
     const inicioNaTela = tela.length - tamanho;
-    let casa = true;
+    let sufixoConfere = true;
     let correcao = -1;
 
     for (let indice = 0; indice < tamanho; indice += 1) {
@@ -74,7 +74,7 @@ function mesclarFragmento(
       const daFonte = fonte[indice];
 
       if (!daTela || !daFonte) {
-        casa = false;
+        sufixoConfere = false;
         break;
       }
 
@@ -91,11 +91,11 @@ function mesclarFragmento(
         continue;
       }
 
-      casa = false;
+      sufixoConfere = false;
       break;
     }
 
-    if (!casa) {
+    if (!sufixoConfere) {
       continue;
     }
 
@@ -154,19 +154,17 @@ function acrescentarFala(
   locutor: TurnoDaTranscricao['locutor'],
   texto: string
 ) {
-  for (let indice = turnos.length - 1; indice >= 0; indice -= 1) {
-    const turno = turnos[indice];
-
-    if (turno?.locutor === locutor) {
-      if (turno.texto === texto) {
-        return turnos.map(copiar);
-      }
-
-      break;
-    }
+  if (turnos.some((turno) => turno.locutor === locutor && turno.texto === texto)) {
+    return turnos.map(copiar);
   }
 
   return [...turnos.map(copiar), { locutor, quando: '—', texto }];
+}
+
+export const folgaParaAcompanharPx = 80;
+
+export function acompanhaOFim(entrada: { altura: number; rolagem: number; visivel: number }) {
+  return entrada.altura - entrada.rolagem - entrada.visivel <= folgaParaAcompanharPx;
 }
 
 export function aplicarEventoDaObservacao(

@@ -21,6 +21,7 @@ import {
   intervaloDoPulsoMs
 } from '../../apps/web/src/features/monitoramento/pulso.js';
 import {
+  acompanhaOFim,
   aplicarEventoDaObservacao,
   avisoDaTranscricao,
   observarTranscricao,
@@ -437,6 +438,22 @@ test('leitura consolidada inclui o aberto fora do catálogo e o Recorte esconde'
       agent_id: 'id-sem-nome',
       status: 'in-progress',
       start_time_unix_secs: agoraUnix
+    },
+    {
+      conversation_id: 'conv-nome-affix',
+      agent_id: 'el-affix-real',
+      agent_name: 'Clara Affix WhatsApp',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix,
+      transcript: [{ role: 'agent', message: 'Pelo nome.', time_in_call_secs: 1 }]
+    },
+    {
+      conversation_id: 'conv-nome-alter',
+      agent_id: 'el-alter-real',
+      agent_name: 'Clara Alter Plantão',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix,
+      transcript: [{ role: 'agent', message: 'Outra administradora.', time_in_call_secs: 1 }]
     }
   );
 
@@ -457,6 +474,11 @@ test('leitura consolidada inclui o aberto fora do catálogo e o Recorte esconde'
     assert.ok(semNome);
     assert.equal(semNome?.administradora, null);
     assert.equal(semNome?.agente, 'id-sem-nome');
+    const peloNome = corpo.itens.find((item) => item.id === 'conv-nome-affix');
+    const alterPeloNome = corpo.itens.find((item) => item.id === 'conv-nome-alter');
+    assert.equal(peloNome?.administradora, null);
+    assert.equal(peloNome?.agenteId, 'el-affix-real');
+    assert.equal(alterPeloNome?.administradora, null);
     assert.equal(corpo.itens.some((item) => item.id === 'a1'), false);
     assert.equal(corpo.itens.some((item) => item.id === 'conv-zumbi'), false);
     assert.equal(corpo.itens.some((item) => item.id === 'conv-done'), false);
@@ -471,7 +493,9 @@ test('leitura consolidada inclui o aberto fora do catálogo e o Recorte esconde'
       .itens.map((item) => item.id);
     assert.equal(idsAffix.includes('conv-fora'), false);
     assert.equal(idsAffix.includes('conv-sem-nome'), false);
+    assert.equal(idsAffix.includes('conv-nome-alter'), false);
     assert.ok(idsAffix.includes('conv-aberta'));
+    assert.ok(idsAffix.includes('conv-nome-affix'));
     assert.equal(idsAffix.includes('conv-outro-agente'), true);
 
     const porAgente = await app.inject({
@@ -484,7 +508,20 @@ test('leitura consolidada inclui o aberto fora do catálogo e o Recorte esconde'
       .itens.map((item) => item.id);
     assert.equal(idsAgente.includes('conv-outro-agente'), false);
     assert.equal(idsAgente.includes('conv-fora'), false);
+    assert.equal(idsAgente.includes('conv-nome-alter'), false);
     assert.ok(idsAgente.includes('conv-aberta'));
+    assert.ok(idsAgente.includes('conv-nome-affix'));
+
+    const porOutroAgente = await app.inject({
+      method: 'GET',
+      url: '/monitoramento?administradora=Affix&agente=affix-0800',
+      headers
+    });
+    const idsOutroAgente = monitoramentoListagemResponseSchema
+      .parse(porOutroAgente.json())
+      .itens.map((item) => item.id);
+    assert.equal(idsOutroAgente.includes('conv-nome-affix'), false);
+    assert.ok(idsOutroAgente.includes('conv-outro-agente'));
 
     const detalhe = await app.inject({
       method: 'GET',
@@ -836,6 +873,9 @@ test('transcrição ao vivo semeia, acrescenta, corrige, não corta e permanece'
   assert.equal(depois.observando, false);
   assert.deepEqual(depois.transcricao, corrigida.transcricao);
 
+  assert.equal(acompanhaOFim({ altura: 800, rolagem: 700, visivel: 80 }), true);
+  assert.equal(acompanhaOFim({ altura: 800, rolagem: 0, visivel: 80 }), false);
+
   const repetidaNoCanal = aplicarEventoDaObservacao(semente, {
     tipo: 'fala',
     locutor: 'Agente de Voz',
@@ -843,6 +883,37 @@ test('transcrição ao vivo semeia, acrescenta, corrige, não corta e permanece'
   });
   assert.equal(repetidaNoCanal.transcricao.length, semente.transcricao.length);
   assert.equal(repetidaNoCanal.transcricao[0]?.texto, 'Olá, sou a Clara.');
+
+  const comFalaDoCanal = aplicarEventoDaObservacao(semente, {
+    tipo: 'fala',
+    locutor: 'Cliente',
+    texto: 'Ainda estou aqui.'
+  });
+  const fundidaDepois = observarTranscricao(comFalaDoCanal, {
+    aberto: true,
+    transcricao: [
+      ...semente.transcricao,
+      { locutor: 'Cliente', quando: '0:30', texto: 'Ainda estou aqui.' },
+      { locutor: 'Agente de Voz', quando: '0:34', texto: 'Pode falar.' }
+    ]
+  });
+  assert.equal(fundidaDepois.transcricao[0]?.texto, 'Olá, sou a Clara.');
+  assert.equal(
+    fundidaDepois.transcricao.filter((turno) => turno.texto === 'Ainda estou aqui.').length,
+    1
+  );
+  assert.equal(fundidaDepois.transcricao.at(-1)?.texto, 'Pode falar.');
+
+  const aberturaJaNaTela = aplicarEventoDaObservacao(semente, {
+    tipo: 'fala',
+    locutor: 'Agente de Voz',
+    texto: 'Olá, sou a Clara.'
+  });
+  assert.equal(aberturaJaNaTela.transcricao.length, semente.transcricao.length);
+  assert.equal(
+    aberturaJaNaTela.transcricao.filter((turno) => turno.texto === 'Olá, sou a Clara.').length,
+    1
+  );
 
   const novaNoCanal = aplicarEventoDaObservacao(semente, {
     tipo: 'fala',

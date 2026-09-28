@@ -215,6 +215,38 @@
   color: var(--mute);
 }
 
+.transcricao-acompanhamento {
+  position: relative;
+}
+
+.transcricao-rolagem {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.transcricao-sincronizar {
+  position: sticky;
+  bottom: 12px;
+  display: flex;
+  justify-content: center;
+  margin-top: -44px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.transcricao-sincronizar button {
+  pointer-events: auto;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 700;
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgb(44 48 51 / 12%);
+}
+
 .listagem-paginacao {
   display: flex;
   align-items: center;

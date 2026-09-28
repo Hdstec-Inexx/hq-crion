@@ -1,20 +1,20 @@
 import {
   monitoramentoDetalheSchema,
-  monitoramentoListagemResponseSchema,
-  type EventoDaObservacao
+  monitoramentoListagemResponseSchema
 } from '@hq-crion/contracts/atendimento';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import websocket from '@fastify/websocket';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import type { WebSocket } from 'ws';
-import { passaNoRecorte, recorteDaQuery } from '../atendimentos/filtros.js';
+import { recorteDaQuery } from '../atendimentos/filtros.js';
 import { paginaDaLista } from '../atendimentos/pagina.js';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
-import { sessaoDaMensagem, urlDoMonitorDaFonte } from './canal.js';
+import { enviarEvento, sessaoDaMensagem, urlDoMonitorDaFonte } from './canal.js';
 import { createMonitoramentoProxy } from './proxy.js';
 import {
   conversaAbertaNaFonte,
   buscarConversaElevenLabs,
+  cabeNoRecorteAoVivo,
   leituraAoVivoDaFonte,
   listarConversasElevenLabs,
   type LeituraAoVivo
@@ -23,10 +23,9 @@ import {
 const idDeConversaAoVivo = /^[A-Za-z0-9_-]{1,128}$/;
 const esperaDaSessaoMs = 5_000;
 
-function enviar(socket: WebSocket, evento: EventoDaObservacao) {
-  if (socket.readyState === socket.OPEN) {
-    socket.send(JSON.stringify(evento));
-  }
+function recusar(socket: WebSocket) {
+  enviarEvento(socket, { tipo: 'erro' });
+  socket.close();
 }
 
 function esperarSessao(socket: WebSocket) {
@@ -64,21 +63,6 @@ function itemDoMonitoramento(item: LeituraAoVivo) {
     motivo: item.motivo,
     status: 'Em andamento' as const
   };
-}
-
-function passaNoRecorteAoVivo(item: LeituraAoVivo, recorte: Recorte) {
-  if (!recorte.administradora && !recorte.agente) {
-    return true;
-  }
-
-  if (!item.administradora) {
-    return false;
-  }
-
-  return passaNoRecorte(
-    { administradora: item.administradora, agenteId: item.agenteId },
-    recorte
-  );
 }
 
 function listaVazia(recorte: Recorte, fonteConfigurada: boolean) {
@@ -150,7 +134,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
       if (
         !atendimento ||
         !idDeConversaAoVivo.test(atendimento.id) ||
-        !passaNoRecorteAoVivo(atendimento, recorte)
+        !cabeNoRecorteAoVivo(atendimento, recorte)
       ) {
         continue;
       }
@@ -224,8 +208,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     const { id } = request.params as { id: string };
 
     if (!idDeConversaAoVivo.test(id)) {
-      enviar(socket, { tipo: 'erro' });
-      socket.close();
+      recusar(socket);
       return;
     }
 
@@ -236,21 +219,19 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (!sessao || !registroDaAutorizacao(`Bearer ${sessao}`)) {
-      enviar(socket, { tipo: 'erro' });
-      socket.close();
+      recusar(socket);
       return;
     }
 
     if (!app.config.ELEVENLABS_API_KEY) {
-      enviar(socket, { tipo: 'erro' });
-      socket.close();
+      recusar(socket);
       return;
     }
 
     const noHq = await app.atendimentos.buscarPorId(id);
 
     if (noHq?.status === 'Concluído') {
-      enviar(socket, { tipo: 'encerrada' });
+      enviarEvento(socket, { tipo: 'encerrada' });
       socket.close();
       return;
     }
@@ -264,8 +245,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
         id
       });
     } catch {
-      enviar(socket, { tipo: 'erro' });
-      socket.close();
+      recusar(socket);
       return;
     }
 
@@ -274,7 +254,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (!payload || !conversaAbertaNaFonte(payload.status)) {
-      enviar(socket, { tipo: 'encerrada' });
+      enviarEvento(socket, { tipo: 'encerrada' });
       socket.close();
       return;
     }
