@@ -78,31 +78,38 @@ function CampoPapel({ valor }: { valor?: Papel }) {
 function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
   const revalidator = useRevalidator();
   const [erro, setErro] = useState<string | null>(null);
+  const [erroDaSenha, setErroDaSenha] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [geracaoDaSenha, setGeracaoDaSenha] = useState(0);
 
   async function executar(
     acao: (sessao: string) => Promise<ResultadoDaAdministracao>,
+    destino: 'perfil' | 'senha',
     textoInvalido?: string
   ) {
+    const publicar = destino === 'senha' ? setErroDaSenha : setErro;
+    const limpar = destino === 'senha' ? setErro : setErroDaSenha;
     const sessao = lerSessao();
 
     if (!sessao) {
-      setErro('A sessão expirou. Entre de novo.');
-      return;
+      publicar('A sessão expirou. Entre de novo.');
+      return false;
     }
 
-    setErro(null);
+    limpar(null);
+    publicar(null);
     setEnviando(true);
 
     try {
       const resultado = await acao(sessao);
 
       if (!resultado.ok) {
-        setErro(mensagemDoMotivo(resultado.motivo, textoInvalido));
-        return;
+        publicar(mensagemDoMotivo(resultado.motivo, textoInvalido));
+        return false;
       }
 
       await revalidator.revalidate();
+      return true;
     } finally {
       setEnviando(false);
     }
@@ -111,22 +118,33 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    void executar((sessao) =>
-      alterarPerfil(sessao, perfil.id, identidadeDoFormulario(form))
+    void executar(
+      (sessao) => alterarPerfil(sessao, perfil.id, identidadeDoFormulario(form)),
+      'perfil'
     );
   }
 
   function onAtivo() {
-    void executar((sessao) => definirAtivoDoPerfil(sessao, perfil.id, !perfil.ativo));
+    void executar(
+      (sessao) => definirAtivoDoPerfil(sessao, perfil.id, !perfil.ativo),
+      'perfil'
+    );
   }
 
   function onRedefinir(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const senha = String(new FormData(event.currentTarget).get('senha') ?? '');
+    const form = event.currentTarget;
+    const senha = String(new FormData(form).get('senha') ?? '');
     void executar(
       (sessao) => redefinirSenhaDoPerfil(sessao, perfil.id, senha),
+      'senha',
       `A Nova senha precisa ter de ${minimoDaSenhaNova} a ${maximoDaSenha} caracteres.`
-    );
+    ).then((ok) => {
+      if (ok) {
+        form.reset();
+        setGeracaoDaSenha((geracao) => geracao + 1);
+      }
+    });
   }
 
   return (
@@ -163,10 +181,16 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
       </form>
       <form className="perfil-senha" onSubmit={onRedefinir} aria-label={`Senha de ${perfil.nome}`}>
         <CampoSenha
+          key={geracaoDaSenha}
           rotulo="Nova senha"
           autoComplete="new-password"
           minimo={minimoDaSenhaNova}
         />
+        {erroDaSenha ? (
+          <p className="login-error" role="alert">
+            {erroDaSenha}
+          </p>
+        ) : null}
         <button className="perfil-situacao" type="submit" disabled={enviando}>
           Redefinir senha
         </button>
@@ -182,6 +206,7 @@ export function PerfisPage() {
   const revalidator = useRevalidator();
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [geracaoDaSenha, setGeracaoDaSenha] = useState(0);
 
   async function onCriar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -213,6 +238,7 @@ export function PerfisPage() {
       }
 
       form.reset();
+      setGeracaoDaSenha((geracao) => geracao + 1);
       await revalidator.revalidate();
     } finally {
       setEnviando(false);
@@ -240,6 +266,7 @@ export function PerfisPage() {
         </label>
         <CampoPapel />
         <CampoSenha
+          key={geracaoDaSenha}
           rotulo="Senha inicial"
           autoComplete="new-password"
           className="perfil-campo-senha"

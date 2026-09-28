@@ -193,10 +193,13 @@ export function tipoDeMidia(bruto: string | null) {
 async function respostaDaFonte(
   fetchImpl: typeof fetch,
   url: string,
-  apiKey: string
+  apiKey: string,
+  signal?: AbortSignal
 ) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
+  const cancelar = () => controller.abort();
+  signal?.addEventListener('abort', cancelar, { once: true });
 
   try {
     return await fetchImpl(url, {
@@ -205,15 +208,17 @@ async function respostaDaFonte(
     });
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', cancelar);
   }
 }
 
 async function buscarJson(
   fetchImpl: typeof fetch,
   url: string,
-  apiKey: string
+  apiKey: string,
+  signal?: AbortSignal
 ) {
-  const resposta = await respostaDaFonte(fetchImpl, url, apiKey);
+  const resposta = await respostaDaFonte(fetchImpl, url, apiKey, signal);
 
   if (!resposta.ok) {
     return undefined;
@@ -284,11 +289,22 @@ async function lerCorpoLimitado(resposta: Response, limite: number) {
   return Buffer.concat(partes);
 }
 
+function buscaCancelada(signal?: AbortSignal) {
+  if (!signal?.aborted) {
+    return;
+  }
+
+  const error = new Error('busca cancelada');
+  error.name = 'AbortError';
+  throw error;
+}
+
 export async function listarConversasElevenLabs(input: {
   apiKey: string;
   baseUrl: string;
   fetchImpl?: typeof fetch;
   maxPaginas?: number;
+  signal?: AbortSignal;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const conversas: PayloadElevenLabs[] = [];
@@ -296,13 +312,15 @@ export async function listarConversasElevenLabs(input: {
   const maxPaginas = input.maxPaginas ?? limiteDePaginas;
 
   for (let pagina = 0; pagina < maxPaginas; pagina += 1) {
+    buscaCancelada(input.signal);
     const caminho = cursor
       ? `/v1/convai/conversations?cursor=${encodeURIComponent(cursor)}`
       : '/v1/convai/conversations';
     const corpo = (await buscarJson(
       fetchImpl,
       urlDaFonte(input.baseUrl, caminho),
-      input.apiKey
+      input.apiKey,
+      input.signal
     )) as ListaElevenLabs | undefined;
 
     if (!corpo) {

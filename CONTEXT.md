@@ -7,7 +7,7 @@ Sistema de qualidade que acompanha e avalia os Atendimentos das Claras: uma IA a
 ### Papéis
 
 **Admin**:
-Papel com acesso total: gerencia usuários, configura a IA Avaliadora e trabalha a fila de comentários pendentes.
+Papel com acesso total: gerencia Perfis, configura a IA Avaliadora e trabalha a fila de comentários pendentes.
 
 **Gestão**:
 Papel de acompanhamento, 100% leitura. Vê dashboards, relatórios, atendimentos com suas avaliações e comentários — sem escrever nem alterar nada.
@@ -17,8 +17,12 @@ Papel que atua como fallback humano da IA Avaliadora. Escolhe da Fila de Curador
 _Avoid_: Operacional
 
 **Perfil**:
-A identidade autenticada no HQ Crion: quem é a pessoa (nome, e-mail) e qual **papel** exerce (Admin, Gestão ou Curador). Não pertence a uma Administradora — o recorte de leitura é filtro de tela, não atributo do Perfil. É o que a casca autenticada consulta para liberar ou bloquear áreas. **Desativado**, permanece na lista e nas curadorias já feitas, mas não autentica. O último Admin ativo não se desativa.
+A identidade autenticada no HQ Crion: quem é a pessoa (nome, e-mail), a **Senha** com que autentica, e qual **papel** exerce (Admin, Gestão ou Curador). Não pertence a uma Administradora — o recorte de leitura é filtro de tela, não atributo do Perfil. É o que a casca autenticada consulta para liberar ou bloquear áreas. **Desativado**, permanece na lista e nas curadorias já feitas, mas não autentica. O último Admin ativo não se desativa.
 _Avoid_: Usuário (ambíguo com conta genérica), sessão (mecanismo de auth, não o conceito de identidade/papel)
+
+**Senha**:
+A credencial do Perfil. O Admin a define na criação e pode substituí-la depois, sem alterar nome, e-mail ou papel. Perfil Desativado não autentica, mesmo com Senha definida.
+_Avoid_: password, senha padrão
 
 **Casca autenticada**:
 O enquadramento da UI presente só com Perfil válido: faixa **clara**, colapso em trilho de ícones, áreas do **papel**, nome da pessoa e encerrar sessão. Login e health ficam fora dela. A marca é o logotipo Crion (wordmark); não se repete o nome ao lado nem se usa logo de Administradora. No trilho recolhido a marca **não** aparece — o clique nela só existe com a faixa aberta. Não há Home de apresentação. Após o login, e ao clicar na marca, a casca abre na **primeira área** do papel (Admin e Gestão: Dashboard; Curador: Atendimentos). `/` autenticado redireciona para essa área. Deep link preserva o destino.
@@ -126,7 +130,7 @@ _Avoid_: pct, o mesmo sentido de Acerto ou Concordância
 ### Operação
 
 **Monitoramento ao Vivo**:
-A observação em tempo real — somente texto, sem áudio — de Atendimentos ainda abertos. Na casca o rótulo é “Ao vivo”; o nome da área é este.
+A observação em tempo real — somente texto, sem áudio — de Atendimentos ainda abertos, no pulso do GEAP. A lista se atualiza enquanto a área está visível; se uma atualização falha, permanece a última lista boa. O detalhe mostra a transcrição que a fonte já devolveu, sem cortar o início, e segue só as falas que ainda não estão na tela; sem transcrição ainda, espera a próxima fala. Quando o contato acaba, a observação encerra e o texto permanece. Na leitura consolidada (Administradora “Todas”) entram todos os ainda abertos que a fonte lista, tenham ou não **Agente de Voz** no catálogo. O **Recorte** é que restringe a uma Administradora ou a um Agente de Voz. Linha sem Agente no catálogo mostra o nome da fonte, ou o id se não houver nome, e não tem Administradora. Sem a fonte configurada, a área não observa: isso não é Recorte vazio. Na casca o rótulo é “Ao vivo”; o nome da área é este.
 _Avoid_: Supervisão (implica intervenção), Ao vivo (fora da casca)
 
 **Filtro de Nota da IA**:

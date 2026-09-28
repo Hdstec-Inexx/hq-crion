@@ -191,3 +191,28 @@ export type MonitoramentoDetalhe = z.infer<typeof monitoramentoDetalheSchema>;
 export type MonitoramentoListagemResponse = z.infer<
   typeof monitoramentoListagemResponseSchema
 >;
+
+export const maximoDoTextoDaFala = 4_096;
+
+export const sessaoDaObservacaoSchema = z.object({
+  tipo: z.literal('sessao'),
+  sessao: z.string().trim().min(1).max(8_192)
+});
+
+export const eventoDaObservacaoSchema = z.discriminatedUnion('tipo', [
+  z.object({ tipo: z.literal('pronto') }),
+  z.object({
+    tipo: z.literal('fala'),
+    locutor: z.enum(['Agente de Voz', 'Cliente']),
+    texto: z.string().min(1).max(maximoDoTextoDaFala)
+  }),
+  z.object({
+    tipo: z.literal('correcao'),
+    texto: z.string().min(1).max(maximoDoTextoDaFala)
+  }),
+  z.object({ tipo: z.literal('encerrada') }),
+  z.object({ tipo: z.literal('erro') })
+]);
+
+export type SessaoDaObservacao = z.infer<typeof sessaoDaObservacaoSchema>;
+export type EventoDaObservacao = z.infer<typeof eventoDaObservacaoSchema>;

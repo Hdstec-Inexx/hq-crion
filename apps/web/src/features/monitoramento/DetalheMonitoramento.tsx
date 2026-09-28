@@ -2,17 +2,19 @@ import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { MonitoramentoDetalhe } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { destinoDaLista, lerRecorte } from '@hq-crion/contracts/recorte';
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
-import { buscarDetalheDoMonitoramento } from './api';
+import { lerSessao } from '../auth/sessao';
+import { buscarDetalheDoMonitoramento, lerEventoDaObservacao, urlDaObservacao } from './api';
 import {
+  aplicarEventoDaObservacao,
   avisoDaTranscricao,
   observarTranscricao,
   textoDaObservacao,
   type ObservacaoDaTranscricao
 } from './observacao';
-import { abortou, useAtualizacaoAoVivo } from './useAtualizacaoAoVivo';
+import { abortou } from './useAtualizacaoAoVivo';
 
 function listaComRecorte(searchParams: URLSearchParams) {
   try {
@@ -38,74 +40,130 @@ export function DetalheMonitoramento() {
   const [atendimento, setAtendimento] = useState<MonitoramentoDetalhe | null>(null);
   const [erro, setErro] = useState<'nao-encontrado' | 'detalhe' | null>(null);
   const [observacao, setObservacao] = useState<ObservacaoDaTranscricao>(observacaoInicial);
-  const carregou = useRef(false);
-  const idAtual = useRef(id);
   const [idDaTela, setIdDaTela] = useState(id);
   const volta = listaComRecorte(searchParams);
 
   if (idDaTela !== id) {
     setIdDaTela(id);
-    carregou.current = false;
     setAtendimento(null);
     setErro(null);
     setObservacao(observacaoInicial);
   }
 
-  idAtual.current = id;
-
-  useAtualizacaoAoVivo(observacao.observando, id ?? '', async (signal) => {
+  useEffect(() => {
     if (!id) {
       return;
     }
 
     const pedido = id;
+    const controlador = new AbortController();
+    let cancelado = false;
+    let socket: WebSocket | undefined;
+    let encerrou = false;
 
-    try {
-      const resultado = await buscarDetalheDoMonitoramento(id, signal);
+    function abrirCanal() {
+      const sessao = lerSessao();
 
-      if (signal.aborted || idAtual.current !== pedido) {
+      if (!sessao || cancelado) {
+        setErro('detalhe');
         return;
       }
 
-      if (!resultado) {
-        if (!carregou.current) {
-          setErro('detalhe');
-        }
+      let aberto: WebSocket;
 
+      try {
+        aberto = new WebSocket(urlDaObservacao(pedido));
+      } catch {
+        setErro('detalhe');
         return;
       }
 
-      carregou.current = true;
-      setAtendimento(resultado);
-      setErro(null);
-      setObservacao((atual) =>
-        observarTranscricao(atual, { transcricao: resultado.transcricao, aberto: true })
-      );
-    } catch (error: unknown) {
-      if (signal.aborted || abortou(error) || idAtual.current !== pedido) {
-        return;
-      }
+      socket = aberto;
 
-      if (error instanceof Error && error.message === 'atendimento-nao-encontrado') {
-        if (!carregou.current) {
-          setAtendimento(null);
-          setErro('nao-encontrado');
-          setObservacao((atual) => ({ ...atual, observando: false }));
+      aberto.addEventListener('open', () => {
+        if (cancelado) {
+          aberto.close();
           return;
         }
 
-        setErro(null);
-        setObservacao((atual) =>
-          observarTranscricao(atual, { transcricao: atual.transcricao, aberto: false })
-        );
-        return;
-      }
+        aberto.send(JSON.stringify({ tipo: 'sessao', sessao }));
+      });
 
-      if (!carregou.current) {
+      aberto.addEventListener('message', (event) => {
+        if (cancelado) {
+          return;
+        }
+
+        const mensagem = lerEventoDaObservacao(String(event.data));
+
+        if (!mensagem) {
+          return;
+        }
+
+        if (mensagem.tipo === 'erro') {
+          setErro('detalhe');
+          return;
+        }
+
+        if (mensagem.tipo === 'encerrada') {
+          encerrou = true;
+          setErro(null);
+        }
+
+        setObservacao((atual) => aplicarEventoDaObservacao(atual, mensagem));
+      });
+
+      aberto.addEventListener('close', () => {
+        if (cancelado || encerrou) {
+          return;
+        }
+
         setErro('detalhe');
-      }
+      });
     }
-  });
+
+    buscarDetalheDoMonitoramento(pedido, controlador.signal)
+      .then((resultado) => {
+        if (cancelado || controlador.signal.aborted) {
+          return;
+        }
+
+        if (!resultado) {
+          setErro('detalhe');
+          return;
+        }
+
+        setAtendimento(resultado);
+        setErro(null);
+        setObservacao(
+          observarTranscricao(observacaoInicial, {
+            transcricao: resultado.transcricao,
+            aberto: true
+          })
+        );
+        abrirCanal();
+      })
+      .catch((error: unknown) => {
+        if (cancelado || controlador.signal.aborted || abortou(error)) {
+          return;
+        }
+
+        if (error instanceof Error && error.message === 'atendimento-nao-encontrado') {
+          setAtendimento(null);
+          setErro('nao-encontrado');
+          setObservacao({ transcricao: [], observando: false });
+          return;
+        }
+
+        setErro('detalhe');
+      });
+
+    return () => {
+      cancelado = true;
+      controlador.abort();
+      socket?.close();
+    };
+  }, [id]);
 
   const aviso = avisoDaTranscricao({
     observando: observacao.observando,

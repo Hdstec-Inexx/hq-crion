@@ -45,38 +45,10 @@ export function useAtualizacaoAoVivo(
 
     function agendar() {
       clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (cancelado || document.visibilityState !== 'visible') {
-          return;
-        }
-
-        const decorrido = ultimaBusca === 0 ? esperaDoPulso(0, Date.now()) : Date.now() - ultimaBusca;
-
-        if (!devePulsar({ visivel: true, msDesdeUltimaBusca: decorrido })) {
-          agendar();
-          return;
-        }
-
-        void executar().finally(() => {
-          if (!cancelado) {
-            agendar();
-          }
-        });
-      }, esperaDoPulso(ultimaBusca, Date.now()));
+      timer = setTimeout(seguirPulso, esperaDoPulso(ultimaBusca, Date.now()));
     }
 
-    function aoMudarVisibilidade() {
-      if (cancelado || document.visibilityState !== 'visible') {
-        return;
-      }
-
-      const decorrido = ultimaBusca === 0 ? esperaDoPulso(0, Date.now()) : Date.now() - ultimaBusca;
-
-      if (!devePulsar({ visivel: true, msDesdeUltimaBusca: decorrido })) {
-        agendar();
-        return;
-      }
-
+    function continuar() {
       clearTimeout(timer);
       void executar().finally(() => {
         if (!cancelado) {
@@ -85,21 +57,37 @@ export function useAtualizacaoAoVivo(
       });
     }
 
-    document.addEventListener('visibilitychange', aoMudarVisibilidade);
+    function seguirPulso() {
+      if (cancelado) {
+        return;
+      }
 
-    if (document.visibilityState === 'visible') {
-      void executar().finally(() => {
-        if (!cancelado) {
+      const visivel = document.visibilityState === 'visible';
+      const agora = Date.now();
+      const decorrido = ultimaBusca === 0 ? esperaDoPulso(0, agora) : agora - ultimaBusca;
+
+      if (!devePulsar({ visivel, msDesdeUltimaBusca: decorrido })) {
+        if (visivel) {
           agendar();
         }
-      });
+
+        return;
+      }
+
+      continuar();
+    }
+
+    document.addEventListener('visibilitychange', seguirPulso);
+
+    if (document.visibilityState === 'visible') {
+      continuar();
     }
 
     return () => {
       cancelado = true;
       controlador?.abort();
       clearTimeout(timer);
-      document.removeEventListener('visibilitychange', aoMudarVisibilidade);
+      document.removeEventListener('visibilitychange', seguirPulso);
     };
   }, [habilitado, chave]);
 }

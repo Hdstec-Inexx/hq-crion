@@ -21,10 +21,18 @@ import {
   intervaloDoPulsoMs
 } from '../../apps/web/src/features/monitoramento/pulso.js';
 import {
+  aplicarEventoDaObservacao,
   avisoDaTranscricao,
   observarTranscricao,
   textoDaObservacao
 } from '../../apps/web/src/features/monitoramento/observacao.js';
+import { listarConversasElevenLabs } from '../../apps/api/src/modules/ingestao/elevenlabs.js';
+import {
+  eventoDaMensagemDaFonte,
+  sessaoDaMensagem,
+  urlDoMonitorDaFonte
+} from '../../apps/api/src/modules/monitoramento/canal.js';
+import { createMonitoramentoProxy } from '../../apps/api/src/modules/monitoramento/proxy.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -793,10 +801,14 @@ test('transcrição ao vivo semeia, acrescenta, corrige, não corta e permanece'
     }
   );
   assert.equal(semCorteDoInicio.transcricao[0]?.texto, 'Olá.');
-  assert.equal(semCorteDoInicio.transcricao.length, 3);
+  assert.equal(semCorteDoInicio.transcricao[1]?.texto, 'Oi.');
+  assert.equal(semCorteDoInicio.transcricao[2]?.texto, 'Outra abertura.');
+  assert.equal(semCorteDoInicio.transcricao[3]?.texto, 'Nova.');
+  assert.equal(semCorteDoInicio.transcricao[4]?.texto, 'Segue.');
+  assert.equal(semCorteDoInicio.transcricao[5]?.texto, 'Certo.');
   assert.equal(
-    semCorteDoInicio.transcricao.filter((turno) => turno.locutor === 'Agente de Voz').at(-1)?.texto,
-    'Vou ver.'
+    semCorteDoInicio.transcricao.filter((turno) => turno.texto === 'Olá.').length,
+    1
   );
 
   const encerrada = observarTranscricao(corrigida, {
@@ -823,6 +835,46 @@ test('transcrição ao vivo semeia, acrescenta, corrige, não corta e permanece'
   });
   assert.equal(depois.observando, false);
   assert.deepEqual(depois.transcricao, corrigida.transcricao);
+
+  const repetidaNoCanal = aplicarEventoDaObservacao(semente, {
+    tipo: 'fala',
+    locutor: 'Agente de Voz',
+    texto: 'Um momento.'
+  });
+  assert.equal(repetidaNoCanal.transcricao.length, semente.transcricao.length);
+  assert.equal(repetidaNoCanal.transcricao[0]?.texto, 'Olá, sou a Clara.');
+
+  const novaNoCanal = aplicarEventoDaObservacao(semente, {
+    tipo: 'fala',
+    locutor: 'Cliente',
+    texto: 'Continua.'
+  });
+  assert.equal(novaNoCanal.transcricao.length, semente.transcricao.length + 1);
+  assert.equal(novaNoCanal.transcricao.at(-1)?.texto, 'Continua.');
+  assert.equal(novaNoCanal.transcricao[0]?.texto, 'Olá, sou a Clara.');
+
+  const corrigidaNoCanal = aplicarEventoDaObservacao(novaNoCanal, {
+    tipo: 'correcao',
+    texto: 'Um momento, por favor.'
+  });
+  assert.equal(corrigidaNoCanal.transcricao.length, novaNoCanal.transcricao.length);
+  assert.equal(corrigidaNoCanal.transcricao[0]?.texto, 'Olá, sou a Clara.');
+  assert.equal(
+    corrigidaNoCanal.transcricao.filter((turno) => turno.locutor === 'Agente de Voz').at(-1)?.texto,
+    'Um momento, por favor.'
+  );
+
+  const fimDoCanal = aplicarEventoDaObservacao(corrigidaNoCanal, { tipo: 'encerrada' });
+  assert.equal(fimDoCanal.observando, false);
+  assert.deepEqual(fimDoCanal.transcricao, corrigidaNoCanal.transcricao);
+  assert.deepEqual(
+    aplicarEventoDaObservacao(fimDoCanal, {
+      tipo: 'fala',
+      locutor: 'Cliente',
+      texto: 'Não entra mais.'
+    }).transcricao,
+    fimDoCanal.transcricao
+  );
 });
 
 test('GET /monitoramento/:id responde 502 quando a fonte falha', async () => {
@@ -871,4 +923,147 @@ test('GET /monitoramento responde 502 quando a fonte falha', async () => {
     delete process.env.ELEVENLABS_API_KEY;
     globalThis.fetch = fetchOriginal;
   }
+});
+
+test('a busca da lista para quando o cliente cancela', async () => {
+  const controller = new AbortController();
+  let paginas = 0;
+  const fetchImpl = (async () => {
+    paginas += 1;
+    return new Response(
+      JSON.stringify({
+        conversations: [],
+        has_more: true,
+        next_cursor: String(paginas + 1)
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  const busca = listarConversasElevenLabs({
+    apiKey: 'chave-de-teste',
+    baseUrl: 'https://api.elevenlabs.io',
+    fetchImpl,
+    maxPaginas: 5,
+    signal: controller.signal
+  });
+  controller.abort();
+
+  await assert.rejects(busca, (error: unknown) => {
+    assert.equal(error instanceof Error && error.name, 'AbortError');
+    return true;
+  });
+  assert.equal(paginas, 1);
+});
+
+test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
+  assert.equal(
+    urlDoMonitorDaFonte('https://api.elevenlabs.io/', 'conv-aberta'),
+    'wss://api.elevenlabs.io/v1/convai/conversations/conv-aberta/monitor'
+  );
+  assert.deepEqual(
+    eventoDaMensagemDaFonte({
+      type: 'agent_response',
+      agent_response_event: { agent_response: 'Olá.' }
+    }),
+    { tipo: 'fala', locutor: 'Agente de Voz', texto: 'Olá.' }
+  );
+  assert.equal(
+    eventoDaMensagemDaFonte({
+      type: 'agent_response_correction',
+      agent_response_correction_event: { corrected_agent_response: 'Olá, sou a Clara.' }
+    })?.tipo,
+    'correcao'
+  );
+  assert.equal(eventoDaMensagemDaFonte({ type: 'interruption' }), undefined);
+  assert.equal(sessaoDaMensagem('{"tipo":"sessao","sessao":"abc"}'), 'abc');
+  assert.equal(sessaoDaMensagem('{"type":"interrupt"}'), undefined);
+
+  const enviadosAoCliente: string[] = [];
+  const enviadosAFonte: string[] = [];
+  const ouvintes = new Map<string, Array<(...args: unknown[]) => void>>();
+  const cliente = {
+    readyState: 1,
+    OPEN: 1,
+    CONNECTING: 0,
+    send(data: string) {
+      enviadosAoCliente.push(data);
+    },
+    close() {
+      this.readyState = 3;
+    },
+    on(evento: string, ouvinte: (...args: unknown[]) => void) {
+      const lista = ouvintes.get(`cliente:${evento}`) ?? [];
+      lista.push(ouvinte);
+      ouvintes.set(`cliente:${evento}`, lista);
+    }
+  };
+  let fonte:
+    | {
+        readyState: number;
+        OPEN: number;
+        CONNECTING: number;
+        send: (data: string) => void;
+        close: () => void;
+        on: (evento: string, ouvinte: (...args: unknown[]) => void) => void;
+        emitir: (evento: string, ...args: unknown[]) => void;
+      }
+    | undefined;
+
+  createMonitoramentoProxy({
+    client: cliente as never,
+    apiKey: 'segredo-da-fonte',
+    monitorUrl: urlDoMonitorDaFonte('https://api.elevenlabs.io', 'conv-aberta'),
+    connect: () => {
+      const locais = new Map<string, Array<(...args: unknown[]) => void>>();
+      fonte = {
+        readyState: 0,
+        OPEN: 1,
+        CONNECTING: 0,
+        send(data: string) {
+          enviadosAFonte.push(data);
+        },
+        close() {
+          this.readyState = 3;
+        },
+        on(evento: string, ouvinte: (...args: unknown[]) => void) {
+          const lista = locais.get(evento) ?? [];
+          lista.push(ouvinte);
+          locais.set(evento, lista);
+        },
+        emitir(evento: string, ...args: unknown[]) {
+          for (const ouvinte of locais.get(evento) ?? []) {
+            ouvinte(...args);
+          }
+        }
+      };
+      return fonte as never;
+    }
+  });
+
+  assert.ok(fonte);
+  fonte.readyState = 1;
+  fonte.emitir('open');
+  assert.equal(JSON.parse(enviadosAoCliente.at(-1) ?? '').tipo, 'pronto');
+  fonte.emitir(
+    'message',
+    JSON.stringify({
+      type: 'user_transcript',
+      user_transcription_event: { user_transcript: 'Preciso de ajuda.' }
+    })
+  );
+  assert.deepEqual(JSON.parse(enviadosAoCliente.at(-1) ?? ''), {
+    tipo: 'fala',
+    locutor: 'Cliente',
+    texto: 'Preciso de ajuda.'
+  });
+  fonte.emitir('message', 'x'.repeat(70_000));
+  assert.equal(enviadosAoCliente.length, 2);
+  for (const ouvinte of ouvintes.get('cliente:message') ?? []) {
+    ouvinte(JSON.stringify({ type: 'interrupt' }));
+  }
+  assert.deepEqual(enviadosAFonte, []);
+  assert.equal(enviadosAoCliente.some((item) => item.includes('segredo-da-fonte')), false);
+  fonte.emitir('close');
+  assert.equal(JSON.parse(enviadosAoCliente.at(-1) ?? '').tipo, 'encerrada');
 });
