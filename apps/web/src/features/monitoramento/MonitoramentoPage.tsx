@@ -61,7 +61,11 @@ export function MonitoramentoPage() {
     try {
       const resultado = await buscarMonitoramento(searchParams, signal);
 
-      if (signal.aborted || chaveAtual.current !== pedido) {
+      if (chaveAtual.current !== pedido) {
+        return;
+      }
+
+      if (!resultado && signal.aborted) {
         return;
       }
 

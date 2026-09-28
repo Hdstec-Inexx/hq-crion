@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { devePulsar, esperaDoPulso } from './pulso';
+import { deveBuscarDeNovo, esperaDoPulso } from './pulso';
 
 export function abortou(error: unknown) {
   return error instanceof Error && error.name === 'AbortError';
@@ -19,12 +19,17 @@ export function useAtualizacaoAoVivo(
     }
 
     let cancelado = false;
+    let emCurso = false;
     let controlador: AbortController | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let ultimaBusca = 0;
+    let ultimaBusca: number | null = null;
 
     async function executar() {
-      controlador?.abort();
+      if (emCurso) {
+        return;
+      }
+
+      emCurso = true;
       const atual = new AbortController();
       controlador = atual;
 
@@ -37,6 +42,8 @@ export function useAtualizacaoAoVivo(
 
         throw error;
       } finally {
+        emCurso = false;
+
         if (!cancelado && controlador === atual && !atual.signal.aborted) {
           ultimaBusca = Date.now();
         }
@@ -62,11 +69,20 @@ export function useAtualizacaoAoVivo(
         return;
       }
 
-      const visivel = document.visibilityState === 'visible';
-      const agora = Date.now();
-      const decorrido = ultimaBusca === 0 ? esperaDoPulso(0, agora) : agora - ultimaBusca;
+      if (emCurso) {
+        return;
+      }
 
-      if (!devePulsar({ visivel, msDesdeUltimaBusca: decorrido })) {
+      const visivel = document.visibilityState === 'visible';
+
+      if (
+        !deveBuscarDeNovo({
+          visivel,
+          emCurso,
+          ultimaBusca,
+          agora: Date.now()
+        })
+      ) {
         if (visivel) {
           agendar();
         }

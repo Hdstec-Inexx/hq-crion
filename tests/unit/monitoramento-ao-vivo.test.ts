@@ -16,6 +16,7 @@ import {
 import {
   mensagemDaListaAoVivo,
   aplicarCargaDaLista,
+  deveBuscarDeNovo,
   devePulsar,
   esperaDoPulso,
   intervaloDoPulsoMs
@@ -700,6 +701,18 @@ test('sem a chave da fonte a lista não finge Recorte vazio', async () => {
 
 test('pulso de 10 segundos busca com a área visível, espera oculta e conserva a lista', () => {
   assert.equal(intervaloDoPulsoMs, 10_000);
+  assert.equal(
+    deveBuscarDeNovo({ visivel: true, emCurso: true, ultimaBusca: null, agora: 20_000 }),
+    false
+  );
+  assert.equal(
+    deveBuscarDeNovo({ visivel: true, emCurso: false, ultimaBusca: null, agora: 20_000 }),
+    true
+  );
+  assert.equal(
+    deveBuscarDeNovo({ visivel: true, emCurso: false, ultimaBusca: 10_000, agora: 19_999 }),
+    false
+  );
   assert.equal(devePulsar({ visivel: true, msDesdeUltimaBusca: 10_000 }), true);
   assert.equal(devePulsar({ visivel: true, msDesdeUltimaBusca: 9_999 }), false);
   assert.equal(devePulsar({ visivel: false, msDesdeUltimaBusca: 10_000 }), false);
