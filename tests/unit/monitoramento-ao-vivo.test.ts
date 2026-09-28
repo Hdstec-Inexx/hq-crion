@@ -996,6 +996,48 @@ test('GET /monitoramento responde 502 quando a fonte falha', async () => {
   }
 });
 
+test('a lista da fonte repete uma vez quando a espera estoura', async () => {
+  let chamadas = 0;
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    chamadas += 1;
+
+    if (chamadas === 1) {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const error = new Error('tempo esgotado');
+          error.name = 'AbortError';
+          reject(error);
+        });
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        conversations: [
+          {
+            conversation_id: 'conv-lenta',
+            agent_id: 'affix-wa',
+            status: 'in-progress'
+          }
+        ],
+        has_more: false
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  const conversas = await listarConversasElevenLabs({
+    apiKey: 'chave-de-teste',
+    baseUrl: 'https://api.elevenlabs.io',
+    fetchImpl,
+    maxPaginas: 5,
+    esperaMs: 20
+  });
+
+  assert.equal(chamadas, 2);
+  assert.equal(conversas[0]?.conversation_id, 'conv-lenta');
+});
+
 test('a busca da lista para quando o cliente cancela', async () => {
   const controller = new AbortController();
   let paginas = 0;
