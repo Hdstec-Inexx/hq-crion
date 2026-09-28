@@ -1,14 +1,11 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
-import type { MonitoramentoListagemResponse } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
-import { useRef, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
-import { buscarMonitoramento } from './api';
-import { aplicarCargaDaLista, mensagemDaListaAoVivo } from './pulso';
-import { abortou, useAtualizacaoAoVivo } from './useAtualizacaoAoVivo';
+import { useListaAoVivo } from './listaAoVivo';
+import { mensagemDaListaAoVivo } from './pulso';
 
 function formatarQuando(iso: string) {
   const parts = new Intl.DateTimeFormat('pt-BR', {
@@ -36,67 +33,10 @@ export function MonitoramentoPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const listaBoa = useRef<MonitoramentoListagemResponse | null>(null);
-  const [listagem, setListagem] = useState<MonitoramentoListagemResponse | null>(null);
-  const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | null>(null);
   const chave = searchParams.toString();
-  const chaveAtual = useRef(chave);
-  const [chaveDaLista, setChaveDaLista] = useState(chave);
-
-  chaveAtual.current = chave;
-
-  if (chaveDaLista !== chave) {
-    setChaveDaLista(chave);
-    listaBoa.current = null;
-    setListagem(null);
-    setErro(null);
-  }
-
+  const { lista: listagem, erro } = useListaAoVivo(chave, searchParams);
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
-
-  useAtualizacaoAoVivo(true, chave, async (signal) => {
-    const pedido = chave;
-
-    try {
-      const resultado = await buscarMonitoramento(searchParams, signal);
-
-      if (chaveAtual.current !== pedido) {
-        return;
-      }
-
-      if (!resultado && signal.aborted) {
-        return;
-      }
-
-      const aplicado = aplicarCargaDaLista({
-        listaAtual: listaBoa.current,
-        carga: resultado ? { ok: true, lista: resultado } : { ok: false }
-      });
-      listaBoa.current = aplicado.lista;
-      setListagem(aplicado.lista);
-      setErro(aplicado.erro ? 'listagem' : null);
-    } catch (error: unknown) {
-      if (signal.aborted || abortou(error) || chaveAtual.current !== pedido) {
-        return;
-      }
-
-      if (error instanceof Error && error.message === 'recorte-invalido') {
-        listaBoa.current = null;
-        setListagem(null);
-        setErro('recorte-invalido');
-        return;
-      }
-
-      const aplicado = aplicarCargaDaLista({
-        listaAtual: listaBoa.current,
-        carga: { ok: false }
-      });
-      listaBoa.current = aplicado.lista;
-      setListagem(aplicado.lista);
-      setErro(aplicado.erro ? 'listagem' : null);
-    }
-  });
 
   function atualizarRecorte(administradora: string, agente: string) {
     setSearchParams(escreverRecorteNaQuery(searchParams, administradora, agente), {
