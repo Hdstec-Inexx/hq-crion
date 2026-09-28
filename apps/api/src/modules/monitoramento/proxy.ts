@@ -1,6 +1,5 @@
-import type { EventoDaObservacao } from '@hq-crion/contracts/atendimento';
 import WebSocket, { type RawData, type WebSocket as WsWebSocket } from 'ws';
-import { eventoDaMensagemDaFonte, maximoDaMensagemDaFonte } from './canal.js';
+import { enviarEvento, eventoDaMensagemDaFonte, maximoDaMensagemDaFonte } from './canal.js';
 
 type Conectar = (
   url: string,
@@ -31,12 +30,6 @@ function textoDaMensagem(data: RawData) {
   return Buffer.from(data).toString('utf8');
 }
 
-function enviar(socket: WsWebSocket, evento: EventoDaObservacao) {
-  if (socket.readyState === socket.OPEN) {
-    socket.send(JSON.stringify(evento));
-  }
-}
-
 export function createMonitoramentoProxy({
   client,
   apiKey,
@@ -51,7 +44,7 @@ export function createMonitoramentoProxy({
       maxPayload: maximoDaMensagemDaFonte
     });
   } catch {
-    enviar(client, { tipo: 'erro' });
+    enviarEvento(client, { tipo: 'erro' });
     client.close();
     return;
   }
@@ -59,14 +52,18 @@ export function createMonitoramentoProxy({
   let aberto = false;
   let encerrou = false;
 
+  function soltarFonte() {
+    if (upstream.readyState === upstream.OPEN || upstream.readyState === upstream.CONNECTING) {
+      upstream.close();
+    }
+  }
+
   function fechar() {
     if (client.readyState === client.OPEN || client.readyState === client.CONNECTING) {
       client.close();
     }
 
-    if (upstream.readyState === upstream.OPEN || upstream.readyState === upstream.CONNECTING) {
-      upstream.close();
-    }
+    soltarFonte();
   }
 
   function falhar() {
@@ -75,13 +72,13 @@ export function createMonitoramentoProxy({
     }
 
     encerrou = true;
-    enviar(client, { tipo: 'erro' });
+    enviarEvento(client, { tipo: 'erro' });
     fechar();
   }
 
   upstream.on('open', () => {
     aberto = true;
-    enviar(client, { tipo: 'pronto' });
+    enviarEvento(client, { tipo: 'pronto' });
   });
 
   upstream.on('message', (data) => {
@@ -102,7 +99,7 @@ export function createMonitoramentoProxy({
     const evento = eventoDaMensagemDaFonte(corpo);
 
     if (evento) {
-      enviar(client, evento);
+      enviarEvento(client, evento);
     }
   });
 
@@ -112,7 +109,7 @@ export function createMonitoramentoProxy({
     }
 
     encerrou = true;
-    enviar(client, aberto ? { tipo: 'encerrada' } : { tipo: 'erro' });
+    enviarEvento(client, aberto ? { tipo: 'encerrada' } : { tipo: 'erro' });
 
     if (client.readyState === client.OPEN) {
       client.close();
@@ -126,17 +123,11 @@ export function createMonitoramentoProxy({
 
   client.on('close', () => {
     encerrou = true;
-
-    if (upstream.readyState === upstream.OPEN || upstream.readyState === upstream.CONNECTING) {
-      upstream.close();
-    }
+    soltarFonte();
   });
 
   client.on('error', () => {
     encerrou = true;
-
-    if (upstream.readyState === upstream.OPEN || upstream.readyState === upstream.CONNECTING) {
-      upstream.close();
-    }
+    soltarFonte();
   });
 }
