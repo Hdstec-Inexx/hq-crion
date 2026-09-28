@@ -19,7 +19,9 @@ import {
   deveBuscarDeNovo,
   devePulsar,
   esperaDoPulso,
-  intervaloDoPulsoMs
+  intervaloDoPulsoMs,
+  normalizarListagemAoVivo,
+  reduzirCargaAoVivo
 } from '../../apps/web/src/features/monitoramento/pulso.js';
 import {
   acompanhaOFim,
@@ -423,6 +425,49 @@ test('detalhe ao vivo deixa de fora zumbi e Atendimento já Concluído', async (
   });
 });
 
+test('agente fora do catálogo entra na leitura consolidada e no Recorte do nome', async () => {
+  await comFonte(
+    async (app) => {
+      const sessao = await sessaoDe(app, 'ana.souza@crion');
+      const headers = { authorization: `Bearer ${sessao}` };
+      const todas = await app.inject({ method: 'GET', url: '/monitoramento', headers });
+      const ids = monitoramentoListagemResponseSchema
+        .parse(todas.json())
+        .itens.map((item) => item.id);
+      const alter = await app.inject({
+        method: 'GET',
+        url: '/monitoramento?administradora=Alter',
+        headers
+      });
+      const idsAlter = monitoramentoListagemResponseSchema
+        .parse(alter.json())
+        .itens.map((item) => item.id);
+
+      assert.equal(todas.statusCode, 200, todas.body);
+      assert.ok(ids.includes('conv_8501m3mwt29ceb18b55d68zgg6z'));
+      assert.ok(ids.includes('conv_0901m3mjtxhevna7kq1bhwfhgfp'));
+      assert.ok(idsAlter.includes('conv_8501m3mwt29ceb18b55d68zgg6z'));
+      assert.ok(idsAlter.includes('conv_0901m3mjtxhevna7kq1bhwfhgfp'));
+    },
+    [
+      {
+        conversation_id: 'conv_8501m3mwt29ceb18b55d68zgg6z',
+        agent_id: 'agent_3701kr451qfdevqy90mp8p2qrxz',
+        agent_name: 'Clara - Roteador | Alter',
+        status: 'in-progress',
+        start_time_unix_secs: agoraUnix
+      },
+      {
+        conversation_id: 'conv_0901m3mjtxhevna7kq1bhwfhgfp',
+        agent_id: 'agent_7001k5y7pf7fxrvp074j6s4wx5m',
+        agent_name: 'Clara Retencao Alter',
+        status: 'in-progress',
+        start_time_unix_secs: agoraUnix
+      }
+    ]
+  );
+});
+
 test('leitura consolidada inclui o aberto fora do catálogo e o Recorte esconde', async () => {
   const conversas = conversasDaFonte();
   conversas.push(
@@ -741,6 +786,70 @@ test('pulso de 10 segundos busca com a área visível, espera oculta e conserva 
   });
   assert.equal(atualizada.erro, false);
   assert.deepEqual(atualizada.lista, { id: 'conv-nova' });
+
+  const comLista = reduzirCargaAoVivo(
+    { lista: null, erro: null },
+    {
+      tipo: 'lista',
+      lista: { id: 'conv-fora' }
+    }
+  );
+  assert.equal(comLista.erro, null);
+  assert.deepEqual(comLista.lista, { id: 'conv-fora' });
+  const abortadaDepois = reduzirCargaAoVivo(comLista, {
+    tipo: 'falha',
+    vigente: false,
+    abortada: true
+  });
+  assert.equal(abortadaDepois.erro, null);
+  assert.deepEqual(abortadaDepois.lista, { id: 'conv-fora' });
+  const falhaSemLista = reduzirCargaAoVivo(
+    { lista: null, erro: null },
+    { tipo: 'falha', vigente: true, abortada: false }
+  );
+  assert.equal(falhaSemLista.erro, 'listagem');
+  assert.equal(falhaSemLista.lista, null);
+});
+
+test('lista ao vivo mostra o atendimento mesmo sem agente no catálogo', () => {
+  const corpo = {
+    recorte: { administradora: null, agente: null },
+    pagina: 1,
+    tamanho: 50,
+    total: 2,
+    fonteConfigurada: true,
+    itens: [
+      {
+        id: 'conv_8501m3mwt29ceb18b55d68zgg6z',
+        administradora: null,
+        agente: 'Clara - Roteador | Alter',
+        agenteId: 'agent_3701kr451qfdevqy90mp8p2qrxz',
+        iniciadoEm: '2026-09-28T20:00:00.000Z',
+        motivo: 'Não informado',
+        status: 'Em andamento'
+      },
+      {
+        id: 'conv_0901m3mjtxhevna7kq1bhwfhgfp',
+        agente: 'Clara Retencao Alter',
+        agenteId: 'agent_7001k5y7pf7fxrvp074j6s4wx5m',
+        iniciadoEm: agoraUnix,
+        motivo: '',
+        status: 'in-progress',
+        administradora: 'fora-do-catalogo'
+      }
+    ]
+  };
+  const lista = normalizarListagemAoVivo(corpo);
+
+  assert.ok(lista);
+  assert.equal(lista?.itens.length, 2);
+  assert.equal(lista?.itens[0]?.agente, 'Clara - Roteador | Alter');
+  assert.equal(lista?.itens[0]?.administradora, null);
+  assert.equal(lista?.itens[1]?.agente, 'Clara Retencao Alter');
+  assert.equal(lista?.itens[1]?.administradora, null);
+  assert.equal(lista?.itens[1]?.motivo, 'Não informado');
+  assert.equal(lista?.itens[1]?.status, 'Em andamento');
+  assert.equal(mensagemDaListaAoVivo(lista ?? { fonteConfigurada: true, itens: [] }), null);
 });
 
 test('transcrição ao vivo semeia, acrescenta, corrige, não corta e permanece', () => {

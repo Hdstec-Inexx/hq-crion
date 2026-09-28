@@ -1,11 +1,11 @@
 import {
   eventoDaObservacaoSchema,
-  monitoramentoDetalheSchema,
-  monitoramentoListagemResponseSchema
+  monitoramentoDetalheSchema
 } from '@hq-crion/contracts/atendimento';
 import { autorizacao } from '../auth/api';
 import { lerSessao } from '../auth/sessao';
 import { urlDaApi } from '../../urlDaApi';
+import { normalizarListagemAoVivo } from './pulso';
 
 const apiUrl = urlDaApi();
 
@@ -23,7 +23,7 @@ function queryDaListagem(query: URLSearchParams) {
   return limpa;
 }
 
-export async function buscarMonitoramento(query: URLSearchParams, signal?: AbortSignal) {
+export async function buscarMonitoramento(query: URLSearchParams) {
   const sessao = lerSessao();
 
   if (!sessao) {
@@ -33,7 +33,6 @@ export async function buscarMonitoramento(query: URLSearchParams, signal?: Abort
   const response = await fetch(
     `${apiUrl}/monitoramento?${queryDaListagem(query).toString()}`,
     {
-      signal,
       headers: {
         ...autorizacao(sessao),
         'Cache-Control': 'no-store'
@@ -53,7 +52,13 @@ export async function buscarMonitoramento(query: URLSearchParams, signal?: Abort
     throw new Error('listagem-indisponivel');
   }
 
-  return monitoramentoListagemResponseSchema.parse(await response.json());
+  const lista = normalizarListagemAoVivo(await response.json());
+
+  if (!lista) {
+    throw new Error('listagem-indisponivel');
+  }
+
+  return lista;
 }
 
 export async function buscarDetalheDoMonitoramento(id: string, signal?: AbortSignal) {
