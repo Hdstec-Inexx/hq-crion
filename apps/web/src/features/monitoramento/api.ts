@@ -1,4 +1,8 @@
-import { monitoramentoDetalheSchema, monitoramentoListagemResponseSchema } from '@hq-crion/contracts/atendimento';
+import {
+  eventoDaObservacaoSchema,
+  monitoramentoDetalheSchema,
+  monitoramentoListagemResponseSchema
+} from '@hq-crion/contracts/atendimento';
 import { autorizacao } from '../auth/api';
 import { lerSessao } from '../auth/sessao';
 import { urlDaApi } from '../../urlDaApi';
@@ -80,4 +84,29 @@ export async function buscarDetalheDoMonitoramento(id: string, signal?: AbortSig
   }
 
   return monitoramentoDetalheSchema.parse(await response.json());
+}
+
+export function urlDaObservacao(id: string) {
+  const base = new URL(apiUrl);
+  base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+  const prefixo = base.pathname.replace(/\/$/, '');
+  base.pathname = `${prefixo}/monitoramento/${encodeURIComponent(id)}/observacao`;
+  base.search = '';
+  base.hash = '';
+  return base.toString();
+}
+
+export function lerEventoDaObservacao(data: unknown) {
+  let corpo = data;
+
+  if (typeof data === 'string') {
+    try {
+      corpo = JSON.parse(data);
+    } catch {
+      return undefined;
+    }
+  }
+
+  const evento = eventoDaObservacaoSchema.safeParse(corpo);
+  return evento.success ? evento.data : undefined;
 }

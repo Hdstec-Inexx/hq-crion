@@ -1,5 +1,7 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import {
+  maximoDaSenha,
+  minimoDaSenhaNova,
   motivoUltimoAdmin,
   papelSchema,
   type ListaDePerfis,
@@ -14,6 +16,7 @@ import {
   useRevalidator,
   useRouteLoaderData
 } from 'react-router-dom';
+import { CampoSenha } from '../auth/CampoSenha';
 import { lerSessao } from '../auth/sessao';
 import {
   alterarPerfil,
@@ -25,13 +28,16 @@ import {
 
 const papeis = papelSchema.options;
 
-function mensagemDoMotivo(motivo: Extract<ResultadoDaAdministracao, { ok: false }>['motivo']) {
+function mensagemDoMotivo(
+  motivo: Extract<ResultadoDaAdministracao, { ok: false }>['motivo'],
+  textoInvalido = 'Informe nome, e-mail válido e um dos três papéis.'
+) {
   if (motivo === 'negado') {
     return 'Só o Admin gere Perfis.';
   }
 
   if (motivo === 'invalido') {
-    return 'Informe nome, e-mail válido e um dos três papéis.';
+    return textoInvalido;
   }
 
   if (motivo === 'conflito') {
@@ -72,30 +78,38 @@ function CampoPapel({ valor }: { valor?: Papel }) {
 function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
   const revalidator = useRevalidator();
   const [erro, setErro] = useState<string | null>(null);
+  const [erroDaSenha, setErroDaSenha] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [geracaoDaSenha, setGeracaoDaSenha] = useState(0);
 
   async function executar(
-    acao: (sessao: string) => Promise<ResultadoDaAdministracao>
+    acao: (sessao: string) => Promise<ResultadoDaAdministracao>,
+    destino: 'perfil' | 'senha',
+    textoInvalido?: string
   ) {
+    const publicar = destino === 'senha' ? setErroDaSenha : setErro;
+    const limpar = destino === 'senha' ? setErro : setErroDaSenha;
     const sessao = lerSessao();
 
     if (!sessao) {
-      setErro('A sessão expirou. Entre de novo.');
-      return;
+      publicar('A sessão expirou. Entre de novo.');
+      return false;
     }
 
-    setErro(null);
+    limpar(null);
+    publicar(null);
     setEnviando(true);
 
     try {
       const resultado = await acao(sessao);
 
       if (!resultado.ok) {
-        setErro(mensagemDoMotivo(resultado.motivo));
-        return;
+        publicar(mensagemDoMotivo(resultado.motivo, textoInvalido));
+        return false;
       }
 
       await revalidator.revalidate();
+      return true;
     } finally {
       setEnviando(false);
     }
@@ -104,19 +118,33 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    void executar((sessao) =>
-      alterarPerfil(sessao, perfil.id, identidadeDoFormulario(form))
+    void executar(
+      (sessao) => alterarPerfil(sessao, perfil.id, identidadeDoFormulario(form)),
+      'perfil'
     );
   }
 
   function onAtivo() {
-    void executar((sessao) => definirAtivoDoPerfil(sessao, perfil.id, !perfil.ativo));
+    void executar(
+      (sessao) => definirAtivoDoPerfil(sessao, perfil.id, !perfil.ativo),
+      'perfil'
+    );
   }
 
   function onRedefinir(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const senha = String(new FormData(event.currentTarget).get('senha') ?? '');
-    void executar((sessao) => redefinirSenhaDoPerfil(sessao, perfil.id, senha));
+    const form = event.currentTarget;
+    const senha = String(new FormData(form).get('senha') ?? '');
+    void executar(
+      (sessao) => redefinirSenhaDoPerfil(sessao, perfil.id, senha),
+      'senha',
+      `A Nova senha precisa ter de ${minimoDaSenhaNova} a ${maximoDaSenha} caracteres.`
+    ).then((ok) => {
+      if (ok) {
+        form.reset();
+        setGeracaoDaSenha((geracao) => geracao + 1);
+      }
+    });
   }
 
   return (
@@ -152,10 +180,17 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
       {perfil.ativo ? null : <p className="perfil-estado">Desativado</p>}
       </form>
       <form className="perfil-senha" onSubmit={onRedefinir} aria-label={`Senha de ${perfil.nome}`}>
-        <label className="login-field">
-          Nova senha
-          <input name="senha" type="password" autoComplete="new-password" required />
-        </label>
+        <CampoSenha
+          key={geracaoDaSenha}
+          rotulo="Nova senha"
+          autoComplete="new-password"
+          minimo={minimoDaSenhaNova}
+        />
+        {erroDaSenha ? (
+          <p className="login-error" role="alert">
+            {erroDaSenha}
+          </p>
+        ) : null}
         <button className="perfil-situacao" type="submit" disabled={enviando}>
           Redefinir senha
         </button>
@@ -171,6 +206,7 @@ export function PerfisPage() {
   const revalidator = useRevalidator();
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [geracaoDaSenha, setGeracaoDaSenha] = useState(0);
 
   async function onCriar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -186,14 +222,23 @@ export function PerfisPage() {
     setEnviando(true);
 
     try {
-      const resultado = await criarPerfil(sessao, identidadeDoFormulario(form));
+      const resultado = await criarPerfil(sessao, {
+        ...identidadeDoFormulario(form),
+        senha: String(new FormData(form).get('senha') ?? '')
+      });
 
       if (!resultado.ok) {
-        setErro(mensagemDoMotivo(resultado.motivo));
+        setErro(
+          mensagemDoMotivo(
+            resultado.motivo,
+            `Informe nome, e-mail válido, um dos três papéis e uma Senha inicial de ${minimoDaSenhaNova} a ${maximoDaSenha} caracteres.`
+          )
+        );
         return;
       }
 
       form.reset();
+      setGeracaoDaSenha((geracao) => geracao + 1);
       await revalidator.revalidate();
     } finally {
       setEnviando(false);
@@ -220,6 +265,13 @@ export function PerfisPage() {
           <input name="email" type="text" required />
         </label>
         <CampoPapel />
+        <CampoSenha
+          key={geracaoDaSenha}
+          rotulo="Senha inicial"
+          autoComplete="new-password"
+          className="perfil-campo-senha"
+          minimo={minimoDaSenhaNova}
+        />
         {erro ? (
           <p className="login-error" role="alert">
             {erro}

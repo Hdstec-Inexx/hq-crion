@@ -5,6 +5,7 @@ import {
   ativoDoPerfilSchema,
   motivoUltimoAdmin,
   perfilSchema,
+  criarPerfilSchema,
   redefinirSenhaSchema
 } from '@hq-crion/contracts/perfil';
 import { randomUUID } from 'node:crypto';
@@ -118,7 +119,7 @@ const perfilRoutes: FastifyPluginAsync = async (app) => {
       return recusa;
     }
 
-    const parsed = perfilSchema.safeParse(request.body);
+    const parsed = criarPerfilSchema.safeParse(request.body);
 
     if (!parsed.success) {
       return reply.code(400).send({ statusCode: 400 });

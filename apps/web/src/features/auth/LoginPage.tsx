@@ -3,6 +3,7 @@ import type { Perfil } from '@hq-crion/contracts/perfil';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { buscarPerfil, entrar } from './api';
+import { CampoSenha } from './CampoSenha';
 import { lerSessao } from './sessao';
 
 export function LoginPage() {
@@ -79,15 +80,7 @@ export function LoginPage() {
           E-mail
           <input name="email" type="text" autoComplete="username" required />
         </label>
-        <label className="login-field">
-          Senha
-          <input
-            name="senha"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
-        </label>
+        <CampoSenha rotulo="Senha" autoComplete="current-password" />
         {erro ? (
           <p className="login-error" role="alert">
             Não foi possível entrar. Confira o e-mail e a senha.

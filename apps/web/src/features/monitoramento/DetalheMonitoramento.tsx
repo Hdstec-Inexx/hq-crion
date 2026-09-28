@@ -5,7 +5,16 @@ import { destinoDaLista, lerRecorte } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
-import { buscarDetalheDoMonitoramento } from './api';
+import { lerSessao } from '../auth/sessao';
+import { buscarDetalheDoMonitoramento, lerEventoDaObservacao, urlDaObservacao } from './api';
+import {
+  aplicarEventoDaObservacao,
+  avisoDaTranscricao,
+  observarTranscricao,
+  textoDaObservacao,
+  type ObservacaoDaTranscricao
+} from './observacao';
+import { abortou } from './useAtualizacaoAoVivo';
 
 function listaComRecorte(searchParams: URLSearchParams) {
   try {
@@ -21,6 +30,8 @@ function listaComRecorte(searchParams: URLSearchParams) {
   }
 }
 
+const observacaoInicial: ObservacaoDaTranscricao = { transcricao: [], observando: true };
+
 export function DetalheMonitoramento() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
@@ -28,39 +39,136 @@ export function DetalheMonitoramento() {
   const [searchParams] = useSearchParams();
   const [atendimento, setAtendimento] = useState<MonitoramentoDetalhe | null>(null);
   const [erro, setErro] = useState<'nao-encontrado' | 'detalhe' | null>(null);
+  const [observacao, setObservacao] = useState<ObservacaoDaTranscricao>(observacaoInicial);
+  const [idDaTela, setIdDaTela] = useState(id);
   const volta = listaComRecorte(searchParams);
+
+  if (idDaTela !== id) {
+    setIdDaTela(id);
+    setAtendimento(null);
+    setErro(null);
+    setObservacao(observacaoInicial);
+  }
 
   useEffect(() => {
     if (!id) {
       return;
     }
 
-    const controller = new AbortController();
+    const pedido = id;
+    const controlador = new AbortController();
+    let cancelado = false;
+    let socket: WebSocket | undefined;
+    let encerrou = false;
 
-    buscarDetalheDoMonitoramento(id, controller.signal)
+    function abrirCanal() {
+      const sessao = lerSessao();
+
+      if (!sessao || cancelado) {
+        setErro('detalhe');
+        return;
+      }
+
+      let aberto: WebSocket;
+
+      try {
+        aberto = new WebSocket(urlDaObservacao(pedido));
+      } catch {
+        setErro('detalhe');
+        return;
+      }
+
+      socket = aberto;
+
+      aberto.addEventListener('open', () => {
+        if (cancelado) {
+          aberto.close();
+          return;
+        }
+
+        aberto.send(JSON.stringify({ tipo: 'sessao', sessao }));
+      });
+
+      aberto.addEventListener('message', (event) => {
+        if (cancelado) {
+          return;
+        }
+
+        const mensagem = lerEventoDaObservacao(String(event.data));
+
+        if (!mensagem) {
+          return;
+        }
+
+        if (mensagem.tipo === 'erro') {
+          setErro('detalhe');
+          return;
+        }
+
+        if (mensagem.tipo === 'encerrada') {
+          encerrou = true;
+          setErro(null);
+        }
+
+        setObservacao((atual) => aplicarEventoDaObservacao(atual, mensagem));
+      });
+
+      aberto.addEventListener('close', () => {
+        if (cancelado || encerrou) {
+          return;
+        }
+
+        setErro('detalhe');
+      });
+    }
+
+    buscarDetalheDoMonitoramento(pedido, controlador.signal)
       .then((resultado) => {
-        if (controller.signal.aborted) {
+        if (cancelado || controlador.signal.aborted) {
+          return;
+        }
+
+        if (!resultado) {
+          setErro('detalhe');
           return;
         }
 
         setAtendimento(resultado);
-        setErro(resultado ? null : 'detalhe');
+        setErro(null);
+        setObservacao(
+          observarTranscricao(observacaoInicial, {
+            transcricao: resultado.transcricao,
+            aberto: true
+          })
+        );
+        abrirCanal();
       })
       .catch((error: unknown) => {
-        if (controller.signal.aborted) {
+        if (cancelado || controlador.signal.aborted || abortou(error)) {
           return;
         }
 
-        setAtendimento(null);
-        setErro(
-          error instanceof Error && error.message === 'atendimento-nao-encontrado'
-            ? 'nao-encontrado'
-            : 'detalhe'
-        );
+        if (error instanceof Error && error.message === 'atendimento-nao-encontrado') {
+          setAtendimento(null);
+          setErro('nao-encontrado');
+          setObservacao({ transcricao: [], observando: false });
+          return;
+        }
+
+        setErro('detalhe');
       });
 
-    return () => controller.abort();
+    return () => {
+      cancelado = true;
+      controlador.abort();
+      socket?.close();
+    };
   }, [id]);
+
+  const aviso = avisoDaTranscricao({
+    observando: observacao.observando,
+    quantidade: observacao.transcricao.length
+  });
 
   return (
     <div>
@@ -84,17 +192,19 @@ export function DetalheMonitoramento() {
       ) : null}
       {atendimento ? (
         <>
-          <p className="detalhe-resumo">Observação em texto, sem áudio e sem ação no contato.</p>
+          <p className="detalhe-resumo">{textoDaObservacao(observacao.observando)}</p>
           <dl className="detalhe-fatos">
-            <div>
-              <dt>Administradora</dt>
-              <dd>
-                <BadgeAdministradora
-                  administradora={atendimento.administradora}
-                  lista={searchParams.get('lista') ?? '/monitoramento'}
-                />
-              </dd>
-            </div>
+            {atendimento.administradora ? (
+              <div>
+                <dt>Administradora</dt>
+                <dd>
+                  <BadgeAdministradora
+                    administradora={atendimento.administradora}
+                    lista={searchParams.get('lista') ?? '/monitoramento'}
+                  />
+                </dd>
+              </div>
+            ) : null}
             <div>
               <dt>Agente de Voz</dt>
               <dd>{atendimento.agente}</dd>
@@ -110,8 +220,9 @@ export function DetalheMonitoramento() {
           </dl>
           <section className="transcricao" aria-label="Transcrição">
             <h2>Transcrição</h2>
+            {aviso ? <p className="transcricao-espera">{aviso}</p> : null}
             <div className="transcricao-colunas">
-              {atendimento.transcricao.map((turno, index) => {
+              {observacao.transcricao.map((turno, index) => {
                 const doAgente = turno.locutor === 'Agente de Voz';
 
                 return (

@@ -10,8 +10,29 @@ import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import { destinoDaLista } from '../../packages/contracts/src/recorte.js';
 import {
   monitoramentoListagemResponseSchema,
-  monitoramentoDetalheSchema
+  monitoramentoDetalheSchema,
+  type TurnoDaTranscricao
 } from '../../packages/contracts/src/atendimento.js';
+import {
+  mensagemDaListaAoVivo,
+  aplicarCargaDaLista,
+  devePulsar,
+  esperaDoPulso,
+  intervaloDoPulsoMs
+} from '../../apps/web/src/features/monitoramento/pulso.js';
+import {
+  aplicarEventoDaObservacao,
+  avisoDaTranscricao,
+  observarTranscricao,
+  textoDaObservacao
+} from '../../apps/web/src/features/monitoramento/observacao.js';
+import { listarConversasElevenLabs } from '../../apps/api/src/modules/ingestao/elevenlabs.js';
+import {
+  eventoDaMensagemDaFonte,
+  sessaoDaMensagem,
+  urlDoMonitorDaFonte
+} from '../../apps/api/src/modules/monitoramento/canal.js';
+import { createMonitoramentoProxy } from '../../apps/api/src/modules/monitoramento/proxy.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -400,6 +421,486 @@ test('detalhe ao vivo deixa de fora zumbi e Atendimento já Concluído', async (
   });
 });
 
+test('leitura consolidada inclui o aberto fora do catálogo e o Recorte esconde', async () => {
+  const conversas = conversasDaFonte();
+  conversas.push(
+    {
+      conversation_id: 'conv-fora',
+      agent_id: 'agente-fora-do-catalogo',
+      agent_name: 'Clara de outra operação',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix,
+      transcript: [{ role: 'agent', message: 'Fora do catálogo.', time_in_call_secs: 1 }]
+    },
+    {
+      conversation_id: 'conv-sem-nome',
+      agent_id: 'id-sem-nome',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix
+    }
+  );
+
+  await comFonte(async (app) => {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const todas = await app.inject({ method: 'GET', url: '/monitoramento', headers });
+    const corpo = monitoramentoListagemResponseSchema.parse(todas.json());
+    const fora = corpo.itens.find((item) => item.id === 'conv-fora');
+    const semNome = corpo.itens.find((item) => item.id === 'conv-sem-nome');
+
+    assert.equal(todas.statusCode, 200, todas.body);
+    assert.equal(corpo.fonteConfigurada, true);
+    assert.ok(fora);
+    assert.equal(fora?.administradora, null);
+    assert.equal(fora?.agente, 'Clara de outra operação');
+    assert.equal(fora?.agenteId, 'agente-fora-do-catalogo');
+    assert.ok(semNome);
+    assert.equal(semNome?.administradora, null);
+    assert.equal(semNome?.agente, 'id-sem-nome');
+    assert.equal(corpo.itens.some((item) => item.id === 'a1'), false);
+    assert.equal(corpo.itens.some((item) => item.id === 'conv-zumbi'), false);
+    assert.equal(corpo.itens.some((item) => item.id === 'conv-done'), false);
+
+    const porAdministradora = await app.inject({
+      method: 'GET',
+      url: '/monitoramento?administradora=Affix',
+      headers
+    });
+    const idsAffix = monitoramentoListagemResponseSchema
+      .parse(porAdministradora.json())
+      .itens.map((item) => item.id);
+    assert.equal(idsAffix.includes('conv-fora'), false);
+    assert.equal(idsAffix.includes('conv-sem-nome'), false);
+    assert.ok(idsAffix.includes('conv-aberta'));
+    assert.equal(idsAffix.includes('conv-outro-agente'), true);
+
+    const porAgente = await app.inject({
+      method: 'GET',
+      url: '/monitoramento?administradora=Affix&agente=affix-wa',
+      headers
+    });
+    const idsAgente = monitoramentoListagemResponseSchema
+      .parse(porAgente.json())
+      .itens.map((item) => item.id);
+    assert.equal(idsAgente.includes('conv-outro-agente'), false);
+    assert.equal(idsAgente.includes('conv-fora'), false);
+    assert.ok(idsAgente.includes('conv-aberta'));
+
+    const detalhe = await app.inject({
+      method: 'GET',
+      url: '/monitoramento/conv-fora',
+      headers
+    });
+    assert.equal(detalhe.statusCode, 200, detalhe.body);
+    const bruto = detalhe.json() as Record<string, unknown>;
+    assert.equal('audio' in bruto, false);
+    assert.equal('downloadDeAudio' in bruto, false);
+    const aberto = monitoramentoDetalheSchema.parse(bruto);
+    assert.equal(aberto.administradora, null);
+    assert.equal(aberto.agente, 'Clara de outra operação');
+    assert.equal(aberto.transcricao[0]?.texto, 'Fora do catálogo.');
+  }, conversas);
+});
+
+test('a busca na fonte segue página só de concluídos até 5 e a tela fica na primeira de 50', async () => {
+  const chamadas: string[] = [];
+  const fetchOriginal = globalThis.fetch;
+  process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
+  process.env.ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    chamadas.push(url);
+    const cursor = url.match(/cursor=([^&]+)/)?.[1];
+    const pagina = cursor ? Number(decodeURIComponent(cursor)) : 1;
+
+    if (pagina < 5) {
+      return new Response(
+        JSON.stringify({
+          conversations: [
+            {
+              conversation_id: `conv-feita-${pagina}`,
+              agent_id: 'affix-wa',
+              status: 'done'
+            }
+          ],
+          has_more: true,
+          next_cursor: String(pagina + 1)
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        conversations: Array.from({ length: 51 }, (_, indice) => ({
+          conversation_id: `conv-aberta-${indice}`,
+          agent_id: 'affix-wa',
+          agent_name: 'Clara Affix WhatsApp',
+          status: 'in-progress',
+          start_time_unix_secs: agoraUnix
+        })),
+        has_more: true,
+        next_cursor: '6'
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  const app = await buildApp();
+  const marco = chamadas.length;
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/monitoramento?pagina=2',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const lista = monitoramentoListagemResponseSchema.parse(response.json());
+    const daTela = chamadas.slice(marco);
+
+    assert.equal(response.statusCode, 200, response.body);
+    assert.equal(lista.pagina, 1);
+    assert.equal(lista.tamanho, 50);
+    assert.equal(lista.total, 51);
+    assert.equal(lista.itens.length, 50);
+    assert.equal(lista.fonteConfigurada, true);
+    assert.equal(
+      lista.itens.some((item) => item.id.startsWith('conv-feita')),
+      false
+    );
+    assert.equal(daTela.length, 5);
+    assert.equal(
+      daTela.some((url) => url.includes('cursor=6')),
+      false
+    );
+  } finally {
+    await app.close();
+    delete process.env.ELEVENLABS_API_KEY;
+    globalThis.fetch = fetchOriginal;
+  }
+});
+
+test('a lista ao vivo descarta id de conversa que não cabe na rota', async () => {
+  const conversas = [
+    {
+      conversation_id: 'conv-segura',
+      agent_id: 'affix-wa',
+      agent_name: 'Clara Affix WhatsApp',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix
+    },
+    {
+      conversation_id: '../login',
+      agent_id: 'affix-wa',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix
+    },
+    {
+      conversation_id: 'a'.repeat(129),
+      agent_id: 'affix-wa',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix
+    }
+  ];
+
+  await comFonte(async (app) => {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/monitoramento',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const ids = monitoramentoListagemResponseSchema
+      .parse(response.json())
+      .itens.map((item) => item.id);
+
+    assert.equal(response.statusCode, 200, response.body);
+    assert.deepEqual(ids, ['conv-segura']);
+  }, conversas);
+});
+
+test('sem a chave da fonte a lista não finge Recorte vazio', async () => {
+  const fetchOriginal = globalThis.fetch;
+  let chamadas = 0;
+  delete process.env.ELEVENLABS_API_KEY;
+  globalThis.fetch = (async () => {
+    chamadas += 1;
+    return new Response('nao deveria', { status: 500 });
+  }) as typeof fetch;
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/monitoramento',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const lista = monitoramentoListagemResponseSchema.parse(response.json());
+
+    assert.equal(response.statusCode, 200, response.body);
+    assert.equal(lista.fonteConfigurada, false);
+    assert.deepEqual(lista.itens, []);
+    assert.equal(
+      mensagemDaListaAoVivo(lista),
+      'A fonte não está configurada.'
+    );
+    assert.equal(chamadas, 0);
+    assert.equal(
+      mensagemDaListaAoVivo({ fonteConfigurada: true, itens: [] }),
+      'Nenhum Atendimento aberto neste Recorte.'
+    );
+    assert.equal(
+      mensagemDaListaAoVivo({ fonteConfigurada: true, itens: [{ id: 'conv-aberta' }] }),
+      null
+    );
+  } finally {
+    await app.close();
+    globalThis.fetch = fetchOriginal;
+  }
+});
+
+test('pulso de 10 segundos busca com a área visível, espera oculta e conserva a lista', () => {
+  assert.equal(intervaloDoPulsoMs, 10_000);
+  assert.equal(devePulsar({ visivel: true, msDesdeUltimaBusca: 10_000 }), true);
+  assert.equal(devePulsar({ visivel: true, msDesdeUltimaBusca: 9_999 }), false);
+  assert.equal(devePulsar({ visivel: false, msDesdeUltimaBusca: 10_000 }), false);
+  assert.equal(esperaDoPulso(0, 50_000), 10_000);
+  assert.equal(esperaDoPulso(1_000, 1_001), 9_999);
+  assert.equal(esperaDoPulso(1_000, 11_000), 0);
+
+  const lista = { id: 'conv-aberta' };
+  const conservada = aplicarCargaDaLista({
+    listaAtual: lista,
+    carga: { ok: false }
+  });
+  assert.equal(conservada.erro, false);
+  assert.deepEqual(conservada.lista, lista);
+
+  const primeiraFalha = aplicarCargaDaLista({
+    listaAtual: null,
+    carga: { ok: false }
+  });
+  assert.equal(primeiraFalha.erro, true);
+  assert.equal(primeiraFalha.lista, null);
+
+  const atualizada = aplicarCargaDaLista({
+    listaAtual: lista,
+    carga: { ok: true, lista: { id: 'conv-nova' } }
+  });
+  assert.equal(atualizada.erro, false);
+  assert.deepEqual(atualizada.lista, { id: 'conv-nova' });
+});
+
+test('transcrição ao vivo semeia, acrescenta, corrige, não corta e permanece', () => {
+  const espera = observarTranscricao(
+    { transcricao: [], observando: true },
+    { aberto: true, transcricao: [] }
+  );
+  assert.deepEqual(espera.transcricao, []);
+  assert.equal(espera.observando, true);
+  assert.equal(avisoDaTranscricao({ observando: true, quantidade: 0 }), 'Aguardando a próxima fala.');
+
+  const sementeFonte: TurnoDaTranscricao[] = [
+    { locutor: 'Agente de Voz', quando: '0:01', texto: 'Olá, sou a Clara.' },
+    { locutor: 'Cliente', quando: '0:04', texto: 'Preciso de ajuda.' },
+    { locutor: 'Agente de Voz', quando: '0:08', texto: 'Vou ver.' },
+    { locutor: 'Cliente', quando: '0:12', texto: 'A rede.' },
+    { locutor: 'Agente de Voz', quando: '0:15', texto: 'Um momento.' },
+    { locutor: 'Cliente', quando: '0:18', texto: 'Obrigado.' }
+  ];
+  const semente = observarTranscricao(espera, { aberto: true, transcricao: sementeFonte });
+  assert.deepEqual(semente.transcricao, sementeFonte);
+  assert.equal(semente.transcricao[0]?.texto, 'Olá, sou a Clara.');
+  assert.equal(avisoDaTranscricao({ observando: true, quantidade: semente.transcricao.length }), null);
+
+  const comFalaNova = observarTranscricao(semente, {
+    aberto: true,
+    transcricao: [
+      ...sementeFonte,
+      { locutor: 'Agente de Voz', quando: '0:22', texto: 'Encontrei a rede.' }
+    ]
+  });
+  assert.equal(comFalaNova.transcricao.length, sementeFonte.length + 1);
+  assert.equal(comFalaNova.transcricao[0]?.texto, 'Olá, sou a Clara.');
+  assert.equal(comFalaNova.transcricao.at(-1)?.texto, 'Encontrei a rede.');
+  assert.equal(
+    comFalaNova.transcricao.filter((turno) => turno.texto === 'Olá, sou a Clara.').length,
+    1
+  );
+
+  const corrigida = observarTranscricao(comFalaNova, {
+    aberto: true,
+    transcricao: [
+      ...sementeFonte.slice(0, 5),
+      { locutor: 'Cliente', quando: '0:18', texto: 'Obrigado.' },
+      { locutor: 'Agente de Voz', quando: '0:22', texto: 'Encontrei a rede credenciada.' }
+    ]
+  });
+  assert.equal(corrigida.transcricao.length, comFalaNova.transcricao.length);
+  assert.equal(corrigida.transcricao[0]?.texto, 'Olá, sou a Clara.');
+  assert.equal(corrigida.transcricao.at(-1)?.texto, 'Encontrei a rede credenciada.');
+  assert.equal(
+    corrigida.transcricao.filter((turno) => turno.locutor === 'Agente de Voz').at(-1)?.texto,
+    'Encontrei a rede credenciada.'
+  );
+
+  const repetida = observarTranscricao(corrigida, {
+    aberto: true,
+    transcricao: corrigida.transcricao
+  });
+  assert.deepEqual(repetida.transcricao, corrigida.transcricao);
+
+  const comInsercao = observarTranscricao(
+    {
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:01', texto: 'Olá.' },
+        { locutor: 'Cliente', quando: '0:04', texto: 'Oi.' },
+        { locutor: 'Agente de Voz', quando: '0:08', texto: 'Vou ver.' }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:01', texto: 'Olá.' },
+        { locutor: 'Cliente', quando: '0:04', texto: 'Oi.' },
+        { locutor: 'Cliente', quando: '0:06', texto: 'Espera.' },
+        { locutor: 'Agente de Voz', quando: '0:08', texto: 'Vou verificar.' }
+      ]
+    }
+  );
+  assert.equal(comInsercao.transcricao.length, 4);
+  assert.equal(comInsercao.transcricao[0]?.texto, 'Olá.');
+  assert.equal(comInsercao.transcricao[2]?.texto, 'Espera.');
+  assert.equal(comInsercao.transcricao[3]?.texto, 'Vou verificar.');
+  assert.equal(
+    comInsercao.transcricao.filter((turno) => turno.locutor === 'Agente de Voz' && turno.quando === '0:08')
+      .length,
+    1
+  );
+
+  const semCorteDoInicio = observarTranscricao(
+    {
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:01', texto: 'Olá.' },
+        { locutor: 'Cliente', quando: '0:04', texto: 'Oi.' },
+        { locutor: 'Agente de Voz', quando: '0:08', texto: 'Vou ver.' }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:08', texto: 'Outra abertura.' },
+        { locutor: 'Cliente', quando: '0:10', texto: 'Nova.' },
+        { locutor: 'Agente de Voz', quando: '0:12', texto: 'Segue.' },
+        { locutor: 'Cliente', quando: '0:14', texto: 'Certo.' }
+      ]
+    }
+  );
+  assert.equal(semCorteDoInicio.transcricao[0]?.texto, 'Olá.');
+  assert.equal(semCorteDoInicio.transcricao[1]?.texto, 'Oi.');
+  assert.equal(semCorteDoInicio.transcricao[2]?.texto, 'Outra abertura.');
+  assert.equal(semCorteDoInicio.transcricao[3]?.texto, 'Nova.');
+  assert.equal(semCorteDoInicio.transcricao[4]?.texto, 'Segue.');
+  assert.equal(semCorteDoInicio.transcricao[5]?.texto, 'Certo.');
+  assert.equal(
+    semCorteDoInicio.transcricao.filter((turno) => turno.texto === 'Olá.').length,
+    1
+  );
+
+  const encerrada = observarTranscricao(corrigida, {
+    aberto: false,
+    transcricao: corrigida.transcricao
+  });
+  assert.equal(encerrada.observando, false);
+  assert.deepEqual(encerrada.transcricao, corrigida.transcricao);
+  assert.equal(
+    textoDaObservacao(false),
+    'Observação encerrada. O texto permanece, sem áudio e sem ação no contato.'
+  );
+  assert.equal(
+    textoDaObservacao(true),
+    'Observação em texto, sem áudio e sem ação no contato.'
+  );
+
+  const depois = observarTranscricao(encerrada, {
+    aberto: true,
+    transcricao: [
+      ...corrigida.transcricao,
+      { locutor: 'Cliente', quando: '0:40', texto: 'Não entra mais.' }
+    ]
+  });
+  assert.equal(depois.observando, false);
+  assert.deepEqual(depois.transcricao, corrigida.transcricao);
+
+  const repetidaNoCanal = aplicarEventoDaObservacao(semente, {
+    tipo: 'fala',
+    locutor: 'Agente de Voz',
+    texto: 'Um momento.'
+  });
+  assert.equal(repetidaNoCanal.transcricao.length, semente.transcricao.length);
+  assert.equal(repetidaNoCanal.transcricao[0]?.texto, 'Olá, sou a Clara.');
+
+  const novaNoCanal = aplicarEventoDaObservacao(semente, {
+    tipo: 'fala',
+    locutor: 'Cliente',
+    texto: 'Continua.'
+  });
+  assert.equal(novaNoCanal.transcricao.length, semente.transcricao.length + 1);
+  assert.equal(novaNoCanal.transcricao.at(-1)?.texto, 'Continua.');
+  assert.equal(novaNoCanal.transcricao[0]?.texto, 'Olá, sou a Clara.');
+
+  const corrigidaNoCanal = aplicarEventoDaObservacao(novaNoCanal, {
+    tipo: 'correcao',
+    texto: 'Um momento, por favor.'
+  });
+  assert.equal(corrigidaNoCanal.transcricao.length, novaNoCanal.transcricao.length);
+  assert.equal(corrigidaNoCanal.transcricao[0]?.texto, 'Olá, sou a Clara.');
+  assert.equal(
+    corrigidaNoCanal.transcricao.filter((turno) => turno.locutor === 'Agente de Voz').at(-1)?.texto,
+    'Um momento, por favor.'
+  );
+
+  const fimDoCanal = aplicarEventoDaObservacao(corrigidaNoCanal, { tipo: 'encerrada' });
+  assert.equal(fimDoCanal.observando, false);
+  assert.deepEqual(fimDoCanal.transcricao, corrigidaNoCanal.transcricao);
+  assert.deepEqual(
+    aplicarEventoDaObservacao(fimDoCanal, {
+      tipo: 'fala',
+      locutor: 'Cliente',
+      texto: 'Não entra mais.'
+    }).transcricao,
+    fimDoCanal.transcricao
+  );
+});
+
+test('GET /monitoramento/:id responde 502 quando a fonte falha', async () => {
+  const fetchOriginal = globalThis.fetch;
+  process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
+  process.env.ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+  globalThis.fetch = (async () => new Response('falhou', { status: 503 })) as typeof fetch;
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/monitoramento/conv-aberta',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 502);
+    assert.equal(response.json().statusCode, 502);
+  } finally {
+    await app.close();
+    delete process.env.ELEVENLABS_API_KEY;
+    globalThis.fetch = fetchOriginal;
+  }
+});
+
 test('GET /monitoramento responde 502 quando a fonte falha', async () => {
   const fetchOriginal = globalThis.fetch;
   process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
@@ -422,4 +923,147 @@ test('GET /monitoramento responde 502 quando a fonte falha', async () => {
     delete process.env.ELEVENLABS_API_KEY;
     globalThis.fetch = fetchOriginal;
   }
+});
+
+test('a busca da lista para quando o cliente cancela', async () => {
+  const controller = new AbortController();
+  let paginas = 0;
+  const fetchImpl = (async () => {
+    paginas += 1;
+    return new Response(
+      JSON.stringify({
+        conversations: [],
+        has_more: true,
+        next_cursor: String(paginas + 1)
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  const busca = listarConversasElevenLabs({
+    apiKey: 'chave-de-teste',
+    baseUrl: 'https://api.elevenlabs.io',
+    fetchImpl,
+    maxPaginas: 5,
+    signal: controller.signal
+  });
+  controller.abort();
+
+  await assert.rejects(busca, (error: unknown) => {
+    assert.equal(error instanceof Error && error.name, 'AbortError');
+    return true;
+  });
+  assert.equal(paginas, 1);
+});
+
+test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
+  assert.equal(
+    urlDoMonitorDaFonte('https://api.elevenlabs.io/', 'conv-aberta'),
+    'wss://api.elevenlabs.io/v1/convai/conversations/conv-aberta/monitor'
+  );
+  assert.deepEqual(
+    eventoDaMensagemDaFonte({
+      type: 'agent_response',
+      agent_response_event: { agent_response: 'Olá.' }
+    }),
+    { tipo: 'fala', locutor: 'Agente de Voz', texto: 'Olá.' }
+  );
+  assert.equal(
+    eventoDaMensagemDaFonte({
+      type: 'agent_response_correction',
+      agent_response_correction_event: { corrected_agent_response: 'Olá, sou a Clara.' }
+    })?.tipo,
+    'correcao'
+  );
+  assert.equal(eventoDaMensagemDaFonte({ type: 'interruption' }), undefined);
+  assert.equal(sessaoDaMensagem('{"tipo":"sessao","sessao":"abc"}'), 'abc');
+  assert.equal(sessaoDaMensagem('{"type":"interrupt"}'), undefined);
+
+  const enviadosAoCliente: string[] = [];
+  const enviadosAFonte: string[] = [];
+  const ouvintes = new Map<string, Array<(...args: unknown[]) => void>>();
+  const cliente = {
+    readyState: 1,
+    OPEN: 1,
+    CONNECTING: 0,
+    send(data: string) {
+      enviadosAoCliente.push(data);
+    },
+    close() {
+      this.readyState = 3;
+    },
+    on(evento: string, ouvinte: (...args: unknown[]) => void) {
+      const lista = ouvintes.get(`cliente:${evento}`) ?? [];
+      lista.push(ouvinte);
+      ouvintes.set(`cliente:${evento}`, lista);
+    }
+  };
+  let fonte:
+    | {
+        readyState: number;
+        OPEN: number;
+        CONNECTING: number;
+        send: (data: string) => void;
+        close: () => void;
+        on: (evento: string, ouvinte: (...args: unknown[]) => void) => void;
+        emitir: (evento: string, ...args: unknown[]) => void;
+      }
+    | undefined;
+
+  createMonitoramentoProxy({
+    client: cliente as never,
+    apiKey: 'segredo-da-fonte',
+    monitorUrl: urlDoMonitorDaFonte('https://api.elevenlabs.io', 'conv-aberta'),
+    connect: () => {
+      const locais = new Map<string, Array<(...args: unknown[]) => void>>();
+      fonte = {
+        readyState: 0,
+        OPEN: 1,
+        CONNECTING: 0,
+        send(data: string) {
+          enviadosAFonte.push(data);
+        },
+        close() {
+          this.readyState = 3;
+        },
+        on(evento: string, ouvinte: (...args: unknown[]) => void) {
+          const lista = locais.get(evento) ?? [];
+          lista.push(ouvinte);
+          locais.set(evento, lista);
+        },
+        emitir(evento: string, ...args: unknown[]) {
+          for (const ouvinte of locais.get(evento) ?? []) {
+            ouvinte(...args);
+          }
+        }
+      };
+      return fonte as never;
+    }
+  });
+
+  assert.ok(fonte);
+  fonte.readyState = 1;
+  fonte.emitir('open');
+  assert.equal(JSON.parse(enviadosAoCliente.at(-1) ?? '').tipo, 'pronto');
+  fonte.emitir(
+    'message',
+    JSON.stringify({
+      type: 'user_transcript',
+      user_transcription_event: { user_transcript: 'Preciso de ajuda.' }
+    })
+  );
+  assert.deepEqual(JSON.parse(enviadosAoCliente.at(-1) ?? ''), {
+    tipo: 'fala',
+    locutor: 'Cliente',
+    texto: 'Preciso de ajuda.'
+  });
+  fonte.emitir('message', 'x'.repeat(70_000));
+  assert.equal(enviadosAoCliente.length, 2);
+  for (const ouvinte of ouvintes.get('cliente:message') ?? []) {
+    ouvinte(JSON.stringify({ type: 'interrupt' }));
+  }
+  assert.deepEqual(enviadosAFonte, []);
+  assert.equal(enviadosAoCliente.some((item) => item.includes('segredo-da-fonte')), false);
+  fonte.emitir('close');
+  assert.equal(JSON.parse(enviadosAoCliente.at(-1) ?? '').tipo, 'encerrada');
 });

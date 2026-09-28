@@ -1,31 +1,60 @@
 import {
   monitoramentoDetalheSchema,
   monitoramentoListagemResponseSchema,
-  type MonitoramentoDetalhe
+  type EventoDaObservacao
 } from '@hq-crion/contracts/atendimento';
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
-import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
+import type { Recorte } from '@hq-crion/contracts/recorte';
+import websocket from '@fastify/websocket';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import type { WebSocket } from 'ws';
 import { passaNoRecorte, recorteDaQuery } from '../atendimentos/filtros.js';
 import { paginaDaLista } from '../atendimentos/pagina.js';
+import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
+import { sessaoDaMensagem, urlDoMonitorDaFonte } from './canal.js';
+import { createMonitoramentoProxy } from './proxy.js';
 import {
-  atendimentoDaFonteElevenLabs,
-  buscarConversaElevenLabs,
   conversaAbertaNaFonte,
-  listarConversasElevenLabs
+  buscarConversaElevenLabs,
+  leituraAoVivoDaFonte,
+  listarConversasElevenLabs,
+  type LeituraAoVivo
 } from '../ingestao/elevenlabs.js';
+
+const idDeConversaAoVivo = /^[A-Za-z0-9_-]{1,128}$/;
+const esperaDaSessaoMs = 5_000;
+
+function enviar(socket: WebSocket, evento: EventoDaObservacao) {
+  if (socket.readyState === socket.OPEN) {
+    socket.send(JSON.stringify(evento));
+  }
+}
+
+function esperarSessao(socket: WebSocket) {
+  return new Promise<string | undefined>((resolve) => {
+    const timer = setTimeout(() => {
+      limpar();
+      resolve(undefined);
+    }, esperaDaSessaoMs);
+
+    function naMensagem(data: unknown) {
+      limpar();
+      resolve(sessaoDaMensagem(String(data)));
+    }
+
+    function limpar() {
+      clearTimeout(timer);
+      socket.off('message', naMensagem);
+    }
+
+    socket.on('message', naMensagem);
+  });
+}
 
 function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
 }
 
-function itemDoMonitoramento(item: {
-  id: string;
-  administradora: MonitoramentoDetalhe['administradora'];
-  agente: string;
-  agenteId: string;
-  iniciadoEm: string;
-  motivo: string;
-}) {
+function itemDoMonitoramento(item: LeituraAoVivo) {
   return {
     id: item.id,
     administradora: item.administradora,
@@ -37,7 +66,37 @@ function itemDoMonitoramento(item: {
   };
 }
 
+function passaNoRecorteAoVivo(item: LeituraAoVivo, recorte: Recorte) {
+  if (!recorte.administradora && !recorte.agente) {
+    return true;
+  }
+
+  if (!item.administradora) {
+    return false;
+  }
+
+  return passaNoRecorte(
+    { administradora: item.administradora, agenteId: item.agenteId },
+    recorte
+  );
+}
+
+function listaVazia(recorte: Recorte, fonteConfigurada: boolean) {
+  const pagina = paginaDaLista(0, undefined);
+
+  return monitoramentoListagemResponseSchema.parse({
+    recorte,
+    pagina: pagina.pagina,
+    tamanho: pagina.tamanho,
+    total: 0,
+    itens: [],
+    fonteConfigurada
+  });
+}
+
 const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
+  await app.register(websocket, { options: { maxPayload: 16_384 } });
+
   app.get('/monitoramento', async (request, reply) => {
     semCache(reply);
     const registro = registroDaAutorizacao(request.headers.authorization);
@@ -53,31 +112,46 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
+    if (!app.config.ELEVENLABS_API_KEY) {
+      return listaVazia(recorte, false);
+    }
+
+    const cancelamento = new AbortController();
+    const aoAbortar = () => cancelamento.abort();
+    request.raw.on('aborted', aoAbortar);
     let fonte;
 
     try {
-      fonte = app.config.ELEVENLABS_API_KEY
-        ? await listarConversasElevenLabs({
-            apiKey: app.config.ELEVENLABS_API_KEY,
-            baseUrl: app.config.ELEVENLABS_BASE_URL,
-            maxPaginas: 5,
-            pararSemAbertas: true
-          })
-        : [];
+      fonte = await listarConversasElevenLabs({
+        apiKey: app.config.ELEVENLABS_API_KEY,
+        baseUrl: app.config.ELEVENLABS_BASE_URL,
+        maxPaginas: 5,
+        signal: cancelamento.signal
+      });
     } catch {
+      if (cancelamento.signal.aborted) {
+        return;
+      }
+
       return reply.code(502).send({ statusCode: 502 });
+    } finally {
+      request.raw.removeListener('aborted', aoAbortar);
     }
 
-    const candidatos = [];
+    const candidatos: LeituraAoVivo[] = [];
 
     for (const payload of fonte) {
       if (!conversaAbertaNaFonte(payload.status)) {
         continue;
       }
 
-      const atendimento = atendimentoDaFonteElevenLabs(payload);
+      const atendimento = leituraAoVivoDaFonte(payload);
 
-      if (!atendimento || !passaNoRecorte(atendimento, recorte)) {
+      if (
+        !atendimento ||
+        !idDeConversaAoVivo.test(atendimento.id) ||
+        !passaNoRecorteAoVivo(atendimento, recorte)
+      ) {
         continue;
       }
 
@@ -90,14 +164,15 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     const abertos = candidatos
       .filter((item) => !concluidos.has(item.id))
       .map(itemDoMonitoramento);
-    const pagina = paginaDaLista(abertos.length, query.pagina);
+    const pagina = paginaDaLista(abertos.length, undefined);
 
     return monitoramentoListagemResponseSchema.parse({
       recorte,
       pagina: pagina.pagina,
       tamanho: pagina.tamanho,
       total: pagina.total,
-      itens: abertos.slice(pagina.inicio, pagina.fim)
+      itens: abertos.slice(pagina.inicio, pagina.fim),
+      fonteConfigurada: true
     });
   });
 
@@ -111,7 +186,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
 
     const { id } = request.params as { id: string };
 
-    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    if (!idDeConversaAoVivo.test(id)) {
       return reply.code(404).send({ statusCode: 404 });
     }
 
@@ -121,12 +196,19 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    const payload = await buscarConversaElevenLabs({
-      apiKey: app.config.ELEVENLABS_API_KEY,
-      baseUrl: app.config.ELEVENLABS_BASE_URL,
-      id
-    });
-    const atendimento = payload ? atendimentoDaFonteElevenLabs(payload) : undefined;
+    let payload;
+
+    try {
+      payload = await buscarConversaElevenLabs({
+        apiKey: app.config.ELEVENLABS_API_KEY,
+        baseUrl: app.config.ELEVENLABS_BASE_URL,
+        id
+      });
+    } catch {
+      return reply.code(502).send({ statusCode: 502 });
+    }
+
+    const atendimento = payload ? leituraAoVivoDaFonte(payload) : undefined;
 
     if (!payload || !atendimento || !conversaAbertaNaFonte(payload.status)) {
       return reply.code(404).send({ statusCode: 404 });
@@ -135,6 +217,72 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     return monitoramentoDetalheSchema.parse({
       ...itemDoMonitoramento(atendimento),
       transcricao: atendimento.transcricao
+    });
+  });
+
+  app.get('/monitoramento/:id/observacao', { websocket: true }, async (socket, request) => {
+    const { id } = request.params as { id: string };
+
+    if (!idDeConversaAoVivo.test(id)) {
+      enviar(socket, { tipo: 'erro' });
+      socket.close();
+      return;
+    }
+
+    const sessao = await esperarSessao(socket);
+
+    if (socket.readyState !== socket.OPEN) {
+      return;
+    }
+
+    if (!sessao || !registroDaAutorizacao(`Bearer ${sessao}`)) {
+      enviar(socket, { tipo: 'erro' });
+      socket.close();
+      return;
+    }
+
+    if (!app.config.ELEVENLABS_API_KEY) {
+      enviar(socket, { tipo: 'erro' });
+      socket.close();
+      return;
+    }
+
+    const noHq = await app.atendimentos.buscarPorId(id);
+
+    if (noHq?.status === 'Concluído') {
+      enviar(socket, { tipo: 'encerrada' });
+      socket.close();
+      return;
+    }
+
+    let payload;
+
+    try {
+      payload = await buscarConversaElevenLabs({
+        apiKey: app.config.ELEVENLABS_API_KEY,
+        baseUrl: app.config.ELEVENLABS_BASE_URL,
+        id
+      });
+    } catch {
+      enviar(socket, { tipo: 'erro' });
+      socket.close();
+      return;
+    }
+
+    if (socket.readyState !== socket.OPEN) {
+      return;
+    }
+
+    if (!payload || !conversaAbertaNaFonte(payload.status)) {
+      enviar(socket, { tipo: 'encerrada' });
+      socket.close();
+      return;
+    }
+
+    createMonitoramentoProxy({
+      client: socket,
+      apiKey: app.config.ELEVENLABS_API_KEY,
+      monitorUrl: urlDoMonitorDaFonte(app.config.ELEVENLABS_BASE_URL, id)
     });
   });
 };

@@ -14,13 +14,22 @@ export const perfilSchema = z.object({
   papel: papelSchema
 });
 
+export const minimoDaSenhaNova = 8;
+export const maximoDaSenha = 128;
+
+const senhaNovaSchema = z.string().min(minimoDaSenhaNova).max(maximoDaSenha);
+
+export const criarPerfilSchema = perfilSchema.extend({
+  senha: senhaNovaSchema
+});
+
 export const loginRequestSchema = z.object({
   email: emailSchema,
-  senha: z.string().min(1).max(128)
+  senha: z.string().min(1).max(maximoDaSenha)
 });
 
 export const redefinirSenhaSchema = z.object({
-  senha: z.string().min(1).max(128)
+  senha: senhaNovaSchema
 });
 
 export const loginResponseSchema = z.object({
@@ -45,6 +54,7 @@ export const listaDePerfisSchema = z.object({
 
 export type Papel = z.infer<typeof papelSchema>;
 export type Perfil = z.infer<typeof perfilSchema>;
+export type CriarPerfil = z.infer<typeof criarPerfilSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type RedefinirSenha = z.infer<typeof redefinirSenhaSchema>;
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
