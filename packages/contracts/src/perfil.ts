@@ -14,7 +14,10 @@ export const perfilSchema = z.object({
   papel: papelSchema
 });
 
-const senhaNovaSchema = z.string().min(8).max(128);
+export const minimoDaSenhaNova = 8;
+export const maximoDaSenha = 128;
+
+const senhaNovaSchema = z.string().min(minimoDaSenhaNova).max(maximoDaSenha);
 
 export const criarPerfilSchema = perfilSchema.extend({
   senha: senhaNovaSchema
@@ -22,28 +25,12 @@ export const criarPerfilSchema = perfilSchema.extend({
 
 export const loginRequestSchema = z.object({
   email: emailSchema,
-  senha: z.string().min(1).max(128)
+  senha: z.string().min(1).max(maximoDaSenha)
 });
 
 export const redefinirSenhaSchema = z.object({
   senha: senhaNovaSchema
 });
-
-export type VisibilidadeDaSenha = 'oculta' | 'visivel';
-
-export function campoDaSenha(visibilidade: VisibilidadeDaSenha) {
-  if (visibilidade === 'visivel') {
-    return { tipo: 'text' as const, rotulo: 'Ocultar senha' };
-  }
-
-  return { tipo: 'password' as const, rotulo: 'Mostrar senha' };
-}
-
-export function alternarVisibilidadeDaSenha(
-  visibilidade: VisibilidadeDaSenha
-): VisibilidadeDaSenha {
-  return visibilidade === 'oculta' ? 'visivel' : 'oculta';
-}
 
 export const loginResponseSchema = z.object({
   perfil: perfilSchema,

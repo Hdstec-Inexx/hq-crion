@@ -8,12 +8,14 @@ import {
   tituloDaPagina
 } from '../../packages/contracts/src/casca.js';
 import {
+  loginResponseSchema,
+  perfilSchema
+} from '../../packages/contracts/src/perfil.js';
+import {
   alternarVisibilidadeDaSenha,
   campoDaSenha,
-  loginResponseSchema,
-  perfilSchema,
   type VisibilidadeDaSenha
-} from '../../packages/contracts/src/perfil.js';
+} from '../../apps/web/src/features/auth/campo-da-senha.js';
 import { perfilDaAutorizacao } from '../../apps/api/src/modules/perfil/sessoes.js';
 
 process.env.NODE_ENV = 'test';

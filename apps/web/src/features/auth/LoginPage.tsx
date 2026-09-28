@@ -1,54 +1,10 @@
 import { destinoDaNavegacao } from '@hq-crion/contracts/casca';
-import {
-  alternarVisibilidadeDaSenha,
-  campoDaSenha,
-  type Perfil,
-  type VisibilidadeDaSenha
-} from '@hq-crion/contracts/perfil';
-import { type FormEvent, useEffect, useId, useState } from 'react';
+import type { Perfil } from '@hq-crion/contracts/perfil';
+import { type FormEvent, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { buscarPerfil, entrar } from './api';
+import { CampoSenha } from './CampoSenha';
 import { lerSessao } from './sessao';
-
-export function CampoSenha({
-  rotulo,
-  autoComplete,
-  className,
-  minimo
-}: {
-  rotulo: string;
-  autoComplete: string;
-  className?: string;
-  minimo?: number;
-}) {
-  const id = useId();
-  const [visibilidade, setVisibilidade] = useState<VisibilidadeDaSenha>('oculta');
-  const campo = campoDaSenha(visibilidade);
-
-  return (
-    <div className={className ? `login-field ${className}` : 'login-field'}>
-      <label htmlFor={id}>{rotulo}</label>
-      <span className="senha-com-botao">
-        <input
-          id={id}
-          name="senha"
-          type={campo.tipo}
-          autoComplete={autoComplete}
-          minLength={minimo}
-          maxLength={128}
-          required
-        />
-        <button
-          className="mostrar-senha"
-          type="button"
-          onClick={() => setVisibilidade(alternarVisibilidadeDaSenha)}
-        >
-          {campo.rotulo}
-        </button>
-      </span>
-    </div>
-  );
-}
 
 export function LoginPage() {
   const location = useLocation();

@@ -1,5 +1,7 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import {
+  maximoDaSenha,
+  minimoDaSenhaNova,
   motivoUltimoAdmin,
   papelSchema,
   type ListaDePerfis,
@@ -14,7 +16,7 @@ import {
   useRevalidator,
   useRouteLoaderData
 } from 'react-router-dom';
-import { CampoSenha } from '../auth/LoginPage';
+import { CampoSenha } from '../auth/CampoSenha';
 import { lerSessao } from '../auth/sessao';
 import {
   alterarPerfil,
@@ -123,7 +125,7 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
     const senha = String(new FormData(event.currentTarget).get('senha') ?? '');
     void executar(
       (sessao) => redefinirSenhaDoPerfil(sessao, perfil.id, senha),
-      'A Nova senha precisa ter de 8 a 128 caracteres.'
+      `A Nova senha precisa ter de ${minimoDaSenhaNova} a ${maximoDaSenha} caracteres.`
     );
   }
 
@@ -160,7 +162,11 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
       {perfil.ativo ? null : <p className="perfil-estado">Desativado</p>}
       </form>
       <form className="perfil-senha" onSubmit={onRedefinir} aria-label={`Senha de ${perfil.nome}`}>
-        <CampoSenha rotulo="Nova senha" autoComplete="new-password" minimo={8} />
+        <CampoSenha
+          rotulo="Nova senha"
+          autoComplete="new-password"
+          minimo={minimoDaSenhaNova}
+        />
         <button className="perfil-situacao" type="submit" disabled={enviando}>
           Redefinir senha
         </button>
@@ -200,7 +206,7 @@ export function PerfisPage() {
         setErro(
           mensagemDoMotivo(
             resultado.motivo,
-            'Informe nome, e-mail válido, um dos três papéis e uma Senha inicial de 8 a 128 caracteres.'
+            `Informe nome, e-mail válido, um dos três papéis e uma Senha inicial de ${minimoDaSenhaNova} a ${maximoDaSenha} caracteres.`
           )
         );
         return;
@@ -237,7 +243,7 @@ export function PerfisPage() {
           rotulo="Senha inicial"
           autoComplete="new-password"
           className="perfil-campo-senha"
-          minimo={8}
+          minimo={minimoDaSenhaNova}
         />
         {erro ? (
           <p className="login-error" role="alert">
