@@ -1,5 +1,7 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import {
+  maximoDaSenha,
+  minimoDaSenhaNova,
   motivoUltimoAdmin,
   papelSchema,
   type ListaDePerfis,
@@ -14,6 +16,7 @@ import {
   useRevalidator,
   useRouteLoaderData
 } from 'react-router-dom';
+import { CampoSenha } from '../auth/CampoSenha';
 import { lerSessao } from '../auth/sessao';
 import {
   alterarPerfil,
@@ -25,13 +28,16 @@ import {
 
 const papeis = papelSchema.options;
 
-function mensagemDoMotivo(motivo: Extract<ResultadoDaAdministracao, { ok: false }>['motivo']) {
+function mensagemDoMotivo(
+  motivo: Extract<ResultadoDaAdministracao, { ok: false }>['motivo'],
+  textoInvalido = 'Informe nome, e-mail válido e um dos três papéis.'
+) {
   if (motivo === 'negado') {
     return 'Só o Admin gere Perfis.';
   }
 
   if (motivo === 'invalido') {
-    return 'Informe nome, e-mail válido e um dos três papéis.';
+    return textoInvalido;
   }
 
   if (motivo === 'conflito') {
@@ -75,7 +81,8 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
   const [enviando, setEnviando] = useState(false);
 
   async function executar(
-    acao: (sessao: string) => Promise<ResultadoDaAdministracao>
+    acao: (sessao: string) => Promise<ResultadoDaAdministracao>,
+    textoInvalido?: string
   ) {
     const sessao = lerSessao();
 
@@ -91,7 +98,7 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
       const resultado = await acao(sessao);
 
       if (!resultado.ok) {
-        setErro(mensagemDoMotivo(resultado.motivo));
+        setErro(mensagemDoMotivo(resultado.motivo, textoInvalido));
         return;
       }
 
@@ -116,7 +123,10 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
   function onRedefinir(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const senha = String(new FormData(event.currentTarget).get('senha') ?? '');
-    void executar((sessao) => redefinirSenhaDoPerfil(sessao, perfil.id, senha));
+    void executar(
+      (sessao) => redefinirSenhaDoPerfil(sessao, perfil.id, senha),
+      `A Nova senha precisa ter de ${minimoDaSenhaNova} a ${maximoDaSenha} caracteres.`
+    );
   }
 
   return (
@@ -152,10 +162,11 @@ function CartaoPerfil({ perfil }: { perfil: PerfilComId }) {
       {perfil.ativo ? null : <p className="perfil-estado">Desativado</p>}
       </form>
       <form className="perfil-senha" onSubmit={onRedefinir} aria-label={`Senha de ${perfil.nome}`}>
-        <label className="login-field">
-          Nova senha
-          <input name="senha" type="password" autoComplete="new-password" required />
-        </label>
+        <CampoSenha
+          rotulo="Nova senha"
+          autoComplete="new-password"
+          minimo={minimoDaSenhaNova}
+        />
         <button className="perfil-situacao" type="submit" disabled={enviando}>
           Redefinir senha
         </button>
@@ -186,10 +197,18 @@ export function PerfisPage() {
     setEnviando(true);
 
     try {
-      const resultado = await criarPerfil(sessao, identidadeDoFormulario(form));
+      const resultado = await criarPerfil(sessao, {
+        ...identidadeDoFormulario(form),
+        senha: String(new FormData(form).get('senha') ?? '')
+      });
 
       if (!resultado.ok) {
-        setErro(mensagemDoMotivo(resultado.motivo));
+        setErro(
+          mensagemDoMotivo(
+            resultado.motivo,
+            `Informe nome, e-mail válido, um dos três papéis e uma Senha inicial de ${minimoDaSenhaNova} a ${maximoDaSenha} caracteres.`
+          )
+        );
         return;
       }
 
@@ -220,6 +239,12 @@ export function PerfisPage() {
           <input name="email" type="text" required />
         </label>
         <CampoPapel />
+        <CampoSenha
+          rotulo="Senha inicial"
+          autoComplete="new-password"
+          className="perfil-campo-senha"
+          minimo={minimoDaSenhaNova}
+        />
         {erro ? (
           <p className="login-error" role="alert">
             {erro}

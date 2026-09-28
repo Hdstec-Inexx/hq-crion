@@ -3,6 +3,7 @@ import {
   papelSchema,
   perfilComIdSchema,
   perfilSchema,
+  type CriarPerfil,
   type MotivoUltimoAdmin,
   type Perfil,
   type PerfilComId
@@ -156,13 +157,13 @@ export function buscarPorEmail(email: string) {
   return registros.find((registro) => registro.email === normalizado);
 }
 
-export async function criarPerfil(identidade: Perfil) {
+export async function criarPerfil(pedido: CriarPerfil) {
   const registro: RegistroDePerfil = {
     id: randomUUID(),
-    nome: identidade.nome,
-    email: identidade.email,
-    papel: identidade.papel,
-    senha: hashDaSenha('crion-hq'),
+    nome: pedido.nome,
+    email: pedido.email,
+    papel: pedido.papel,
+    senha: hashDaSenha(pedido.senha),
     ativo: true,
     versao: 1
   };

@@ -171,6 +171,7 @@ test('Admin cria Perfil com identidade e um dos três papéis, sem Administrador
         nome: 'Diego Lima',
         email: 'diego.lima@crion',
         papel: 'Curador',
+        senha: 'senha-inicial',
         administradora: 'Affix'
       }
     });
@@ -182,6 +183,7 @@ test('Admin cria Perfil com identidade e um dos três papéis, sem Administrador
     assert.equal(criado.papel, 'Curador');
     assert.equal(criado.ativo, true);
     assert.equal('administradora' in response.json(), false);
+    assert.equal('senha' in response.json(), false);
     assert.equal(criado.id.length > 0, true);
     papelSchema.parse(criado.papel);
 
@@ -216,7 +218,8 @@ test('Admin não cria Perfil com papel fora dos três', async () => {
       payload: {
         nome: 'Fora',
         email: 'fora@crion',
-        papel: 'Cliente'
+        papel: 'Cliente',
+        senha: 'senha-inicial'
       }
     });
 
@@ -258,7 +261,8 @@ test('mudança de papel pelo Admin vale na revalidação da sessão', async () =
       payload: {
         nome: 'Helena Dias',
         email: 'helena.dias@crion',
-        papel: 'Curador'
+        papel: 'Curador',
+        senha: 'senha-inicial'
       }
     });
     const perfil = perfilComIdSchema.parse(criado.json());
@@ -266,7 +270,7 @@ test('mudança de papel pelo Admin vale na revalidação da sessão', async () =
     const loginCuradora = await app.inject({
       method: 'POST',
       url: '/login',
-      payload: { email: 'helena.dias@crion', senha: 'crion-hq' }
+      payload: { email: 'helena.dias@crion', senha: 'senha-inicial' }
     });
     const { sessao: sessaoCuradora, perfil: perfilNaSessao } =
       loginResponseSchema.parse(loginCuradora.json());
@@ -373,7 +377,8 @@ test('Admin não cria Perfil com e-mail já usado', async () => {
       payload: {
         nome: 'Outra Ana',
         email: 'ana.souza@crion',
-        papel: 'Curador'
+        papel: 'Curador',
+        senha: 'senha-inicial'
       }
     });
 
@@ -394,7 +399,8 @@ test('Admin não cria Perfil com e-mail já usado em outra capitalização', asy
       payload: {
         nome: 'Outra Ana',
         email: 'Ana.Souza@crion',
-        papel: 'Curador'
+        papel: 'Curador',
+        senha: 'senha-inicial'
       }
     });
 
@@ -559,7 +565,8 @@ test('Gestão e Curador recebem recusa ao redefinir senha', async () => {
       payload: {
         nome: 'Igor Pires',
         email: 'igor.pires@crion',
-        papel: 'Gestão'
+        papel: 'Gestão',
+        senha: 'senha-inicial'
       }
     });
     const perfil = perfilComIdSchema.parse(criado.json());
@@ -570,13 +577,13 @@ test('Gestão e Curador recebem recusa ao redefinir senha', async () => {
       method: 'PUT',
       url: `/perfis/${perfil.id}/senha`,
       headers: { authorization: `Bearer ${gestao}` },
-      payload: { senha: 'nova-hq' }
+      payload: { senha: 'senha-nova' }
     });
     const recusaCurador = await app.inject({
       method: 'PUT',
       url: `/perfis/${perfil.id}/senha`,
       headers: { authorization: `Bearer ${curador}` },
-      payload: { senha: 'nova-hq' }
+      payload: { senha: 'senha-nova' }
     });
 
     assert.equal(recusaGestao.statusCode, 403);
@@ -614,14 +621,15 @@ test('Admin redefine senha: sessões antigas morrem e a senha nova abre sessão 
       payload: {
         nome: 'Julia Castro',
         email: 'julia.castro@crion',
-        papel: 'Curador'
+        papel: 'Curador',
+        senha: 'senha-inicial'
       }
     });
     const perfil = perfilComIdSchema.parse(criado.json());
     const loginAntigo = await app.inject({
       method: 'POST',
       url: '/login',
-      payload: { email: 'julia.castro@crion', senha: 'crion-hq' }
+      payload: { email: 'julia.castro@crion', senha: 'senha-inicial' }
     });
     const { sessao: sessaoAntiga } = loginResponseSchema.parse(loginAntigo.json());
 
@@ -629,7 +637,7 @@ test('Admin redefine senha: sessões antigas morrem e a senha nova abre sessão 
       method: 'PUT',
       url: `/perfis/${perfil.id}/senha`,
       headers: { authorization: `Bearer ${sessao}` },
-      payload: { senha: 'nova-hq' }
+      payload: { senha: 'senha-nova' }
     });
 
     assert.equal(redefinir.statusCode, 204);
@@ -645,14 +653,14 @@ test('Admin redefine senha: sessões antigas morrem e a senha nova abre sessão 
     const senhaAntiga = await app.inject({
       method: 'POST',
       url: '/login',
-      payload: { email: 'julia.castro@crion', senha: 'crion-hq' }
+      payload: { email: 'julia.castro@crion', senha: 'senha-inicial' }
     });
     assert.equal(senhaAntiga.statusCode, 401);
 
     const senhaNova = await app.inject({
       method: 'POST',
       url: '/login',
-      payload: { email: 'julia.castro@crion', senha: 'nova-hq' }
+      payload: { email: 'julia.castro@crion', senha: 'senha-nova' }
     });
     assert.equal(senhaNova.statusCode, 200);
     const { sessao: sessaoNova } = loginResponseSchema.parse(senhaNova.json());
@@ -702,6 +710,212 @@ test('o último Admin ativo continua protegido depois de redefinir senha', async
       headers: { authorization: `Bearer ${sessaoNova}` },
       payload: { senha: 'crion-hq' }
     });
+  } finally {
+    await app.close();
+  }
+});
+
+test('Admin não cria Perfil sem Senha inicial', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Sem Senha',
+        email: 'sem.senha@crion',
+        papel: 'Curador'
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Admin não cria Perfil com Senha inicial menor que 8 caracteres', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Senha Curta',
+        email: 'senha.curta@crion',
+        papel: 'Gestão',
+        senha: 'curta'
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Admin não cria Perfil com Senha inicial maior que 128 caracteres', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Senha Longa',
+        email: 'senha.longa.inicial@crion',
+        papel: 'Gestão',
+        senha: 'a'.repeat(129)
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Perfil novo autentica com a Senha inicial e a resposta não devolve a Senha', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Lia Prado',
+        email: 'lia.prado@crion',
+        papel: 'Curador',
+        senha: 'senha-inicial'
+      }
+    });
+
+    assert.equal(response.statusCode, 201);
+    const criado = perfilComIdSchema.parse(response.json());
+    assert.equal('senha' in response.json(), false);
+    assert.equal(criado.email, 'lia.prado@crion');
+
+    const senhaFixa = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'lia.prado@crion', senha: 'crion-hq' }
+    });
+    assert.equal(senhaFixa.statusCode, 401);
+
+    const senhaInicial = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'lia.prado@crion', senha: 'senha-inicial' }
+    });
+    assert.equal(senhaInicial.statusCode, 200);
+    assert.equal(loginResponseSchema.parse(senhaInicial.json()).perfil.papel, 'Curador');
+  } finally {
+    await app.close();
+  }
+});
+
+test('criar outro Perfil não troca a Senha dos Perfis que já existem', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Otto Reis',
+        email: 'otto.reis@crion',
+        papel: 'Gestão',
+        senha: 'senha-do-otto'
+      }
+    });
+    assert.equal(response.statusCode, 201);
+
+    for (const email of ['ana.souza@crion', 'carla.mendes@crion', 'bruno.alves@crion']) {
+      const login = await app.inject({
+        method: 'POST',
+        url: '/login',
+        payload: { email, senha: 'crion-hq' }
+      });
+      assert.equal(login.statusCode, 200, email);
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+test('editar nome, e-mail e papel não pede Senha e mantém a Senha inicial', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const criado = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Nina Costa',
+        email: 'nina.costa@crion',
+        papel: 'Curador',
+        senha: 'senha-da-nina'
+      }
+    });
+    const perfil = perfilComIdSchema.parse(criado.json());
+
+    const edicao = await app.inject({
+      method: 'PUT',
+      url: `/perfis/${perfil.id}`,
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nome: 'Nina Costa Lima',
+        email: 'nina.lima@crion',
+        papel: 'Gestão'
+      }
+    });
+
+    assert.equal(edicao.statusCode, 200);
+    const atualizado = perfilComIdSchema.parse(edicao.json());
+    assert.equal(atualizado.nome, 'Nina Costa Lima');
+    assert.equal(atualizado.email, 'nina.lima@crion');
+    assert.equal(atualizado.papel, 'Gestão');
+    assert.equal('senha' in edicao.json(), false);
+
+    const senhaAntiga = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'nina.lima@crion', senha: 'senha-da-nina' }
+    });
+    assert.equal(senhaAntiga.statusCode, 200);
+    assert.equal(loginResponseSchema.parse(senhaAntiga.json()).perfil.papel, 'Gestão');
+  } finally {
+    await app.close();
+  }
+});
+
+test('Admin não redefine senha com menos de 8 caracteres', async () => {
+  const { app, sessao } = await sessaoDe('bruno.alves@crion');
+
+  try {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/perfis/perfil-ana/senha',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: { senha: 'curta' }
+    });
+
+    assert.equal(response.statusCode, 400);
+
+    const senhaAtual = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'ana.souza@crion', senha: 'crion-hq' }
+    });
+    assert.equal(senhaAtual.statusCode, 200);
   } finally {
     await app.close();
   }
