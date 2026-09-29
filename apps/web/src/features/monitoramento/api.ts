@@ -1,76 +1,12 @@
 import {
   eventoDaObservacaoSchema,
-  monitoramentoDetalheSchema,
-  type MonitoramentoListagemResponse
+  monitoramentoDetalheSchema
 } from '@hq-crion/contracts/atendimento';
 import { autorizacao } from '../auth/api';
 import { lerSessao } from '../auth/sessao';
 import { urlDaApi } from '../../urlDaApi';
-import { normalizarListagemAoVivo } from './pulso';
 
 const apiUrl = urlDaApi();
-
-function queryDaListagem(query: URLSearchParams) {
-  const limpa = new URLSearchParams();
-
-  for (const chave of ['administradora', 'agente'] as const) {
-    const valor = query.get(chave);
-
-    if (valor) {
-      limpa.set(chave, valor);
-    }
-  }
-
-  return limpa;
-}
-
-export type ResultadoDaBuscaAoVivo =
-  | { tipo: 'lista'; lista: MonitoramentoListagemResponse }
-  | { tipo: 'sem-sessao' }
-  | { tipo: 'recorte-invalido' }
-  | { tipo: 'falha' };
-
-export async function buscarMonitoramento(
-  query: URLSearchParams,
-  signal?: AbortSignal
-): Promise<ResultadoDaBuscaAoVivo> {
-  const sessao = lerSessao();
-
-  if (!sessao) {
-    return { tipo: 'sem-sessao' };
-  }
-
-  const response = await fetch(
-    `${apiUrl}/monitoramento?${queryDaListagem(query).toString()}`,
-    {
-      signal,
-      headers: {
-        ...autorizacao(sessao),
-        'Cache-Control': 'no-store'
-      }
-    }
-  );
-
-  if (response.status === 401) {
-    return { tipo: 'sem-sessao' };
-  }
-
-  if (response.status === 400) {
-    return { tipo: 'recorte-invalido' };
-  }
-
-  if (!response.ok) {
-    return { tipo: 'falha' };
-  }
-
-  const lista = normalizarListagemAoVivo(await response.json());
-
-  if (!lista) {
-    return { tipo: 'falha' };
-  }
-
-  return { tipo: 'lista', lista };
-}
 
 export async function buscarDetalheDoMonitoramento(id: string, signal?: AbortSignal) {
   const sessao = lerSessao();
