@@ -1,152 +1,169 @@
 import type { MonitoramentoListagemResponse } from '@hq-crion/contracts/atendimento';
-import { useEffect, useRef, useState } from 'react';
-import { buscarMonitoramento } from './api';
-import {
-  intervaloDoPulsoMs,
-  reduzirCargaAoVivo,
-  type CargaDaListaAoVivo,
-  type EstadoDaListaAoVivo
-} from './pulso';
+import { useEffect, useState } from 'react';
+import { autorizacao } from '../auth/api';
+import { lerSessao } from '../auth/sessao';
+import { urlDaApi } from '../../urlDaApi';
+import { intervaloDoPulsoMs, normalizarListagemAoVivo } from './pulso';
 import { abortou } from './useAtualizacaoAoVivo';
 
-const vazio: EstadoDaListaAoVivo<MonitoramentoListagemResponse> = {
-  lista: null,
-  erro: null
-};
+const apiUrl = urlDaApi();
 
-export function useListaAoVivo(chave: string, searchParams: URLSearchParams) {
-  const paramsRef = useRef(searchParams);
-  const chaveRef = useRef(chave);
-  paramsRef.current = searchParams;
-  chaveRef.current = chave;
-  const [chaveAplicada, setChaveAplicada] = useState(chave);
-  const [estado, setEstado] = useState(vazio);
+export type EstadoDaListaAoVivo =
+  | { status: 'loading' }
+  | { status: 'error'; motivo: 'recorte' | 'lista' }
+  | { status: 'ready'; data: MonitoramentoListagemResponse };
 
-  if (chaveAplicada !== chave) {
-    setChaveAplicada(chave);
-    setEstado(vazio);
+function queryDaListagem(query: URLSearchParams) {
+  const limpa = new URLSearchParams();
+
+  for (const chave of ['administradora', 'agente'] as const) {
+    const valor = query.get(chave);
+
+    if (valor) {
+      limpa.set(chave, valor);
+    }
   }
 
-  useEffect(() => {
-    let cancelado = false;
-    let timer: number | undefined;
-    let resolverEspera: (() => void) | undefined;
-    let soltarEspera: (() => void) | undefined;
-    const abortController = new AbortController();
-    const chaveDaBusca = chave;
+  return limpa;
+}
 
-    function esperar(ms: number) {
+export function useListaAoVivo(chave: string, searchParams: URLSearchParams) {
+  const [state, setState] = useState<EstadoDaListaAoVivo>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    let refreshTimer: number | undefined;
+    let releaseVisibilityWait: (() => void) | undefined;
+    const abortController = new AbortController();
+    const query = queryDaListagem(searchParams).toString();
+
+    function delay(ms: number) {
       return new Promise<void>((resolve) => {
-        resolverEspera = resolve;
-        timer = window.setTimeout(() => {
-          resolverEspera = undefined;
-          resolve();
-        }, ms);
+        refreshTimer = window.setTimeout(resolve, ms);
       });
     }
 
-    function quandoVisivel() {
+    function whenVisible() {
       if (document.visibilityState === 'visible') {
         return Promise.resolve();
       }
 
       return new Promise<void>((resolve) => {
-        function aoMudar() {
+        function onVisibility() {
           if (document.visibilityState !== 'visible') {
             return;
           }
 
-          document.removeEventListener('visibilitychange', aoMudar);
-          soltarEspera = undefined;
+          document.removeEventListener('visibilitychange', onVisibility);
+          releaseVisibilityWait = undefined;
           resolve();
         }
 
-        soltarEspera = () => {
-          document.removeEventListener('visibilitychange', aoMudar);
-          soltarEspera = undefined;
+        releaseVisibilityWait = () => {
+          document.removeEventListener('visibilitychange', onVisibility);
+          releaseVisibilityWait = undefined;
           resolve();
         };
-        document.addEventListener('visibilitychange', aoMudar);
+        document.addEventListener('visibilitychange', onVisibility);
       });
     }
 
-    function vigente() {
-      return !cancelado && chaveRef.current === chaveDaBusca;
+    async function load(isInitial: boolean) {
+      const session = lerSessao();
+
+      if (!session) {
+        if (!cancelled) {
+          setState({ status: 'error', motivo: 'lista' });
+        }
+
+        return 'auth' as const;
+      }
+
+      if (isInitial) {
+        setState({ status: 'loading' });
+      }
+
+      try {
+        const response = await fetch(`${apiUrl}/monitoramento?${query}`, {
+          headers: { authorization: autorizacao(session).Authorization },
+          signal: abortController.signal
+        });
+
+        if (response.status === 400) {
+          if (!cancelled && isInitial) {
+            setState({ status: 'error', motivo: 'recorte' });
+          }
+
+          return 'error' as const;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Request failed with ${response.status}`);
+        }
+
+        const data = normalizarListagemAoVivo(await response.json());
+
+        if (!data) {
+          throw new Error('Request failed with invalid body');
+        }
+
+        if (!cancelled) {
+          setState({ status: 'ready', data });
+        }
+
+        return 'ok' as const;
+      } catch (error: unknown) {
+        if (abortou(error) || (error instanceof DOMException && error.name === 'AbortError')) {
+          return 'aborted' as const;
+        }
+
+        if (!cancelled && isInitial) {
+          setState({ status: 'error', motivo: 'lista' });
+        }
+
+        return 'error' as const;
+      }
     }
 
-    function publicar(inicial: boolean, carga: CargaDaListaAoVivo<MonitoramentoListagemResponse>) {
-      if (!vigente()) {
+    async function poll() {
+      const first = await load(true);
+
+      if (cancelled || first === 'auth') {
         return;
       }
 
-      setEstado((atual) => reduzirCargaAoVivo(inicial ? vazio : atual, carga));
-    }
-
-    async function carregar(inicial: boolean) {
-      try {
-        const resultado = await buscarMonitoramento(paramsRef.current, abortController.signal);
-
-        if (!vigente()) {
+      while (!cancelled) {
+        await delay(intervaloDoPulsoMs);
+        if (cancelled) {
           return;
         }
 
-        if (resultado.tipo === 'lista') {
-          publicar(inicial, { tipo: 'lista', lista: resultado.lista });
+        await whenVisible();
+        if (cancelled) {
           return;
         }
 
-        publicar(
-          inicial,
-          resultado.tipo === 'recorte-invalido'
-            ? { tipo: 'recorte-invalido', vigente: true }
-            : { tipo: 'falha', vigente: true, abortada: false }
-        );
-      } catch (error: unknown) {
-        if (!vigente() || abortou(error)) {
+        const result = await load(false);
+
+        if (result === 'auth') {
           return;
         }
-
-        publicar(inicial, { tipo: 'falha', vigente: true, abortada: false });
       }
     }
 
-    async function pulsar() {
-      let inicial = true;
-
-      while (!cancelado) {
-        await quandoVisivel();
-        if (cancelado) {
-          return;
-        }
-
-        await carregar(inicial);
-        inicial = false;
-        if (cancelado) {
-          return;
-        }
-
-        await esperar(intervaloDoPulsoMs);
-      }
-    }
-
-    void pulsar();
+    void poll();
 
     return () => {
-      cancelado = true;
-      if (timer !== undefined) {
-        window.clearTimeout(timer);
+      cancelled = true;
+      if (refreshTimer !== undefined) {
+        window.clearTimeout(refreshTimer);
       }
 
-      resolverEspera?.();
-      resolverEspera = undefined;
-      soltarEspera?.();
+      releaseVisibilityWait?.();
       abortController.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave já é searchParams.toString()
   }, [chave]);
 
-  if (chaveAplicada !== chave) {
-    return vazio;
-  }
-
-  return estado;
+  return state;
 }

@@ -20,7 +20,7 @@ export function MonitoramentoPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const chave = searchParams.toString();
-  const { lista: listagem, erro } = useListaAoVivo(chave, searchParams);
+  const estado = useListaAoVivo(chave, searchParams);
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
 
@@ -30,7 +30,7 @@ export function MonitoramentoPage() {
     });
   }
 
-  const aviso = listagem ? mensagemDaListaAoVivo(listagem) : null;
+  const aviso = estado.status === 'ready' ? mensagemDaListaAoVivo(estado.data) : null;
 
   return (
     <div>
@@ -42,22 +42,22 @@ export function MonitoramentoPage() {
           onChange={atualizarRecorte}
         />
       </div>
-      {erro === 'recorte-invalido' ? (
+      {estado.status === 'error' && estado.motivo === 'recorte' ? (
         <p className="listagem-erro" role="alert">
           Este Recorte não é um par válido de Administradora e Agente de Voz.
         </p>
       ) : null}
-      {erro === 'listagem' ? (
+      {estado.status === 'error' && estado.motivo === 'lista' ? (
         <p className="listagem-erro" role="alert">
           Não foi possível carregar {tituloDaPagina(location.pathname, perfil.papel)}.
         </p>
       ) : null}
-      {listagem ? (
+      {estado.status === 'ready' ? (
         <div className="listagem-painel">
           {aviso ? (
             <p>{aviso}</p>
           ) : (
-            listagem.itens.map((item) => (
+            estado.data.itens.map((item) => (
               <article className="listagem-linha" key={item.id}>
                 <div>
                   <Link
