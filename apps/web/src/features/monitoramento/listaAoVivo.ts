@@ -1,175 +1,152 @@
 import type { MonitoramentoListagemResponse } from '@hq-crion/contracts/atendimento';
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { buscarMonitoramento } from './api';
 import {
-  deveBuscarDeNovo,
-  esperaDoPulso,
+  intervaloDoPulsoMs,
   reduzirCargaAoVivo,
-  type ErroDaListaAoVivo
+  type CargaDaListaAoVivo,
+  type EstadoDaListaAoVivo
 } from './pulso';
 import { abortou } from './useAtualizacaoAoVivo';
 
-type Estado = {
-  chave: string;
-  lista: MonitoramentoListagemResponse | null;
-  erro: ErroDaListaAoVivo | null;
+const vazio: EstadoDaListaAoVivo<MonitoramentoListagemResponse> = {
+  lista: null,
+  erro: null
 };
-
-const vazio: Estado = { chave: '', lista: null, erro: null };
-let estado: Estado = vazio;
-const ouvintes = new Set<() => void>();
-
-function publicar(proximo: Estado) {
-  estado = proximo;
-
-  for (const ouvinte of ouvintes) {
-    ouvinte();
-  }
-}
-
-function inscrever(ouvinte: () => void) {
-  ouvintes.add(ouvinte);
-  return () => {
-    ouvintes.delete(ouvinte);
-  };
-}
-
-function lerEstado() {
-  return estado;
-}
 
 export function useListaAoVivo(chave: string, searchParams: URLSearchParams) {
   const paramsRef = useRef(searchParams);
   const chaveRef = useRef(chave);
   paramsRef.current = searchParams;
   chaveRef.current = chave;
-  const instantaneo = useSyncExternalStore(inscrever, lerEstado, lerEstado);
+  const [chaveAplicada, setChaveAplicada] = useState(chave);
+  const [estado, setEstado] = useState(vazio);
+
+  if (chaveAplicada !== chave) {
+    setChaveAplicada(chave);
+    setEstado(vazio);
+  }
 
   useEffect(() => {
     let cancelado = false;
-    let emCurso = false;
-    let ultimaBusca: number | null = null;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let timer: number | undefined;
+    let resolverEspera: (() => void) | undefined;
+    let soltarEspera: (() => void) | undefined;
+    const abortController = new AbortController();
+    const chaveDaBusca = chave;
 
-    async function executar() {
-      if (emCurso || cancelado) {
+    function esperar(ms: number) {
+      return new Promise<void>((resolve) => {
+        resolverEspera = resolve;
+        timer = window.setTimeout(() => {
+          resolverEspera = undefined;
+          resolve();
+        }, ms);
+      });
+    }
+
+    function quandoVisivel() {
+      if (document.visibilityState === 'visible') {
+        return Promise.resolve();
+      }
+
+      return new Promise<void>((resolve) => {
+        function aoMudar() {
+          if (document.visibilityState !== 'visible') {
+            return;
+          }
+
+          document.removeEventListener('visibilitychange', aoMudar);
+          soltarEspera = undefined;
+          resolve();
+        }
+
+        soltarEspera = () => {
+          document.removeEventListener('visibilitychange', aoMudar);
+          soltarEspera = undefined;
+          resolve();
+        };
+        document.addEventListener('visibilitychange', aoMudar);
+      });
+    }
+
+    function vigente() {
+      return !cancelado && chaveRef.current === chaveDaBusca;
+    }
+
+    function publicar(inicial: boolean, carga: CargaDaListaAoVivo<MonitoramentoListagemResponse>) {
+      if (!vigente()) {
         return;
       }
 
-      emCurso = true;
-      const pedido = chave;
+      setEstado((atual) => reduzirCargaAoVivo(inicial ? vazio : atual, carga));
+    }
 
+    async function carregar(inicial: boolean) {
       try {
-        const resultado = await buscarMonitoramento(paramsRef.current);
+        const resultado = await buscarMonitoramento(paramsRef.current, abortController.signal);
 
-        if (chaveRef.current !== pedido) {
+        if (!vigente()) {
           return;
         }
 
-        if (!resultado && cancelado) {
+        if (resultado.tipo === 'lista') {
+          publicar(inicial, { tipo: 'lista', lista: resultado.lista });
           return;
         }
 
-        const base =
-          estado.chave === pedido
-            ? { lista: estado.lista, erro: estado.erro }
-            : { lista: null, erro: null };
-        const reduzido = reduzirCargaAoVivo(
-          base,
-          resultado
-            ? { tipo: 'lista', lista: resultado }
-            : { tipo: 'falha', vigente: !cancelado, abortada: false }
-        );
-        publicar({ chave: pedido, lista: reduzido.lista, erro: reduzido.erro });
-      } catch (error: unknown) {
-        if (cancelado || abortou(error) || chaveRef.current !== pedido) {
-          return;
-        }
-
-        const base =
-          estado.chave === pedido
-            ? { lista: estado.lista, erro: estado.erro }
-            : { lista: null, erro: null };
-        const reduzido = reduzirCargaAoVivo(
-          base,
-          error instanceof Error && error.message === 'recorte-invalido'
+        publicar(
+          inicial,
+          resultado.tipo === 'recorte-invalido'
             ? { tipo: 'recorte-invalido', vigente: true }
             : { tipo: 'falha', vigente: true, abortada: false }
         );
-        publicar({ chave: pedido, lista: reduzido.lista, erro: reduzido.erro });
-      } finally {
-        emCurso = false;
-
-        if (!cancelado) {
-          ultimaBusca = Date.now();
-        }
-      }
-    }
-
-    function agendar() {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (cancelado || document.visibilityState !== 'visible') {
+      } catch (error: unknown) {
+        if (!vigente() || abortou(error)) {
           return;
         }
 
-        void executar().finally(() => {
-          if (!cancelado) {
-            agendar();
-          }
-        });
-      }, esperaDoPulso(ultimaBusca, Date.now()));
-    }
-
-    function aoFicarVisivel() {
-      if (cancelado) {
-        return;
+        publicar(inicial, { tipo: 'falha', vigente: true, abortada: false });
       }
+    }
 
-      const visivel = document.visibilityState === 'visible';
+    async function pulsar() {
+      let inicial = true;
 
-      if (
-        !deveBuscarDeNovo({
-          visivel,
-          emCurso,
-          ultimaBusca,
-          agora: Date.now()
-        })
-      ) {
-        if (visivel) {
-          agendar();
+      while (!cancelado) {
+        await quandoVisivel();
+        if (cancelado) {
+          return;
         }
 
-        return;
+        await carregar(inicial);
+        inicial = false;
+        if (cancelado) {
+          return;
+        }
+
+        await esperar(intervaloDoPulsoMs);
       }
-
-      void executar().finally(() => {
-        if (!cancelado) {
-          agendar();
-        }
-      });
     }
 
-    document.addEventListener('visibilitychange', aoFicarVisivel);
-
-    if (document.visibilityState === 'visible') {
-      void executar().finally(() => {
-        if (!cancelado) {
-          agendar();
-        }
-      });
-    }
+    void pulsar();
 
     return () => {
       cancelado = true;
-      clearTimeout(timer);
-      document.removeEventListener('visibilitychange', aoFicarVisivel);
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+
+      resolverEspera?.();
+      resolverEspera = undefined;
+      soltarEspera?.();
+      abortController.abort();
     };
   }, [chave]);
 
-  if (instantaneo.chave !== chave) {
-    return { lista: null, erro: null };
+  if (chaveAplicada !== chave) {
+    return vazio;
   }
 
-  return { lista: instantaneo.lista, erro: instantaneo.erro };
+  return estado;
 }

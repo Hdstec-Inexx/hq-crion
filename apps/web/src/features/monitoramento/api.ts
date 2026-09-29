@@ -1,6 +1,7 @@
 import {
   eventoDaObservacaoSchema,
-  monitoramentoDetalheSchema
+  monitoramentoDetalheSchema,
+  type MonitoramentoListagemResponse
 } from '@hq-crion/contracts/atendimento';
 import { autorizacao } from '../auth/api';
 import { lerSessao } from '../auth/sessao';
@@ -23,16 +24,26 @@ function queryDaListagem(query: URLSearchParams) {
   return limpa;
 }
 
-export async function buscarMonitoramento(query: URLSearchParams) {
+export type ResultadoDaBuscaAoVivo =
+  | { tipo: 'lista'; lista: MonitoramentoListagemResponse }
+  | { tipo: 'sem-sessao' }
+  | { tipo: 'recorte-invalido' }
+  | { tipo: 'falha' };
+
+export async function buscarMonitoramento(
+  query: URLSearchParams,
+  signal?: AbortSignal
+): Promise<ResultadoDaBuscaAoVivo> {
   const sessao = lerSessao();
 
   if (!sessao) {
-    return null;
+    return { tipo: 'sem-sessao' };
   }
 
   const response = await fetch(
     `${apiUrl}/monitoramento?${queryDaListagem(query).toString()}`,
     {
+      signal,
       headers: {
         ...autorizacao(sessao),
         'Cache-Control': 'no-store'
@@ -41,24 +52,24 @@ export async function buscarMonitoramento(query: URLSearchParams) {
   );
 
   if (response.status === 401) {
-    return null;
+    return { tipo: 'sem-sessao' };
   }
 
   if (response.status === 400) {
-    throw new Error('recorte-invalido');
+    return { tipo: 'recorte-invalido' };
   }
 
   if (!response.ok) {
-    throw new Error('listagem-indisponivel');
+    return { tipo: 'falha' };
   }
 
   const lista = normalizarListagemAoVivo(await response.json());
 
   if (!lista) {
-    throw new Error('listagem-indisponivel');
+    return { tipo: 'falha' };
   }
 
-  return lista;
+  return { tipo: 'lista', lista };
 }
 
 export async function buscarDetalheDoMonitoramento(id: string, signal?: AbortSignal) {
