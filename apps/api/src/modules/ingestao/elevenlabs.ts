@@ -19,6 +19,8 @@ export type PayloadElevenLabs = {
   has_audio?: boolean;
   start_time_unix_secs?: number;
   call_duration_secs?: number;
+  termination_reason?: string;
+  call_successful?: string;
   metadata?: { cost?: number; start_time_unix_secs?: number };
   transcript?: {
     role: string;
@@ -42,8 +44,56 @@ export function caminhoDaMidia(id: string) {
   return `/media/${id}.wav`;
 }
 
+const statusAbertoNaFonte = new Set(['initiated', 'in-progress']);
+const desfechoTerminalNaFonte = new Set(['success', 'failure']);
+const idadeMaximaAoVivoSegundos = 24 * 60 * 60;
+const folgaDaDuracaoAoVivoSegundos = 10 * 60;
+
 export function conversaAbertaNaFonte(status: string | undefined) {
-  return status === 'in-progress' || status === 'initiated';
+  return statusAbertoNaFonte.has(status ?? '');
+}
+
+export function conversaAtivaNaFonte(
+  payload: PayloadElevenLabs,
+  agoraSegundos = Math.floor(Date.now() / 1000)
+) {
+  if (!conversaAbertaNaFonte(payload.status)) {
+    return false;
+  }
+
+  if (payload.termination_reason?.trim()) {
+    return false;
+  }
+
+  if (
+    typeof payload.call_successful === 'string' &&
+    desfechoTerminalNaFonte.has(payload.call_successful)
+  ) {
+    return false;
+  }
+
+  const inicio = [payload.start_time_unix_secs, payload.metadata?.start_time_unix_secs].find(
+    (valor) => typeof valor === 'number' && Number.isInteger(valor) && valor > 0
+  );
+
+  if (inicio === undefined) {
+    return false;
+  }
+
+  const idade = agoraSegundos - inicio;
+
+  if (idade > idadeMaximaAoVivoSegundos) {
+    return false;
+  }
+
+  const duracao =
+    typeof payload.call_duration_secs === 'number' &&
+    Number.isFinite(payload.call_duration_secs) &&
+    payload.call_duration_secs >= 0
+      ? payload.call_duration_secs
+      : 0;
+
+  return idade <= duracao + folgaDaDuracaoAoVivoSegundos;
 }
 
 function nomesDeFerramenta(payload: PayloadElevenLabs) {
@@ -399,9 +449,12 @@ export async function listarConversasElevenLabs(input: {
 
   for (let pagina = 0; pagina < maxPaginas; pagina += 1) {
     buscaCancelada(input.signal);
+    const exclusoes = ['done', 'failed', 'processing']
+      .map((status) => `exclude_statuses=${encodeURIComponent(status)}`)
+      .join('&');
     const caminho = cursor
-      ? `/v1/convai/conversations?cursor=${encodeURIComponent(cursor)}`
-      : '/v1/convai/conversations';
+      ? `/v1/convai/conversations?${exclusoes}&cursor=${encodeURIComponent(cursor)}`
+      : `/v1/convai/conversations?${exclusoes}`;
     const corpo = (await buscarJson(
       fetchImpl,
       urlDaFonte(input.baseUrl, caminho),

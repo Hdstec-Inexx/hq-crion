@@ -12,7 +12,7 @@ import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js
 import { enviarEvento, sessaoDaMensagem, urlDoMonitorDaFonte } from './canal.js';
 import { createMonitoramentoProxy } from './proxy.js';
 import {
-  conversaAbertaNaFonte,
+  conversaAtivaNaFonte,
   buscarConversaElevenLabs,
   cabeNoRecorteAoVivo,
   leituraAoVivoDaFonte,
@@ -125,7 +125,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     const candidatos: LeituraAoVivo[] = [];
 
     for (const payload of fonte) {
-      if (!conversaAbertaNaFonte(payload.status)) {
+      if (!conversaAtivaNaFonte(payload)) {
         continue;
       }
 
@@ -194,7 +194,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
 
     const atendimento = payload ? leituraAoVivoDaFonte(payload) : undefined;
 
-    if (!payload || !atendimento || !conversaAbertaNaFonte(payload.status)) {
+    if (!payload || !atendimento || !conversaAtivaNaFonte(payload)) {
       return reply.code(404).send({ statusCode: 404 });
     }
 
@@ -253,7 +253,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
       return;
     }
 
-    if (!payload || !conversaAbertaNaFonte(payload.status)) {
+    if (!payload || !conversaAtivaNaFonte(payload)) {
       enviarEvento(socket, { tipo: 'encerrada' });
       socket.close();
       return;

@@ -113,12 +113,19 @@ export function useListaAoVivo(chave: string, searchParams: URLSearchParams) {
 
         return 'ok' as const;
       } catch (error: unknown) {
-        if (abortou(error) || (error instanceof DOMException && error.name === 'AbortError')) {
+        if (
+          cancelled ||
+          abortController.signal.aborted ||
+          abortou(error) ||
+          (error instanceof DOMException && error.name === 'AbortError')
+        ) {
           return 'aborted' as const;
         }
 
-        if (!cancelled && isInitial) {
-          setState({ status: 'error', motivo: 'lista' });
+        if (isInitial) {
+          setState((atual) =>
+            atual.status === 'ready' ? atual : { status: 'error', motivo: 'lista' }
+          );
         }
 
         return 'error' as const;
