@@ -59,11 +59,32 @@ test('ingestão mínima ignora Agente de Voz que não pertence ao HQ', () => {
   );
 });
 
+test('ingestão sem o instante da fonte não grava o relógio atual', () => {
+  assert.equal(
+    atendimentoDaFonteElevenLabs({
+      conversation_id: 'conv-sem-inicio',
+      agent_id: 'affix-0800',
+      status: 'done',
+      start_time_unix_secs: 0
+    }),
+    undefined
+  );
+  const peloMetadata = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-metadata',
+    agent_id: 'affix-0800',
+    status: 'done',
+    metadata: { start_time_unix_secs: 1_715_000_000 }
+  });
+
+  assert.equal(peloMetadata?.iniciadoEm, new Date(1_715_000_000 * 1000).toISOString());
+});
+
 test('turnos sem tempo na fonte não inventam Tempo de Espera', () => {
   const atendimento = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-sem-tempo',
     agent_id: 'affix-0800',
     status: 'done',
+    start_time_unix_secs: 1_715_000_000,
     transcript: [
       { role: 'agent', message: 'Olá.' },
       { role: 'user', message: 'Oi.' },
@@ -80,12 +101,14 @@ test('ingestão não inventa Custo e só marca Transferência quando a ferrament
   const semFato = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-sem-custo',
     agent_id: 'affix-0800',
-    status: 'done'
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000
   });
   const comFato = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-com-custo',
     agent_id: 'affix-0800',
     status: 'done',
+    start_time_unix_secs: 1_715_000_000,
     metadata: { cost: 1.5 },
     transcript: [
       {
@@ -125,6 +148,7 @@ test('coleta grava o arquivo da fonte e omite o caminho quando ele não vem', as
               agent_id: 'affix-0800',
               status: 'done',
               has_audio: true,
+              start_time_unix_secs: 1_715_000_000,
               call_duration_secs: 12,
               transcript: [
                 { role: 'agent', message: 'Olá.', time_in_call_secs: 1 },
@@ -137,6 +161,7 @@ test('coleta grava o arquivo da fonte e omite o caminho quando ele não vem', as
               agent_id: 'alter-1',
               status: 'done',
               has_audio: false,
+              start_time_unix_secs: 1_715_000_000,
               transcript: [{ role: 'agent', message: 'Sem arquivo.', time_in_call_secs: 1 }]
             }
           ]
@@ -189,6 +214,7 @@ test('coleta percorre as páginas, busca o detalhe sem transcrição e limita o 
             agent_id: 'affix-0800',
             status: 'done',
             has_audio: true,
+            start_time_unix_secs: 1_715_000_000,
             transcript: [
               { role: 'agent', message: 'Olá.', time_in_call_secs: 1 },
               { role: 'user', message: 'Preciso.', time_in_call_secs: 4 },
@@ -206,7 +232,8 @@ test('coleta percorre as páginas, busca o detalhe sem transcrição e limita o 
               {
                 conversation_id: 'conv-pagina-2',
                 agent_id: 'alter-1',
-                status: 'in-progress'
+                status: 'in-progress',
+                start_time_unix_secs: 1_715_000_000
               }
             ],
             has_more: false
@@ -218,12 +245,18 @@ test('coleta percorre as páginas, busca o detalhe sem transcrição e limita o 
       return new Response(
         JSON.stringify({
           conversations: [
-            { conversation_id: 'conv-resumo', agent_id: 'affix-0800', status: 'done' },
+            {
+              conversation_id: 'conv-resumo',
+              agent_id: 'affix-0800',
+              status: 'done',
+              start_time_unix_secs: 1_715_000_000
+            },
             {
               conversation_id: 'conv-grande',
               agent_id: 'affix-wa',
               status: 'done',
               has_audio: true,
+              start_time_unix_secs: 1_715_000_000,
               transcript: [{ role: 'agent', message: 'Grande.', time_in_call_secs: 1 }]
             },
             {
@@ -231,6 +264,7 @@ test('coleta percorre as páginas, busca o detalhe sem transcrição e limita o 
               agent_id: 'conecta-1',
               status: 'done',
               has_audio: true,
+              start_time_unix_secs: 1_715_000_000,
               transcript: [{ role: 'agent', message: 'Segue.', time_in_call_secs: 1 }]
             }
           ],
@@ -294,6 +328,7 @@ test('HTTP da ingestão serve o arquivo e não inventa mídia nem Avaliação da
             agent_id: 'alter-1',
             status: 'done',
             has_audio: false,
+            start_time_unix_secs: 1_715_000_000,
             transcript: [
               { role: 'agent', message: 'Apresentação.' },
               { role: 'user', message: 'Oi.' },
@@ -305,6 +340,7 @@ test('HTTP da ingestão serve o arquivo e não inventa mídia nem Avaliação da
             agent_id: 'affix-0800',
             status: 'done',
             has_audio: false,
+            start_time_unix_secs: 1_715_000_000,
             transcript: [{ role: 'agent', message: 'Reingestão sem veredito.', time_in_call_secs: 1 }]
           }
         ]

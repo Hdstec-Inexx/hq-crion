@@ -59,7 +59,7 @@ function itemDoMonitoramento(item: LeituraAoVivo) {
     administradora: item.administradora,
     agente: item.agente,
     agenteId: item.agenteId,
-    iniciadoEm: item.iniciadoEm,
+    ...(item.iniciadoEm ? { iniciadoEm: item.iniciadoEm } : {}),
     motivo: item.motivo,
     status: 'Em andamento' as const
   };

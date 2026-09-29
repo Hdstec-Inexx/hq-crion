@@ -27,15 +27,42 @@ function textoPreenchido(valor: unknown) {
 
 function iniciadoEmDoItem(valor: unknown) {
   if (typeof valor === 'string' && valor.trim()) {
-    return valor.trim();
+    const instante = new Date(valor.trim());
+
+    if (!Number.isNaN(instante.getTime()) && instante.getTime() > 0) {
+      return instante.toISOString();
+    }
+
+    return undefined;
   }
 
-  if (typeof valor === 'number' && Number.isFinite(valor)) {
-    const milissegundos = valor < 1_000_000_000_000 ? valor * 1000 : valor;
-    return new Date(milissegundos).toISOString();
+  if (typeof valor === 'number' && Number.isInteger(valor) && valor > 0) {
+    return new Date(valor * 1000).toISOString();
   }
 
-  return new Date(0).toISOString();
+  return undefined;
+}
+
+function formatarQuando(iso: string) {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).formatToParts(new Date(iso));
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === tipo)?.value ?? '';
+
+  return `${valor('day')}/${valor('month')} ${valor('hour')}:${valor('minute')}`;
+}
+
+export function textoDaLinhaAoVivo(entrada: { agente: string; iniciadoEm?: string }) {
+  if (!entrada.iniciadoEm) {
+    return entrada.agente;
+  }
+
+  return `${entrada.agente} · ${formatarQuando(entrada.iniciadoEm)}`;
 }
 
 function administradoraDoItem(valor: unknown): Administradora | null {
@@ -64,13 +91,14 @@ function normalizarItem(valor: unknown): ItemDaListaAoVivo | null {
 
   const agente = textoPreenchido(item.agente);
   const motivo = textoPreenchido(item.motivo);
+  const iniciadoEm = iniciadoEmDoItem(item.iniciadoEm);
 
   return {
     id,
     administradora: administradoraDoItem(item.administradora),
     agente: agente || agenteId,
     agenteId,
-    iniciadoEm: iniciadoEmDoItem(item.iniciadoEm),
+    ...(iniciadoEm ? { iniciadoEm } : {}),
     motivo: motivo || 'Não informado',
     status: 'Em andamento'
   };
@@ -93,7 +121,25 @@ export function normalizarListagemAoVivo(corpo: unknown): MonitoramentoListagemR
   const estrito = monitoramentoListagemResponseSchema.safeParse(corpo);
 
   if (estrito.success) {
-    return estrito.data;
+    return {
+      ...estrito.data,
+      itens: estrito.data.itens.map((item) => {
+        const iniciadoEm = iniciadoEmDoItem(item.iniciadoEm);
+
+        if (!iniciadoEm) {
+          return {
+            id: item.id,
+            administradora: item.administradora,
+            agente: item.agente,
+            agenteId: item.agenteId,
+            motivo: item.motivo,
+            status: item.status
+          };
+        }
+
+        return { ...item, iniciadoEm };
+      })
+    };
   }
 
   if (!corpo || typeof corpo !== 'object' || !Array.isArray((corpo as { itens?: unknown }).itens)) {
