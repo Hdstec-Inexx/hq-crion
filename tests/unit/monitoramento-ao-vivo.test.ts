@@ -47,6 +47,9 @@ type ConversaDaFonte = {
   agent_name?: string;
   status?: string;
   start_time_unix_secs?: number;
+  call_duration_secs?: number;
+  termination_reason?: string;
+  call_successful?: string;
   metadata?: { start_time_unix_secs?: number };
   transcript?: { role: string; message: string; time_in_call_secs?: number }[];
 };
@@ -94,6 +97,15 @@ function conversasDaFonte(): ConversaDaFonte[] {
       status: 'in-progress',
       start_time_unix_secs: agoraUnix,
       transcript: [{ role: 'agent', message: 'Já concluído no HQ.', time_in_call_secs: 1 }]
+    },
+    {
+      conversation_id: 'conv-encerrada',
+      agent_id: 'affix-wa',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix - 120,
+      call_duration_secs: 30,
+      termination_reason: 'end_call',
+      transcript: [{ role: 'agent', message: 'Tchau.', time_in_call_secs: 30 }]
     },
     {
       conversation_id: 'conv-done',
@@ -228,10 +240,11 @@ test('recurso ao vivo autentica qualquer Perfil e lista só o aberto na fonte', 
       const bruto = response.json() as { itens: Array<Record<string, unknown>> };
       const ids = bruto.itens.map((item) => item.id);
       assert.ok(ids.includes('conv-aberta'));
-      assert.ok(ids.includes('conv-antiga'));
+      assert.equal(ids.includes('conv-antiga'), false);
       assert.equal(ids.includes('conv-zumbi'), false);
       assert.equal(ids.includes('a1'), false);
       assert.equal(ids.includes('conv-done'), false);
+      assert.equal(ids.includes('conv-encerrada'), false);
       assert.equal(ids.includes('a4'), false);
       for (const item of bruto.itens) {
         assert.equal(item.status, 'Em andamento');
@@ -307,7 +320,7 @@ test('Monitoramento ao Vivo ignora o mês civil', async () => {
     const ids = monitoramentoListagemResponseSchema
       .parse(response.json())
       .itens.map((item) => item.id);
-    assert.ok(ids.includes('conv-antiga'));
+    assert.equal(ids.includes('conv-antiga'), false);
     assert.ok(ids.includes('conv-aberta'));
   });
 });
@@ -938,7 +951,7 @@ test('lista ao vivo não inventa horário e descarta linha sem identidade', () =
 });
 
 test('lista ao vivo lê o início em segundos e não grava o relógio atual', async () => {
-  const segundos = 1_715_000_000;
+  const segundos = agoraUnix;
 
   await comFonte(
     async (app) => {
@@ -960,12 +973,7 @@ test('lista ao vivo lê o início em segundos e não grava o relógio atual', as
       const corpoDetalhe = monitoramentoDetalheSchema.parse(detalhe.json());
 
       assert.equal(response.statusCode, 200, response.body);
-      assert.equal(semInicio?.agente, 'Leo - Vinnk - Affix');
-      assert.equal(semInicio?.iniciadoEm, undefined);
-      assert.equal(
-        textoDaLinhaAoVivo({ agente: semInicio?.agente ?? '', iniciadoEm: semInicio?.iniciadoEm }),
-        'Leo - Vinnk - Affix'
-      );
+      assert.equal(semInicio, undefined);
       assert.equal(peloMetadata?.iniciadoEm, new Date(segundos * 1000).toISOString());
       assert.equal(detalhe.statusCode, 200, detalhe.body);
       assert.equal(corpoDetalhe.iniciadoEm, new Date(segundos * 1000).toISOString());
