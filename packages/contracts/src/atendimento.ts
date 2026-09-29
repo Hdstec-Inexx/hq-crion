@@ -147,7 +147,7 @@ export const monitoramentoListItemSchema = z.object({
   administradora: administradoraSchema.nullable(),
   agente: z.string().min(1),
   agenteId: z.string().min(1),
-  iniciadoEm: z.string().min(1),
+  iniciadoEm: z.string().min(1).optional(),
   motivo: z.string().min(1),
   status: z.literal('Em andamento')
 });
@@ -161,14 +161,7 @@ export const monitoramentoListagemResponseSchema = z.object({
   fonteConfigurada: z.boolean()
 });
 
-export const monitoramentoDetalheSchema = z.object({
-  id: z.string().min(1),
-  administradora: administradoraSchema.nullable(),
-  agente: z.string().min(1),
-  agenteId: z.string().min(1),
-  iniciadoEm: z.string().min(1),
-  motivo: z.string().min(1),
-  status: z.literal('Em andamento'),
+export const monitoramentoDetalheSchema = monitoramentoListItemSchema.extend({
   transcricao: z.array(turnoDaTranscricaoSchema)
 });
 

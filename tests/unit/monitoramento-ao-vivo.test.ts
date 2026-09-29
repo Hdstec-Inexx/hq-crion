@@ -21,7 +21,8 @@ import {
   esperaDoPulso,
   intervaloDoPulsoMs,
   normalizarListagemAoVivo,
-  reduzirCargaAoVivo
+  reduzirCargaAoVivo,
+  textoDaLinhaAoVivo
 } from '../../apps/web/src/features/monitoramento/pulso.js';
 import {
   acompanhaOFim,
@@ -46,6 +47,7 @@ type ConversaDaFonte = {
   agent_name?: string;
   status?: string;
   start_time_unix_secs?: number;
+  metadata?: { start_time_unix_secs?: number };
   transcript?: { role: string; message: string; time_in_call_secs?: number }[];
 };
 
@@ -849,7 +851,144 @@ test('lista ao vivo mostra o atendimento mesmo sem agente no catálogo', () => {
   assert.equal(lista?.itens[1]?.administradora, null);
   assert.equal(lista?.itens[1]?.motivo, 'Não informado');
   assert.equal(lista?.itens[1]?.status, 'Em andamento');
+  assert.equal(lista?.itens[1]?.iniciadoEm, new Date(agoraUnix * 1000).toISOString());
+  assert.equal(
+    textoDaLinhaAoVivo({
+      agente: 'Leo - Vinnk - Affix',
+      iniciadoEm: '2026-09-28T20:00:00.000Z'
+    }),
+    'Leo - Vinnk - Affix · 28/09 17:00'
+  );
   assert.equal(mensagemDaListaAoVivo(lista ?? { fonteConfigurada: true, itens: [] }), null);
+});
+
+test('lista ao vivo não inventa horário e descarta linha sem identidade', () => {
+  const corpo = {
+    recorte: { administradora: null, agente: null },
+    pagina: 1,
+    tamanho: 50,
+    total: 4,
+    fonteConfigurada: true,
+    itens: [
+      {
+        id: 'conv-leo',
+        agente: 'Leo - Vinnk - Affix',
+        agenteId: 'agent_9501ky0zs09df67bt7wfkmr4e7mq',
+        motivo: 'Não informado',
+        status: 'Em andamento'
+      },
+      {
+        id: 'conv-zero',
+        agente: 'Leo - Vinnk - Affix',
+        agenteId: 'agent_9501ky0zs09df67bt7wfkmr4e7mq',
+        iniciadoEm: 0,
+        motivo: 'Não informado',
+        status: 'Em andamento'
+      },
+      {
+        agente: 'sem conversa',
+        agenteId: 'agent_9501ky0zs09df67bt7wfkmr4e7mq'
+      },
+      {
+        id: 'conv-sem-agente',
+        agente: 'Leo - Vinnk - Affix'
+      }
+    ]
+  };
+  const lista = normalizarListagemAoVivo(corpo);
+  const soSemIdentidade = normalizarListagemAoVivo({
+    ...corpo,
+    itens: [{ agente: 'sem identidade' }]
+  });
+
+  assert.ok(lista);
+  assert.equal(lista?.itens.length, 2);
+  assert.equal(lista?.itens[0]?.iniciadoEm, undefined);
+  assert.equal(lista?.itens[1]?.iniciadoEm, undefined);
+  assert.equal(textoDaLinhaAoVivo(lista?.itens[0] ?? { agente: '' }), 'Leo - Vinnk - Affix');
+  assert.equal(mensagemDaListaAoVivo(lista ?? { fonteConfigurada: true, itens: [] }), null);
+  assert.ok(soSemIdentidade);
+  assert.equal(soSemIdentidade?.itens.length, 0);
+  assert.equal(
+    mensagemDaListaAoVivo(soSemIdentidade ?? { fonteConfigurada: true, itens: [] }),
+    'Nenhum Atendimento aberto neste Recorte.'
+  );
+  assert.equal(normalizarListagemAoVivo({ fonteConfigurada: true }), null);
+
+  const epoca = normalizarListagemAoVivo({
+    recorte: { administradora: null, agente: null },
+    pagina: 1,
+    tamanho: 50,
+    total: 1,
+    fonteConfigurada: true,
+    itens: [
+      {
+        id: 'conv-epoca',
+        administradora: null,
+        agente: 'Leo - Vinnk - Affix',
+        agenteId: 'agent_9501ky0zs09df67bt7wfkmr4e7mq',
+        iniciadoEm: '1970-01-01T00:00:00.000Z',
+        motivo: 'Não informado',
+        status: 'Em andamento'
+      }
+    ]
+  });
+  assert.equal(epoca?.itens[0]?.iniciadoEm, undefined);
+  assert.equal(textoDaLinhaAoVivo(epoca?.itens[0] ?? { agente: '' }), 'Leo - Vinnk - Affix');
+});
+
+test('lista ao vivo lê o início em segundos e não grava o relógio atual', async () => {
+  const segundos = 1_715_000_000;
+
+  await comFonte(
+    async (app) => {
+      const sessao = await sessaoDe(app, 'ana.souza@crion');
+      const headers = { authorization: `Bearer ${sessao}` };
+      const response = await app.inject({
+        method: 'GET',
+        url: '/monitoramento',
+        headers
+      });
+      const lista = monitoramentoListagemResponseSchema.parse(response.json());
+      const semInicio = lista.itens.find((item) => item.id === 'conv-sem-inicio');
+      const peloMetadata = lista.itens.find((item) => item.id === 'conv-metadata');
+      const detalhe = await app.inject({
+        method: 'GET',
+        url: '/monitoramento/conv-metadata',
+        headers
+      });
+      const corpoDetalhe = monitoramentoDetalheSchema.parse(detalhe.json());
+
+      assert.equal(response.statusCode, 200, response.body);
+      assert.equal(semInicio?.agente, 'Leo - Vinnk - Affix');
+      assert.equal(semInicio?.iniciadoEm, undefined);
+      assert.equal(
+        textoDaLinhaAoVivo({ agente: semInicio?.agente ?? '', iniciadoEm: semInicio?.iniciadoEm }),
+        'Leo - Vinnk - Affix'
+      );
+      assert.equal(peloMetadata?.iniciadoEm, new Date(segundos * 1000).toISOString());
+      assert.equal(detalhe.statusCode, 200, detalhe.body);
+      assert.equal(corpoDetalhe.iniciadoEm, new Date(segundos * 1000).toISOString());
+    },
+    [
+      {
+        conversation_id: 'conv-sem-inicio',
+        agent_id: 'agent-sem-inicio',
+        agent_name: 'Leo - Vinnk - Affix',
+        status: 'in-progress',
+        start_time_unix_secs: 0
+      },
+      {
+        conversation_id: 'conv-metadata',
+        agent_id: 'agent-metadata',
+        agent_name: 'Leo - Vinnk - Affix',
+        status: 'in-progress',
+        start_time_unix_secs: 0,
+        metadata: { start_time_unix_secs: segundos },
+        transcript: [{ role: 'agent', message: 'Olá.', time_in_call_secs: 1 }]
+      }
+    ]
+  );
 });
 
 test('transcrição ao vivo semeia, acrescenta, corrige, não corta e permanece', () => {

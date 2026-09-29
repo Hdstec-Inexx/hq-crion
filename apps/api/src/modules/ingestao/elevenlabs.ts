@@ -19,7 +19,7 @@ export type PayloadElevenLabs = {
   has_audio?: boolean;
   start_time_unix_secs?: number;
   call_duration_secs?: number;
-  metadata?: { cost?: number };
+  metadata?: { cost?: number; start_time_unix_secs?: number };
   transcript?: {
     role: string;
     message?: string;
@@ -99,10 +99,24 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
   });
 }
 
-function iniciadoEmDaFonte(payload: PayloadElevenLabs) {
-  return payload.start_time_unix_secs
-    ? new Date(payload.start_time_unix_secs * 1000).toISOString()
-    : new Date().toISOString();
+function segundosDeInicio(valor: unknown) {
+  if (typeof valor === 'number' && Number.isInteger(valor) && valor > 0) {
+    return valor;
+  }
+
+  return undefined;
+}
+
+export function instanteDeInicioDaFonte(payload: PayloadElevenLabs) {
+  const segundos =
+    segundosDeInicio(payload.start_time_unix_secs) ??
+    segundosDeInicio(payload.metadata?.start_time_unix_secs);
+
+  if (segundos === undefined) {
+    return undefined;
+  }
+
+  return new Date(segundos * 1000).toISOString();
 }
 
 export type LeituraAoVivo = {
@@ -110,7 +124,7 @@ export type LeituraAoVivo = {
   administradora: Administradora | null;
   agente: string;
   agenteId: string;
-  iniciadoEm: string;
+  iniciadoEm?: string;
   motivo: string;
   transcricao: TurnoDaTranscricao[];
 };
@@ -172,7 +186,7 @@ export function leituraAoVivoDaFonte(payload: PayloadElevenLabs): LeituraAoVivo 
     administradora: agente?.administradora ?? null,
     agente: nome,
     agenteId: payload.agent_id,
-    iniciadoEm: iniciadoEmDaFonte(payload),
+    iniciadoEm: instanteDeInicioDaFonte(payload),
     motivo: 'Não informado',
     transcricao: turnos.map(({ locutor, quando, texto }) => ({ locutor, quando, texto }))
   };
@@ -187,7 +201,12 @@ export function atendimentoDaFonteElevenLabs(
     return undefined;
   }
 
-  const iniciadoEm = iniciadoEmDaFonte(payload);
+  const iniciadoEm = instanteDeInicioDaFonte(payload);
+
+  if (!iniciadoEm) {
+    return undefined;
+  }
+
   const concluido = payload.status === 'done' || payload.status === 'completed';
   const transcricao = turnosDaFonte(payload);
   const tempoDeEsperaEmSegundos = tempoDeEsperaDaTranscricao(
