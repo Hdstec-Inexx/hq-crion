@@ -704,3 +704,48 @@ test('pulso do Dashboard calcula SLA a partir da transcrição quando tempoDeEsp
   const kpiSla = parsed.kpis.find((item) => item.id === 'sla');
   assert.equal(kpiSla?.valor, 100);
 });
+
+test('pulso do Dashboard calcula SLA quando quando nos turnos são timestamps ISO', () => {
+  const itens = [
+    {
+      id: 'conv_8301m3sr39j0fwkaksa6gg3x1f9j',
+      administradora: 'Alter' as const,
+      agente: 'Clara Alter',
+      agenteId: 'alter-1',
+      iniciadoEm: '2026-09-30T18:09:15.000Z',
+      motivo: 'Boleto não emitido',
+      nota: 10,
+      status: 'Concluído' as const,
+      curadoria: false,
+      conversa: 'conv_8301m3sr39j0fwkaksa6gg3x1f9j',
+      transcricao: [
+        {
+          texto: '[fast]Central Alter, sou a Clara. [fast]Como posso te ajudar hoje?',
+          quando: '2026-09-30T18:09:15.000Z',
+          locutor: 'Agente de Voz'
+        },
+        {
+          texto: 'Preciso da segunda via do boleto.',
+          quando: '2026-09-30T18:09:22.000Z',
+          locutor: 'Cliente'
+        },
+        {
+          texto: 'Com certeza, vou consultar.',
+          quando: '2026-09-30T18:09:30.000Z',
+          locutor: 'Agente de Voz'
+        }
+      ]
+    }
+  ];
+
+  const resultado = pulsoDoDashboard(
+    itens as any,
+    { administradora: null, agente: null },
+    { inicio: '2026-09-01', fim: '2026-09-30' }
+  );
+
+  const parsed = dashboardResponseSchema.parse(resultado);
+  const kpiSla = parsed.kpis.find((item) => item.id === 'sla');
+  // 18:09:30 - 18:09:22 = 8s <= 150s, portanto SLA = 100%
+  assert.equal(kpiSla?.valor, 100);
+});

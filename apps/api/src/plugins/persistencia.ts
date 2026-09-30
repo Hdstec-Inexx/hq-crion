@@ -16,6 +16,11 @@ import {
   descobrirCaminhoNoS3
 } from '../modules/midia/s3.js';
 import {
+  buscarMidiaNoMinio,
+  criarClienteMinio,
+  descobrirCaminhoNoMinio
+} from '../modules/midia/minio.js';
+import {
   aplicarConfiguracaoDaIa,
   lerConfiguracaoDoDeposito,
   usarDepositoDaIa
@@ -77,8 +82,9 @@ export function fonteDePersistencia(env: {
 
 function montarLeitorDeMidia(
   obterLocal: (chave: string) => Promise<MidiaGuardada | undefined> | MidiaGuardada | undefined,
+  clienteMinio: ReturnType<typeof criarClienteMinio>,
   clienteS3: ReturnType<typeof criarClienteS3>,
-  bucketS3: string | undefined
+  bucket: string
 ) {
   return {
     lerMidia: async (arquivoOuId: string) => {
@@ -87,8 +93,15 @@ function montarLeitorDeMidia(
         return local;
       }
 
-      if (clienteS3 && bucketS3) {
-        return buscarMidiaNoS3(clienteS3, bucketS3, arquivoOuId);
+      if (clienteMinio) {
+        const doMinio = await buscarMidiaNoMinio(clienteMinio, bucket, arquivoOuId);
+        if (doMinio) {
+          return doMinio;
+        }
+      }
+
+      if (clienteS3) {
+        return buscarMidiaNoS3(clienteS3, bucket, arquivoOuId);
       }
 
       return undefined;
@@ -101,8 +114,15 @@ function montarLeitorDeMidia(
         return `/media/${idLimpo}.${extensao}`;
       }
 
-      if (clienteS3 && bucketS3) {
-        return descobrirCaminhoNoS3(clienteS3, bucketS3, id);
+      if (clienteMinio) {
+        const doMinio = await descobrirCaminhoNoMinio(clienteMinio, bucket, id);
+        if (doMinio) {
+          return doMinio;
+        }
+      }
+
+      if (clienteS3) {
+        return descobrirCaminhoNoS3(clienteS3, bucket, id);
       }
 
       return undefined;
@@ -118,15 +138,18 @@ export default fp(
       DEPOSITO: app.config.DEPOSITO
     });
 
+    const clienteMinio = criarClienteMinio(app.config);
     const clienteS3 = criarClienteS3(app.config);
-    const bucketS3 = bucketConfigurado(app.config.S3_BUCKET);
+    const bucket = bucketConfigurado(
+      app.config.STORAGE_BUCKET ?? app.config.S3_BUCKET
+    );
 
     if (fonte === 'memoria') {
       usarDepositoDePerfis(null);
       usarDepositoDaIa(null);
       const coletados = await coletarDaFonte(app.config, app.log);
       app.decorate('atendimentos', repositorioEmMemoria(registrarMidiaLocal(coletados)));
-      const resolvedor = montarLeitorDeMidia(lerMidiaLocal, clienteS3, bucketS3);
+      const resolvedor = montarLeitorDeMidia(lerMidiaLocal, clienteMinio, clienteS3, bucket);
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);
       return;
@@ -167,8 +190,9 @@ export default fp(
       app.decorate('atendimentos', repositorioPostgres(pool));
       const resolvedor = montarLeitorDeMidia(
         (arquivoOuId) => lerMidiaDoDeposito(pool, arquivoOuId),
+        clienteMinio,
         clienteS3,
-        bucketS3
+        bucket
       );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);
