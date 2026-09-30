@@ -14,6 +14,8 @@ import {
   type TurnoDaTranscricao
 } from '../../packages/contracts/src/atendimento.js';
 import {
+  consultaDaListaAoVivo,
+  destinoDaFalhaInicial,
   mensagemDaListaAoVivo,
   aplicarCargaDaLista,
   deveBuscarDeNovo,
@@ -757,6 +759,18 @@ test('sem a chave da fonte a lista não finge Recorte vazio', async () => {
     await app.close();
     globalThis.fetch = fetchOriginal;
   }
+});
+
+test('o pulso ao vivo só reinicia quando o Recorte muda e repete a primeira falha', () => {
+  assert.equal(consultaDaListaAoVivo(new URLSearchParams('inicio=2026-09-01&fim=2026-09-30')), '');
+  assert.equal(consultaDaListaAoVivo(new URLSearchParams('administradora=&agente=')), '');
+  assert.equal(
+    consultaDaListaAoVivo(new URLSearchParams('administradora=Alter&inicio=2026-09-01')),
+    'administradora=Alter'
+  );
+  assert.equal(destinoDaFalhaInicial({ descartada: true, podeRepetir: true }), 'ignorar');
+  assert.equal(destinoDaFalhaInicial({ descartada: false, podeRepetir: true }), 'repetir');
+  assert.equal(destinoDaFalhaInicial({ descartada: false, podeRepetir: false }), 'erro');
 });
 
 test('pulso de 10 segundos busca com a área visível, espera oculta e conserva a lista', () => {

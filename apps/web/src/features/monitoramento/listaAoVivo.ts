@@ -1,9 +1,14 @@
 import type { MonitoramentoListagemResponse } from '@hq-crion/contracts/atendimento';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { autorizacao } from '../auth/api';
 import { lerSessao } from '../auth/sessao';
 import { urlDaApi } from '../../urlDaApi';
-import { intervaloDoPulsoMs, normalizarListagemAoVivo } from './pulso';
+import {
+  consultaDaListaAoVivo,
+  destinoDaFalhaInicial,
+  intervaloDoPulsoMs,
+  normalizarListagemAoVivo
+} from './pulso';
 import { abortou } from './useAtualizacaoAoVivo';
 
 const apiUrl = urlDaApi();
@@ -13,29 +18,31 @@ export type EstadoDaListaAoVivo =
   | { status: 'error'; motivo: 'recorte' | 'lista' }
   | { status: 'ready'; data: MonitoramentoListagemResponse };
 
-function queryDaListagem(query: URLSearchParams) {
-  const limpa = new URLSearchParams();
-
-  for (const chave of ['administradora', 'agente'] as const) {
-    const valor = query.get(chave);
-
-    if (valor) {
-      limpa.set(chave, valor);
-    }
-  }
-
-  return limpa;
-}
-
-export function useListaAoVivo(chave: string, searchParams: URLSearchParams) {
+export function useListaAoVivo(searchParams: URLSearchParams) {
   const [state, setState] = useState<EstadoDaListaAoVivo>({ status: 'loading' });
+  const paramsRef = useRef(searchParams);
+  const geracaoRef = useRef(0);
+  const recorteVisto = useRef<string | null>(null);
+  paramsRef.current = searchParams;
+  const recorte = consultaDaListaAoVivo(searchParams);
+
+  if (recorteVisto.current === null) {
+    recorteVisto.current = recorte;
+  } else if (recorteVisto.current !== recorte) {
+    recorteVisto.current = recorte;
+    setState({ status: 'loading' });
+  }
 
   useEffect(() => {
     let cancelled = false;
     let refreshTimer: number | undefined;
     let releaseVisibilityWait: (() => void) | undefined;
-    const abortController = new AbortController();
-    const query = queryDaListagem(searchParams).toString();
+    let activeAbort: AbortController | undefined;
+    const geracao = ++geracaoRef.current;
+
+    function vigente() {
+      return !cancelled && geracaoRef.current === geracao;
+    }
 
     function delay(ms: number) {
       return new Promise<void>((resolve) => {
@@ -68,30 +75,56 @@ export function useListaAoVivo(chave: string, searchParams: URLSearchParams) {
       });
     }
 
-    async function load(isInitial: boolean) {
+    function leituraDescartada(error: unknown, signal: AbortSignal) {
+      return !vigente() || signal.aborted || abortou(error);
+    }
+
+    function manterListaOuFalhar(motivo: 'lista' | 'recorte') {
+      setState((atual) =>
+        atual.status === 'ready' ? atual : { status: 'error', motivo }
+      );
+    }
+
+    async function buscarUmaVez(inicial: boolean, tentativa: number) {
       const session = lerSessao();
 
       if (!session) {
-        if (!cancelled) {
-          setState({ status: 'error', motivo: 'lista' });
+        if (vigente()) {
+          manterListaOuFalhar('lista');
         }
 
         return 'auth' as const;
       }
 
-      if (isInitial) {
+      if (inicial && tentativa === 0 && vigente()) {
         setState({ status: 'loading' });
       }
 
+      const controller = new AbortController();
+      activeAbort?.abort();
+      activeAbort = controller;
+      const query = consultaDaListaAoVivo(paramsRef.current);
+
       try {
         const response = await fetch(`${apiUrl}/monitoramento?${query}`, {
-          headers: { authorization: autorizacao(session).Authorization },
-          signal: abortController.signal
+          headers: {
+            ...autorizacao(session),
+            'Cache-Control': 'no-store'
+          },
+          signal: controller.signal
         });
 
+        if (!vigente()) {
+          return 'aborted' as const;
+        }
+
         if (response.status === 400) {
-          if (!cancelled && isInitial) {
-            setState({ status: 'error', motivo: 'recorte' });
+          if (vigente()) {
+            if (inicial) {
+              setState({ status: 'error', motivo: 'recorte' });
+            } else {
+              manterListaOuFalhar('recorte');
+            }
           }
 
           return 'error' as const;
@@ -103,33 +136,50 @@ export function useListaAoVivo(chave: string, searchParams: URLSearchParams) {
 
         const data = normalizarListagemAoVivo(await response.json());
 
+        if (!vigente() || consultaDaListaAoVivo(paramsRef.current) !== query) {
+          return 'aborted' as const;
+        }
+
         if (!data) {
           throw new Error('Request failed with invalid body');
         }
 
-        if (!cancelled) {
-          setState({ status: 'ready', data });
-        }
-
+        setState({ status: 'ready', data });
         return 'ok' as const;
       } catch (error: unknown) {
-        if (
-          cancelled ||
-          abortController.signal.aborted ||
-          abortou(error) ||
-          (error instanceof DOMException && error.name === 'AbortError')
-        ) {
+        const destino = destinoDaFalhaInicial({
+          descartada: leituraDescartada(error, controller.signal),
+          podeRepetir: inicial && tentativa < 1
+        });
+
+        if (destino === 'ignorar') {
           return 'aborted' as const;
         }
 
-        if (isInitial) {
-          setState((atual) =>
-            atual.status === 'ready' ? atual : { status: 'error', motivo: 'lista' }
-          );
+        if (destino === 'repetir') {
+          return 'repetir' as const;
+        }
+
+        if (vigente()) {
+          manterListaOuFalhar('lista');
         }
 
         return 'error' as const;
       }
+    }
+
+    async function load(isInitial: boolean) {
+      const limite = isInitial ? 2 : 1;
+
+      for (let tentativa = 0; tentativa < limite; tentativa += 1) {
+        const resultado = await buscarUmaVez(isInitial, tentativa);
+
+        if (resultado !== 'repetir') {
+          return resultado;
+        }
+      }
+
+      return 'error' as const;
     }
 
     async function poll() {
@@ -167,10 +217,9 @@ export function useListaAoVivo(chave: string, searchParams: URLSearchParams) {
       }
 
       releaseVisibilityWait?.();
-      abortController.abort();
+      activeAbort?.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave já é searchParams.toString()
-  }, [chave]);
+  }, [recorte]);
 
   return state;
 }
