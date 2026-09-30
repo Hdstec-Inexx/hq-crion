@@ -148,8 +148,12 @@ export async function descobrirCaminhoNoMinio(
     try {
       const stat = await minio.statObject(bucket, chave);
       if (stat && stat.size > 0) {
-        const extensao = chave.endsWith('.mp3') ? 'mp3' : 'wav';
-        return `/media/${baseId}.${extensao}`;
+        try {
+          return await minio.presignedGetObject(bucket, chave, 15 * 60);
+        } catch {
+          const extensao = chave.endsWith('.mp3') ? 'mp3' : 'wav';
+          return `/media/${baseId}.${extensao}`;
+        }
       }
     } catch {
       continue;

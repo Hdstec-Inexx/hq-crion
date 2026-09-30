@@ -224,10 +224,13 @@ export async function buscarObjetoDaMidia(caminho: string, signal?: AbortSignal)
     return null;
   }
 
-  const response = await fetch(`${apiUrl}${caminho}`, {
+  const ehUrlExterna = /^https?:\/\//i.test(caminho);
+  const urlFinal = ehUrlExterna ? caminho : `${apiUrl}${caminho}`;
+
+  const response = await fetch(urlFinal, {
     signal,
     headers: {
-      ...autorizacao(sessao),
+      ...(ehUrlExterna ? {} : autorizacao(sessao)),
       'Cache-Control': 'no-store'
     }
   });

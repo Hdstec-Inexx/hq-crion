@@ -33,13 +33,18 @@ export function formatarEndpointS3(endpoint: string | undefined): string | undef
 function chavesCandidatas(arquivoOuId: string): string[] {
   const limpo = arquivoOuId.trim();
   const semExt = limpo.replace(/\.[A-Za-z0-9]+$/, '');
+  const baseName = semExt.replace(/^atendimentos\//, '');
 
   const set = new Set<string>();
+  set.add(`atendimentos/${baseName}.mp3`);
+  set.add(`atendimentos/${baseName}.wav`);
   if (limpo.endsWith('.mp3') || limpo.endsWith('.wav')) {
     set.add(limpo);
   }
-  set.add(`${semExt}.mp3`);
-  set.add(`${semExt}.wav`);
+  set.add(`${baseName}.mp3`);
+  set.add(`${baseName}.wav`);
+  set.add(`atendimentos/${baseName}`);
+  set.add(baseName);
   set.add(semExt);
   set.add(limpo);
 

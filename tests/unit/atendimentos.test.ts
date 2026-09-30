@@ -812,9 +812,44 @@ test('GET /atendimentos/:id desconhecido responde 404', async () => {
   }
 });
 
-test('caminho de mídia do detalhe só aceita path relativo do HQ', () => {
+test('caminho de mídia do detalhe aceita path relativo do HQ ou URL http/https', () => {
   assert.equal(caminhoDeMidiaPermitido('/media/a1.wav'), true);
   assert.equal(caminhoDeMidiaPermitido('javascript:alert(1)'), false);
-  assert.equal(caminhoDeMidiaPermitido('https://evil.example/a.wav'), false);
+  assert.equal(caminhoDeMidiaPermitido('https://s3.example.com/audio/a.wav'), true);
+  assert.equal(caminhoDeMidiaPermitido('http://localhost:9000/a.wav'), true);
   assert.equal(caminhoDeMidiaPermitido('//cdn.example/a.wav'), false);
+});
+
+test('POST /atendimentos/:id/avaliacao-da-ia grava resumo e falhas identificadas', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'bruno.alves@crion');
+    const gravacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/avaliacao-da-ia',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nota: 9.5,
+        resumo: 'Cliente solicitou boleto e foi orientado.',
+        falhasIdentificadas: ['Falta de confirmação de e-mail'],
+        criterios: [
+          {
+            nome: 'Saudação',
+            chave: 'saudacao',
+            estado: 'Atendido',
+            pontos: 1.0,
+            critico: false
+          }
+        ]
+      }
+    });
+
+    assert.equal(gravacao.statusCode, 200);
+    const detalhe = gravacao.json();
+    assert.equal(detalhe.avaliacaoDaIa.resumo, 'Cliente solicitou boleto e foi orientado.');
+    assert.deepEqual(detalhe.avaliacaoDaIa.falhasIdentificadas, ['Falta de confirmação de e-mail']);
+  } finally {
+    await app.close();
+  }
 });

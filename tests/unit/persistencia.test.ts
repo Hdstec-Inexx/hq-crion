@@ -116,7 +116,8 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia e o boot', 
       '002_fatos_do_dominio.sql',
       '003_midia.sql',
       '004_tipo_da_midia.sql',
-      '005_boot_e_custo_ausente.sql'
+      '005_boot_e_custo_ausente.sql',
+      '006_resumo_e_falhas_da_ia.sql'
     ]
   );
 });

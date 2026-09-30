@@ -100,6 +100,31 @@ function PainelAvaliacao({
       {doCurador && avaliacao.comentario ? (
         <p className="avaliacao-comentario">{avaliacao.comentario}</p>
       ) : null}
+      {!doCurador ? (
+        <div className="avaliacao-notes">
+          <div className="avaliacao-note-col">
+            <p className="panel-label">Resumo do Atendimento</p>
+            <div className="avaliacao-resumo-scroll">
+              <p>{('resumo' in avaliacao && avaliacao.resumo) || 'Resumo não informado.'}</p>
+            </div>
+          </div>
+          <div className="avaliacao-note-col">
+            <p className="panel-label">Falhas Identificadas</p>
+            <div className="avaliacao-falhas-scroll">
+              {'falhasIdentificadas' in avaliacao &&
+              (avaliacao.falhasIdentificadas?.length ?? 0) > 0 ? (
+                <ul>
+                  {avaliacao.falhasIdentificadas!.map((falha, index) => (
+                    <li key={index}>{falha}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Nenhuma falha identificada.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -347,6 +372,20 @@ export function DetalheAtendimento() {
       return;
     }
 
+    const nomeBase = caminho.split('?')[0].split('/').pop() || 'audio.wav';
+
+    if (/^https?:\/\//i.test(caminho)) {
+      const link = document.createElement('a');
+      link.href = caminho;
+      link.download = nomeBase;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
     const objeto = await buscarObjetoDaMidia(caminho);
 
     if (!objeto) {
@@ -355,8 +394,10 @@ export function DetalheAtendimento() {
 
     const link = document.createElement('a');
     link.href = objeto;
-    link.download = caminho.slice(caminho.lastIndexOf('/') + 1);
+    link.download = nomeBase;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(objeto);
   }
 
@@ -382,10 +423,6 @@ export function DetalheAtendimento() {
       ) : null}
       {atendimento ? (
         <>
-          <p className="detalhe-resumo">
-            Resumo: conferência da Avaliação da IA neste contato da{' '}
-            {atendimento.administradora}.
-          </p>
           <dl className="detalhe-fatos">
             <div>
               <dt>Administradora</dt>

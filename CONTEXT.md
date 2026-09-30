@@ -83,7 +83,15 @@ O conjunto único de critérios contra o qual todo Atendimento é medido, em tod
 _Avoid_: régua por Administradora, régua por Agente
 
 **Avaliação**:
-O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. Enquanto a conferência humana não existir, o painel do Curador não aparece e o da IA ocupa a largura.
+O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. A da IA é gerada para todo Atendimento concluído e carrega checklist de critérios, nota, **Resumo do Atendimento** e **Falhas Identificadas**. Enquanto a conferência humana não existir, o painel do Curador não aparece e o da IA ocupa a largura.
+
+**Resumo do Atendimento**:
+A síntese textual do contato gerada pela IA Avaliadora, descrevendo o objetivo do cliente e o desfecho da interação. Exibida na caixa de notas da Avaliação da IA em container com rolagem própria.
+_Avoid_: Sinopse, descrição, resumo da chamada
+
+**Falhas Identificadas**:
+A lista de desvios, falhas de conduta e não conformidades operacionais identificadas pela IA Avaliadora no Atendimento. Exibida na caixa de notas da Avaliação da IA ao lado do Resumo do Atendimento, em container com rolagem própria.
+_Avoid_: Erros, apontamentos, bugs
 
 **Concordância**:
 O alinhamento entre a Avaliação da IA e a do Curador no mesmo Atendimento — por nota e por Critério. Não é um flag gravado: deriva da comparação dos dois vereditos. Por Critério, a taxa é **iguais** sobre **comparáveis**.

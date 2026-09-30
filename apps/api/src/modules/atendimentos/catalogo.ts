@@ -124,7 +124,9 @@ function avaliacaoDe(nota: number, conferida: boolean) {
     aprovacao: (nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado') as
       | 'Aprovado'
       | 'Reprovado',
-    criterios: criteriosDaAvaliacao(conferida)
+    criterios: criteriosDaAvaliacao(conferida),
+    resumo: 'O cliente solicitou informações sobre o atendimento e obteve orientação conforme o procedimento operacional padrão.',
+    falhasIdentificadas: conferida ? ['Informação de Protocolo não confirmada verbalmente no início do contato.'] : []
   };
 }
 

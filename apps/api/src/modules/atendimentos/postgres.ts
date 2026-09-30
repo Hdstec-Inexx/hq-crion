@@ -56,6 +56,8 @@ SELECT
   a.tempo_de_espera_em_segundos,
   a.ferramentas,
   ia.nota AS nota_ia,
+  ia.resumo_atendimento AS ia_resumo_atendimento,
+  ia.falhas_identificadas AS ia_falhas_identificadas,
   vig.id AS avaliacao_curador_id,
   vig.nota AS nota_curador,
   vig.nota_da_avaliacao_da_ia,
@@ -218,6 +220,8 @@ function montarRegistro(
     tempo_de_espera_em_segundos: number | null;
     ferramentas: RegistroDeAtendimento['ferramentas'] | null;
     nota_ia: unknown;
+    ia_resumo_atendimento?: string | null;
+    ia_falhas_identificadas?: unknown;
     avaliacao_curador_id: string | null;
     nota_curador: unknown;
     nota_da_avaliacao_da_ia: unknown;
@@ -238,7 +242,11 @@ function montarRegistro(
       : {
           nota: notaIa,
           aprovacao: aprovacaoDaNota(notaIa),
-          criterios: criteriosIa.get(linha.id) ?? []
+          criterios: criteriosIa.get(linha.id) ?? [],
+          resumo: linha.ia_resumo_atendimento ?? undefined,
+          falhasIdentificadas: Array.isArray(linha.ia_falhas_identificadas)
+            ? (linha.ia_falhas_identificadas as string[])
+            : []
         };
   const notaCurador =
     linha.nota_curador === null || linha.nota_curador === undefined
@@ -522,8 +530,14 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
 
   if (registro.avaliacaoDaIa) {
     await cliente.query(
-      `INSERT INTO hq_avaliacao_da_ia (atendimento_id, nota) VALUES ($1, $2)`,
-      [registro.id, registro.avaliacaoDaIa.nota]
+      `INSERT INTO hq_avaliacao_da_ia (atendimento_id, nota, resumo_atendimento, falhas_identificadas)
+       VALUES ($1, $2, $3, $4::jsonb)`,
+      [
+        registro.id,
+        registro.avaliacaoDaIa.nota,
+        registro.avaliacaoDaIa.resumo ?? null,
+        JSON.stringify(registro.avaliacaoDaIa.falhasIdentificadas ?? [])
+      ]
     );
     await inserirCriterios(
       cliente,
@@ -662,8 +676,14 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
 
         await cliente.query(`DELETE FROM hq_avaliacao_da_ia WHERE atendimento_id = $1`, [id]);
         await cliente.query(
-          `INSERT INTO hq_avaliacao_da_ia (atendimento_id, nota) VALUES ($1, $2)`,
-          [id, entrada.nota]
+          `INSERT INTO hq_avaliacao_da_ia (atendimento_id, nota, resumo_atendimento, falhas_identificadas)
+           VALUES ($1, $2, $3, $4::jsonb)`,
+          [
+            id,
+            entrada.nota,
+            entrada.resumo ?? null,
+            JSON.stringify(entrada.falhasIdentificadas ?? [])
+          ]
         );
         await inserirCriterios(
           cliente,

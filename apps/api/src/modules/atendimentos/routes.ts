@@ -286,18 +286,25 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    if (!encontrado.audio && app.descobrirMidia) {
-      const chaveBusca = encontrado.conversa || id;
-      const descoberto =
-        (await app.descobrirMidia(chaveBusca)) ??
-        (chaveBusca !== id ? await app.descobrirMidia(id) : undefined);
-      if (descoberto) {
-        encontrado.audio = descoberto;
-        encontrado.downloadDeAudio = descoberto;
+    const item = { ...encontrado };
+
+    if (app.descobrirMidia) {
+      if (!item.audio || !/^https?:\/\//i.test(item.audio)) {
+        const chaveBusca =
+          (item.audio ? item.audio.replace(/^\/media\//, '') : '') ||
+          item.conversa ||
+          id;
+        const descoberto =
+          (await app.descobrirMidia(chaveBusca)) ??
+          (chaveBusca !== id ? await app.descobrirMidia(id) : undefined);
+        if (descoberto) {
+          item.audio = descoberto;
+          item.downloadDeAudio = descoberto;
+        }
       }
     }
 
-    return responderDetalhe(encontrado, perfil.papel);
+    return responderDetalhe(item, perfil.papel);
   });
 
   app.post('/atendimentos/:id/conferencia', async (request, reply) => {

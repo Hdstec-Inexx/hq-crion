@@ -124,6 +124,13 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
       return;
     }
 
+    if (/^https?:\/\//i.test(caminho)) {
+      setSrc(caminho);
+      return () => {
+        setSrc('');
+      };
+    }
+
     const controller = new AbortController();
     let objeto = '';
 
