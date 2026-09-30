@@ -19,8 +19,7 @@ export function MonitoramentoPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const chave = searchParams.toString();
-  const estado = useListaAoVivo(chave, searchParams);
+  const estado = useListaAoVivo(searchParams);
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
 

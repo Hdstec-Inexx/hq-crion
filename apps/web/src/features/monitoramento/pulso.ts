@@ -244,6 +244,32 @@ export function aplicarCargaDaLista<T>(entrada: {
   return { lista: null, erro: true };
 }
 
+export function consultaDaListaAoVivo(query: URLSearchParams) {
+  const limpa = new URLSearchParams();
+
+  for (const chave of ['administradora', 'agente'] as const) {
+    const valor = query.get(chave)?.trim();
+
+    if (valor) {
+      limpa.set(chave, valor);
+    }
+  }
+
+  return limpa.toString();
+}
+
+export function destinoDaFalhaInicial(entrada: { descartada: boolean; podeRepetir: boolean }) {
+  if (entrada.descartada) {
+    return 'ignorar' as const;
+  }
+
+  if (entrada.podeRepetir) {
+    return 'repetir' as const;
+  }
+
+  return 'erro' as const;
+}
+
 export function mensagemDaListaAoVivo(entrada: {
   fonteConfigurada: boolean;
   itens: readonly unknown[];
