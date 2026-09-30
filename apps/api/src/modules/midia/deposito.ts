@@ -2,7 +2,7 @@ import type { ExecutorSql } from '../atendimentos/postgres.js';
 import { tipoDeMidia } from '../ingestao/elevenlabs.js';
 
 export type MidiaGuardada = {
-  conteudo: Buffer;
+  conteudo: Buffer | NodeJS.ReadableStream;
   tipo: string;
 };
 

@@ -11,6 +11,7 @@ import { ingerirElevenLabs, coletarDaFonte, registrarMidiaLocal } from '../modul
 import { lerMidiaDoDeposito, lerMidiaLocal, type MidiaGuardada } from '../modules/midia/deposito.js';
 import {
   buscarMidiaNoS3,
+  bucketConfigurado,
   criarClienteS3,
   descobrirCaminhoNoS3
 } from '../modules/midia/s3.js';
@@ -95,8 +96,9 @@ function montarLeitorDeMidia(
     descobrirMidia: async (id: string) => {
       const local = await obterLocal(id);
       if (local) {
+        const idLimpo = id.replace(/\.[A-Za-z0-9]+$/, '');
         const extensao = local.tipo === 'audio/mpeg' ? 'mp3' : 'wav';
-        return `/media/${id}.${extensao}`;
+        return `/media/${idLimpo}.${extensao}`;
       }
 
       if (clienteS3 && bucketS3) {
@@ -117,7 +119,7 @@ export default fp(
     });
 
     const clienteS3 = criarClienteS3(app.config);
-    const bucketS3 = app.config.S3_BUCKET;
+    const bucketS3 = bucketConfigurado(app.config.S3_BUCKET);
 
     if (fonte === 'memoria') {
       usarDepositoDePerfis(null);

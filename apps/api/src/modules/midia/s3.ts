@@ -6,6 +6,12 @@ import {
 import type { AppConfig } from '../../plugins/config.js';
 import type { MidiaGuardada } from './deposito.js';
 
+export const BUCKET_PADRAO = 'hq-crion';
+
+export function bucketConfigurado(bucket: string | undefined): string {
+  return bucket?.trim() || BUCKET_PADRAO;
+}
+
 export function tipoDeMidiaPorChave(chave: string): string {
   if (chave.endsWith('.mp3')) {
     return 'audio/mpeg';
@@ -14,31 +20,35 @@ export function tipoDeMidiaPorChave(chave: string): string {
 }
 
 function chavesCandidatas(arquivoOuId: string): string[] {
-  if (/\.[A-Za-z0-9]+$/.test(arquivoOuId)) {
+  if (arquivoOuId.endsWith('.mp3') || arquivoOuId.endsWith('.wav')) {
     return [arquivoOuId];
   }
 
   return [
     `${arquivoOuId}.mp3`,
-    `${arquivoOuId}.wav`,
-    arquivoOuId
+    `${arquivoOuId}.wav`
   ];
 }
 
 export function criarClienteS3(
   config: Pick<AppConfig, 'S3_ENDPOINT' | 'S3_ACCESS_KEY' | 'S3_SECRET_KEY' | 'S3_BUCKET'>
 ): S3Client | undefined {
-  if (!config.S3_BUCKET) {
+  if (!config.S3_BUCKET && !config.S3_ENDPOINT) {
     return undefined;
   }
+
+  const credentials =
+    config.S3_ACCESS_KEY && config.S3_SECRET_KEY
+      ? {
+          accessKeyId: config.S3_ACCESS_KEY,
+          secretAccessKey: config.S3_SECRET_KEY
+        }
+      : undefined;
 
   return new S3Client({
     endpoint: config.S3_ENDPOINT || undefined,
     region: 'us-east-1',
-    credentials: {
-      accessKeyId: config.S3_ACCESS_KEY ?? '',
-      secretAccessKey: config.S3_SECRET_KEY ?? ''
-    },
+    ...(credentials ? { credentials } : {}),
     forcePathStyle: true
   });
 }
@@ -63,23 +73,17 @@ export async function buscarMidiaNoS3(
         continue;
       }
 
-      const bytes = await resposta.Body.transformToByteArray();
-
-      if (!bytes || bytes.length === 0) {
-        continue;
-      }
-
-      const tipo =
-        resposta.ContentType && /^audio\/[a-z0-9.+-]+$/.test(resposta.ContentType)
-          ? resposta.ContentType
-          : tipoDeMidiaPorChave(chave);
+      const tipo = tipoDeMidiaPorChave(chave);
+      const conteudo =
+        typeof (resposta.Body as any).pipe === 'function'
+          ? (resposta.Body as unknown as NodeJS.ReadableStream)
+          : Buffer.from(await resposta.Body.transformToByteArray());
 
       return {
-        conteudo: Buffer.from(bytes),
+        conteudo,
         tipo
       };
     } catch {
-      // Tenta o próximo candidato se a chave não existir
       continue;
     }
   }
