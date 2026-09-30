@@ -636,3 +636,39 @@ test('pulso do Dashboard com ferramentas indefinidas ou parciais não gera NaN e
   const kpiPromessas = parsed.kpis.find((item) => item.id === 'promessasCumpridas');
   assert.equal(kpiPromessas?.valor, null);
 });
+
+test('pulso do Dashboard calcula taxa de promessas cumpridas quando ferramentas é array de chamadas', () => {
+  const ferramentasArray = [
+    { success: true, tool_name: 'start_procedure', parameters: { procedure_index: '7' }, turn_index: 2, execution_order: 1 },
+    { success: true, tool_name: 'start_procedure', parameters: { procedure_index: '9' }, turn_index: 10, execution_order: 2 },
+    { success: true, tool_name: 'consultar_cpf', parameters: { adm: 6, cpf: 'ththtyhtyh' }, turn_index: 13, execution_order: 3 },
+    { success: true, tool_name: 'end_call', parameters: { reason: 'Atendimento concluído' }, turn_index: 20, execution_order: 4 }
+  ];
+
+  const itens = [
+    {
+      id: 'conv-tools',
+      administradora: 'Alter' as const,
+      agente: 'Clara Alter',
+      agenteId: 'alter-1',
+      iniciadoEm: '2026-09-01T10:00:00Z',
+      motivo: 'Boleto',
+      nota: 10,
+      status: 'Concluído' as const,
+      curadoria: false,
+      conversa: 'conv-tools',
+      transcricao: [],
+      ferramentas: ferramentasArray as any
+    }
+  ];
+
+  const resultado = pulsoDoDashboard(
+    itens as any,
+    { administradora: null, agente: null },
+    { inicio: '2026-09-01', fim: '2026-09-30' }
+  );
+
+  const parsed = dashboardResponseSchema.parse(resultado);
+  const kpiPromessas = parsed.kpis.find((item) => item.id === 'promessasCumpridas');
+  assert.equal(kpiPromessas?.valor, 100);
+});

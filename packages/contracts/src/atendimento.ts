@@ -142,14 +142,26 @@ export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
   avaliacaoDoCurador: avaliacaoDoCuradorSchema.optional()
 });
 
-function compatibilizarAgenteId(bruto: unknown) {
+function compatibilizarItemAoVivo(bruto: unknown) {
   if (bruto && typeof bruto === 'object') {
     const obj = bruto as Record<string, unknown>;
     const id = obj.agenteId ?? obj.agentId;
+    const administradora = obj.administradora ?? null;
+    const status =
+      obj.status === 'in-progress' || obj.status === 'initiated' || !obj.status
+        ? 'Em andamento'
+        : obj.status;
+    const motivo = typeof obj.motivo === 'string' && obj.motivo.trim()
+      ? obj.motivo.trim()
+      : 'Não informado';
 
-    if (id !== undefined) {
-      return { ...obj, agenteId: id, agentId: id };
-    }
+    return {
+      ...obj,
+      administradora,
+      status,
+      motivo,
+      ...(id !== undefined ? { agenteId: id, agentId: id } : {})
+    };
   }
 
   return bruto;
@@ -167,7 +179,7 @@ const monitoramentoListItemObjetoSchema = z.object({
 });
 
 export const monitoramentoListItemSchema = z.preprocess(
-  compatibilizarAgenteId,
+  compatibilizarItemAoVivo,
   monitoramentoListItemObjetoSchema
 );
 
@@ -181,7 +193,7 @@ export const monitoramentoListagemResponseSchema = z.object({
 });
 
 export const monitoramentoDetalheSchema = z.preprocess(
-  compatibilizarAgenteId,
+  compatibilizarItemAoVivo,
   monitoramentoListItemObjetoSchema.extend({
     transcricao: z.array(turnoDaTranscricaoSchema)
   })

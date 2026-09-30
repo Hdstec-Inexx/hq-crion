@@ -44,17 +44,26 @@ function iniciadoEmDoItem(valor: unknown) {
 }
 
 function formatarQuando(iso: string) {
-  const parts = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).formatToParts(new Date(iso));
-  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === tipo)?.value ?? '';
+  try {
+    const data = new Date(iso);
+    if (Number.isNaN(data.getTime())) {
+      return '';
+    }
 
-  return `${valor('day')}/${valor('month')} ${valor('hour')}:${valor('minute')}`;
+    const parts = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).formatToParts(data);
+    const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === tipo)?.value ?? '';
+
+    return `${valor('day')}/${valor('month')} ${valor('hour')}:${valor('minute')}`;
+  } catch {
+    return '';
+  }
 }
 
 export function textoDaLinhaAoVivo(entrada: { agente: string; iniciadoEm?: string }) {
@@ -62,7 +71,8 @@ export function textoDaLinhaAoVivo(entrada: { agente: string; iniciadoEm?: strin
     return entrada.agente;
   }
 
-  return `${entrada.agente} · ${formatarQuando(entrada.iniciadoEm)}`;
+  const formatado = formatarQuando(entrada.iniciadoEm);
+  return formatado ? `${entrada.agente} · ${formatado}` : entrada.agente;
 }
 
 function administradoraDoItem(valor: unknown): Administradora | null {

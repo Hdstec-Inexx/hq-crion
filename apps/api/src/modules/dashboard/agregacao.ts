@@ -40,6 +40,40 @@ function taxa(parte: number, todo: number) {
   return Number.isFinite(resultado) ? resultado : null;
 }
 
+export function extrairContagemDeFerramentas(ferramentas: unknown): { executadas: number; sucesso: number } {
+  if (!ferramentas) {
+    return { executadas: 0, sucesso: 0 };
+  }
+
+  if (Array.isArray(ferramentas)) {
+    const executadas = ferramentas.length;
+    const sucesso = ferramentas.filter(
+      (f) =>
+        f &&
+        typeof f === 'object' &&
+        (f.success === true || f.sucesso === true || f.status === 'success')
+    ).length;
+    return { executadas, sucesso };
+  }
+
+  if (typeof ferramentas === 'object') {
+    const obj = ferramentas as Record<string, unknown>;
+    const executadas =
+      typeof obj.executadas === 'number' && Number.isFinite(obj.executadas) && obj.executadas >= 0
+        ? obj.executadas
+        : Array.isArray(obj.chamadas)
+          ? obj.chamadas.length
+          : 0;
+    const sucesso =
+      typeof obj.sucesso === 'number' && Number.isFinite(obj.sucesso) && obj.sucesso >= 0
+        ? obj.sucesso
+        : 0;
+    return { executadas, sucesso };
+  }
+
+  return { executadas: 0, sucesso: 0 };
+}
+
 function concluidos(itens: RegistroDeAtendimento[]) {
   return itens.filter((item) => item.status === 'Concluído');
 }
@@ -68,20 +102,10 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
     .filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor));
   const ferramentas = itens.reduce(
     (acc, item) => {
-      const executadas = item.ferramentas?.executadas;
-      const sucesso = item.ferramentas?.sucesso;
-      const executadasValidas =
-        typeof executadas === 'number' && Number.isFinite(executadas) && executadas >= 0
-          ? executadas
-          : 0;
-      const sucessoValido =
-        typeof sucesso === 'number' && Number.isFinite(sucesso) && sucesso >= 0
-          ? sucesso
-          : 0;
-
+      const contagem = extrairContagemDeFerramentas(item.ferramentas);
       return {
-        executadas: acc.executadas + executadasValidas,
-        sucesso: acc.sucesso + sucessoValido
+        executadas: acc.executadas + contagem.executadas,
+        sucesso: acc.sucesso + contagem.sucesso
       };
     },
     { executadas: 0, sucesso: 0 }

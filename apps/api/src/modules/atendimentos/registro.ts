@@ -26,11 +26,13 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
 };
 
 export function camposDeMidia(caminho: string | null | undefined) {
-  if (!caminho) {
+  if (!caminho || caminho.trim() === '') {
     return {};
   }
 
-  return { audio: caminho, downloadDeAudio: caminho };
+  const limpo = caminho.trim();
+  const normalizado = limpo.startsWith('/') ? limpo : `/media/${limpo}`;
+  return { audio: normalizado, downloadDeAudio: normalizado };
 }
 
 export function aprovacaoDaNota(nota: number): 'Aprovado' | 'Reprovado' {
