@@ -18,6 +18,7 @@ import {
   recusaDaConferencia,
   type RegistroDeAtendimento
 } from './registro.js';
+import { tempoDeEsperaDaTranscricao } from './tempo-de-espera.js';
 import { inserirAtendimentoSeAusenteSql, inserirAtendimentoSql } from './schema.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
 import { deveSemear } from './semente.js';
@@ -288,9 +289,14 @@ function montarRegistro(
     ...(linha.transferencia === null || linha.transferencia === undefined
       ? {}
       : { transferencia: Boolean(linha.transferencia) }),
-    ...(linha.tempo_de_espera_em_segundos !== null
+    ...(linha.tempo_de_espera_em_segundos !== null && linha.tempo_de_espera_em_segundos !== undefined
       ? { tempoDeEsperaEmSegundos: linha.tempo_de_espera_em_segundos }
-      : {}),
+      : Array.isArray(linha.transcricao)
+        ? (() => {
+            const calculado = tempoDeEsperaDaTranscricao(linha.transcricao);
+            return calculado !== undefined ? { tempoDeEsperaEmSegundos: calculado } : {};
+          })()
+        : {}),
     ...(linha.ferramentas ? { ferramentas: linha.ferramentas } : {})
   };
 }
