@@ -13,19 +13,31 @@ import { slaMaximoEmSegundos, slaMeta } from './sla.js';
 const limiteDePiores = 5;
 
 function media(valores: number[]) {
-  if (valores.length === 0) {
+  const validos = valores.filter((v) => typeof v === 'number' && Number.isFinite(v));
+
+  if (validos.length === 0) {
     return null;
   }
 
-  return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;
+  const soma = validos.reduce((acc, valor) => acc + valor, 0);
+  const resultado = soma / validos.length;
+  return Number.isFinite(resultado) ? resultado : null;
 }
 
 function taxa(parte: number, todo: number) {
-  if (todo === 0) {
+  if (
+    typeof parte !== 'number' ||
+    typeof todo !== 'number' ||
+    !Number.isFinite(parte) ||
+    !Number.isFinite(todo) ||
+    todo <= 0 ||
+    parte < 0
+  ) {
     return null;
   }
 
-  return (parte / todo) * 100;
+  const resultado = (parte / todo) * 100;
+  return Number.isFinite(resultado) ? resultado : null;
 }
 
 function concluidos(itens: RegistroDeAtendimento[]) {
@@ -36,38 +48,50 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
   const fechados = concluidos(itens);
   const duracoes = fechados
     .map((item) => item.duracaoEmSegundos)
-    .filter((valor): valor is number => valor !== undefined);
+    .filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor));
   const resolvidos = fechados.filter((item) => item.transferencia === false);
   const duracoesResolvidas = resolvidos
     .map((item) => item.duracaoEmSegundos)
-    .filter((valor): valor is number => valor !== undefined);
+    .filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor));
   const dentroDoSla = fechados.filter(
     (item) =>
-      item.tempoDeEsperaEmSegundos !== undefined &&
+      typeof item.tempoDeEsperaEmSegundos === 'number' &&
+      Number.isFinite(item.tempoDeEsperaEmSegundos) &&
       item.tempoDeEsperaEmSegundos <= slaMaximoEmSegundos
   ).length;
   const notasIa = itens
     .filter(avaliacaoDaIaTemVeredito)
-    .map((item) => item.avaliacaoDaIa.nota);
+    .map((item) => item.avaliacaoDaIa.nota)
+    .filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor));
   const notasCurador = itens
     .map((item) => item.avaliacaoDoCurador?.nota)
-    .filter((valor): valor is number => valor !== undefined);
+    .filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor));
   const ferramentas = itens.reduce(
     (acc, item) => {
-      if (!item.ferramentas) {
-        return acc;
-      }
+      const executadas = item.ferramentas?.executadas;
+      const sucesso = item.ferramentas?.sucesso;
+      const executadasValidas =
+        typeof executadas === 'number' && Number.isFinite(executadas) && executadas >= 0
+          ? executadas
+          : 0;
+      const sucessoValido =
+        typeof sucesso === 'number' && Number.isFinite(sucesso) && sucesso >= 0
+          ? sucesso
+          : 0;
 
       return {
-        executadas: acc.executadas + item.ferramentas.executadas,
-        sucesso: acc.sucesso + item.ferramentas.sucesso
+        executadas: acc.executadas + executadasValidas,
+        sucesso: acc.sucesso + sucessoValido
       };
     },
     { executadas: 0, sucesso: 0 }
   );
   const aprovados = itens.filter(
     (item) =>
-      avaliacaoDaIaTemVeredito(item) && item.nota >= reguaUnica.limiarDeAprovacao
+      avaliacaoDaIaTemVeredito(item) &&
+      (typeof item.avaliacaoDaIa.nota === 'number'
+        ? item.avaliacaoDaIa.nota
+        : item.nota) >= reguaUnica.limiarDeAprovacao
   ).length;
 
   return [

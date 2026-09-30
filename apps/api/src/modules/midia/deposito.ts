@@ -2,7 +2,7 @@ import type { ExecutorSql } from '../atendimentos/postgres.js';
 import { tipoDeMidia } from '../ingestao/elevenlabs.js';
 
 export type MidiaGuardada = {
-  conteudo: Buffer;
+  conteudo: Buffer | NodeJS.ReadableStream;
   tipo: string;
 };
 
@@ -12,8 +12,13 @@ export function guardarMidiaLocal(id: string, midia: MidiaGuardada) {
   locais.set(id, midia);
 }
 
+export function removerExtensao(arquivoOuId: string): string {
+  return arquivoOuId.replace(/\.[A-Za-z0-9]+$/, '');
+}
+
 export function lerMidiaLocal(id: string) {
-  return locais.get(id);
+  const idLimpo = removerExtensao(id);
+  return locais.get(idLimpo) ?? locais.get(id);
 }
 
 export async function gravarMidia(
@@ -35,9 +40,10 @@ export async function lerMidiaDoDeposito(
   cliente: ExecutorSql,
   id: string
 ): Promise<MidiaGuardada | undefined> {
+  const idLimpo = removerExtensao(id);
   const resultado = await cliente.query(
-    `SELECT conteudo, tipo FROM hq_midia WHERE atendimento_id = $1`,
-    [id]
+    `SELECT conteudo, tipo FROM hq_midia WHERE atendimento_id = $1 OR atendimento_id = $2`,
+    [idLimpo, id]
   );
   const linha = resultado.rows[0] as { conteudo?: Buffer; tipo?: string } | undefined;
   const tipo = tipoDeMidia(linha?.tipo ?? null) ?? 'audio/wav';
@@ -52,5 +58,6 @@ export async function lerMidiaDoDeposito(
 declare module 'fastify' {
   interface FastifyInstance {
     lerMidia(id: string): Promise<MidiaGuardada | undefined>;
+    descobrirMidia(id: string): Promise<string | undefined>;
   }
 }

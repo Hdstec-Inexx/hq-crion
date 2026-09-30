@@ -142,15 +142,34 @@ export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
   avaliacaoDoCurador: avaliacaoDoCuradorSchema.optional()
 });
 
-export const monitoramentoListItemSchema = z.object({
+function compatibilizarAgenteId(bruto: unknown) {
+  if (bruto && typeof bruto === 'object') {
+    const obj = bruto as Record<string, unknown>;
+    const id = obj.agenteId ?? obj.agentId;
+
+    if (id !== undefined) {
+      return { ...obj, agenteId: id, agentId: id };
+    }
+  }
+
+  return bruto;
+}
+
+const monitoramentoListItemObjetoSchema = z.object({
   id: z.string().min(1),
   administradora: administradoraSchema.nullable(),
   agente: z.string().min(1),
   agenteId: z.string().min(1),
+  agentId: z.string().min(1).optional(),
   iniciadoEm: z.string().min(1).optional(),
   motivo: z.string().min(1),
   status: z.literal('Em andamento')
 });
+
+export const monitoramentoListItemSchema = z.preprocess(
+  compatibilizarAgenteId,
+  monitoramentoListItemObjetoSchema
+);
 
 export const monitoramentoListagemResponseSchema = z.object({
   recorte: recorteSchema,
@@ -161,9 +180,12 @@ export const monitoramentoListagemResponseSchema = z.object({
   fonteConfigurada: z.boolean()
 });
 
-export const monitoramentoDetalheSchema = monitoramentoListItemSchema.extend({
-  transcricao: z.array(turnoDaTranscricaoSchema)
-});
+export const monitoramentoDetalheSchema = z.preprocess(
+  compatibilizarAgenteId,
+  monitoramentoListItemObjetoSchema.extend({
+    transcricao: z.array(turnoDaTranscricaoSchema)
+  })
+);
 
 export type CuradorDaListagem = z.infer<typeof curadorDaListagemSchema>;
 export type AtendimentoListItem = z.infer<typeof atendimentoListItemSchema>;

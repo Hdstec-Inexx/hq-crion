@@ -8,7 +8,13 @@ import {
   semearSeNecessario
 } from '../modules/atendimentos/postgres.js';
 import { ingerirElevenLabs, coletarDaFonte, registrarMidiaLocal } from '../modules/ingestao/boot.js';
-import { lerMidiaDoDeposito, lerMidiaLocal } from '../modules/midia/deposito.js';
+import { lerMidiaDoDeposito, lerMidiaLocal, type MidiaGuardada } from '../modules/midia/deposito.js';
+import {
+  buscarMidiaNoS3,
+  bucketConfigurado,
+  criarClienteS3,
+  descobrirCaminhoNoS3
+} from '../modules/midia/s3.js';
 import {
   aplicarConfiguracaoDaIa,
   lerConfiguracaoDoDeposito,
@@ -69,6 +75,41 @@ export function fonteDePersistencia(env: {
   return 'memoria';
 }
 
+function montarLeitorDeMidia(
+  obterLocal: (chave: string) => Promise<MidiaGuardada | undefined> | MidiaGuardada | undefined,
+  clienteS3: ReturnType<typeof criarClienteS3>,
+  bucketS3: string | undefined
+) {
+  return {
+    lerMidia: async (arquivoOuId: string) => {
+      const local = await obterLocal(arquivoOuId);
+      if (local) {
+        return local;
+      }
+
+      if (clienteS3 && bucketS3) {
+        return buscarMidiaNoS3(clienteS3, bucketS3, arquivoOuId);
+      }
+
+      return undefined;
+    },
+    descobrirMidia: async (id: string) => {
+      const local = await obterLocal(id);
+      if (local) {
+        const idLimpo = id.replace(/\.[A-Za-z0-9]+$/, '');
+        const extensao = local.tipo === 'audio/mpeg' ? 'mp3' : 'wav';
+        return `/media/${idLimpo}.${extensao}`;
+      }
+
+      if (clienteS3 && bucketS3) {
+        return descobrirCaminhoNoS3(clienteS3, bucketS3, id);
+      }
+
+      return undefined;
+    }
+  };
+}
+
 export default fp(
   async (app) => {
     const fonte = fonteDePersistencia({
@@ -77,12 +118,17 @@ export default fp(
       DEPOSITO: app.config.DEPOSITO
     });
 
+    const clienteS3 = criarClienteS3(app.config);
+    const bucketS3 = bucketConfigurado(app.config.S3_BUCKET);
+
     if (fonte === 'memoria') {
       usarDepositoDePerfis(null);
       usarDepositoDaIa(null);
       const coletados = await coletarDaFonte(app.config, app.log);
       app.decorate('atendimentos', repositorioEmMemoria(registrarMidiaLocal(coletados)));
-      app.decorate('lerMidia', async (id: string) => lerMidiaLocal(id));
+      const resolvedor = montarLeitorDeMidia(lerMidiaLocal, clienteS3, bucketS3);
+      app.decorate('lerMidia', resolvedor.lerMidia);
+      app.decorate('descobrirMidia', resolvedor.descobrirMidia);
       return;
     }
 
@@ -119,7 +165,13 @@ export default fp(
       usarDepositoDePerfis(pool);
       usarDepositoDaIa(pool);
       app.decorate('atendimentos', repositorioPostgres(pool));
-      app.decorate('lerMidia', async (id: string) => lerMidiaDoDeposito(pool, id));
+      const resolvedor = montarLeitorDeMidia(
+        (arquivoOuId) => lerMidiaDoDeposito(pool, arquivoOuId),
+        clienteS3,
+        bucketS3
+      );
+      app.decorate('lerMidia', resolvedor.lerMidia);
+      app.decorate('descobrirMidia', resolvedor.descobrirMidia);
       if (!ingestaoEsperaOPlugin(fonte)) {
         void ingerirElevenLabs(pool, app.config, app.log).catch((error) => {
           app.log.warn(

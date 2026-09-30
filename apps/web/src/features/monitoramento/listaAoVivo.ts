@@ -22,18 +22,11 @@ export function useListaAoVivo(searchParams: URLSearchParams) {
   const [state, setState] = useState<EstadoDaListaAoVivo>({ status: 'loading' });
   const paramsRef = useRef(searchParams);
   const geracaoRef = useRef(0);
-  const recorteVisto = useRef<string | null>(null);
   paramsRef.current = searchParams;
   const recorte = consultaDaListaAoVivo(searchParams);
 
-  if (recorteVisto.current === null) {
-    recorteVisto.current = recorte;
-  } else if (recorteVisto.current !== recorte) {
-    recorteVisto.current = recorte;
-    setState({ status: 'loading' });
-  }
-
   useEffect(() => {
+    setState((atual) => (atual.status === 'loading' ? atual : { status: 'loading' }));
     let cancelled = false;
     let refreshTimer: number | undefined;
     let releaseVisibilityWait: (() => void) | undefined;
