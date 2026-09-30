@@ -9,6 +9,7 @@ import {
   type RegistroDeAtendimento
 } from '../atendimentos/registro.js';
 import { slaMaximoEmSegundos, slaMeta } from './sla.js';
+import { tempoDeEsperaDaTranscricao } from '../atendimentos/tempo-de-espera.js';
 
 const limiteDePiores = 5;
 
@@ -87,12 +88,16 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
   const duracoesResolvidas = resolvidos
     .map((item) => item.duracaoEmSegundos)
     .filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor));
-  const dentroDoSla = fechados.filter(
-    (item) =>
-      typeof item.tempoDeEsperaEmSegundos === 'number' &&
-      Number.isFinite(item.tempoDeEsperaEmSegundos) &&
-      item.tempoDeEsperaEmSegundos <= slaMaximoEmSegundos
-  ).length;
+  const dentroDoSla = fechados.filter((item) => {
+    const tempo =
+      typeof item.tempoDeEsperaEmSegundos === 'number' && Number.isFinite(item.tempoDeEsperaEmSegundos)
+        ? item.tempoDeEsperaEmSegundos
+        : Array.isArray(item.transcricao)
+          ? tempoDeEsperaDaTranscricao(item.transcricao)
+          : undefined;
+
+    return typeof tempo === 'number' && Number.isFinite(tempo) && tempo <= slaMaximoEmSegundos;
+  }).length;
   const notasIa = itens
     .filter(avaliacaoDaIaTemVeredito)
     .map((item) => item.avaliacaoDaIa.nota)

@@ -672,3 +672,35 @@ test('pulso do Dashboard calcula taxa de promessas cumpridas quando ferramentas 
   const kpiPromessas = parsed.kpis.find((item) => item.id === 'promessasCumpridas');
   assert.equal(kpiPromessas?.valor, 100);
 });
+
+test('pulso do Dashboard calcula SLA a partir da transcrição quando tempoDeEsperaEmSegundos não veio gravado', () => {
+  const itens = [
+    {
+      id: 'conv-sla-transcricao',
+      administradora: 'Alter' as const,
+      agente: 'Clara Alter',
+      agenteId: 'alter-1',
+      iniciadoEm: '2026-09-01T10:00:00Z',
+      motivo: 'Boleto',
+      nota: 10,
+      status: 'Concluído' as const,
+      curadoria: false,
+      conversa: 'conv-sla-transcricao',
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:02', texto: 'Olá!' },
+        { locutor: 'Cliente', quando: '0:05', texto: 'Quero meu boleto' },
+        { locutor: 'Agente de Voz', quando: '0:15', texto: 'Com certeza, vou consultar.' }
+      ]
+    }
+  ];
+
+  const resultado = pulsoDoDashboard(
+    itens as any,
+    { administradora: null, agente: null },
+    { inicio: '2026-09-01', fim: '2026-09-30' }
+  );
+
+  const parsed = dashboardResponseSchema.parse(resultado);
+  const kpiSla = parsed.kpis.find((item) => item.id === 'sla');
+  assert.equal(kpiSla?.valor, 100);
+});

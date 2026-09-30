@@ -29,21 +29,69 @@ function segundosDeQuando(quando: string) {
   return minutos * 60 + segundos;
 }
 
+function segundosDoTurno(turno: any): number | undefined {
+  if (typeof turno === 'number' && Number.isFinite(turno)) {
+    return Math.max(0, Math.floor(turno));
+  }
+  if (!turno || typeof turno !== 'object') {
+    return undefined;
+  }
+  if (typeof turno.time_in_call_secs === 'number' && Number.isFinite(turno.time_in_call_secs)) {
+    return Math.max(0, Math.floor(turno.time_in_call_secs));
+  }
+  if (typeof turno.segundos === 'number' && Number.isFinite(turno.segundos)) {
+    return Math.max(0, Math.floor(turno.segundos));
+  }
+  if (typeof turno.tempo === 'number' && Number.isFinite(turno.tempo)) {
+    return Math.max(0, Math.floor(turno.tempo));
+  }
+  if (typeof turno.quando === 'number' && Number.isFinite(turno.quando)) {
+    return Math.max(0, Math.floor(turno.quando));
+  }
+  if (typeof turno.quando === 'string') {
+    return segundosDeQuando(turno.quando);
+  }
+  return undefined;
+}
+
+function ehCliente(turno: any): boolean {
+  if (!turno || typeof turno !== 'object') return false;
+  const loc = String(turno.locutor ?? turno.role ?? turno.speaker ?? '').toLowerCase().trim();
+  return loc === 'cliente' || loc === 'user' || loc === 'customer' || loc.includes('cliente') || loc.includes('user');
+}
+
+function ehAgente(turno: any): boolean {
+  if (!turno || typeof turno !== 'object') return false;
+  const loc = String(turno.locutor ?? turno.role ?? turno.speaker ?? '').toLowerCase().trim();
+  return loc === 'agente de voz' || loc === 'agent' || loc === 'bot' || loc === 'assistant' || loc.includes('agente') || loc.includes('agent');
+}
+
 export function tempoDeEsperaDaTranscricao(
-  turnos: readonly { locutor: string; quando: string }[]
+  turnos: readonly any[]
 ) {
+  if (!Array.isArray(turnos) || turnos.length === 0) {
+    return undefined;
+  }
+
   const falasDoAgente = turnos
-    .filter((turno) => turno.locutor === 'Agente de Voz')
-    .map((turno) => segundosDeQuando(turno.quando));
+    .filter(ehAgente)
+    .map(segundosDoTurno)
+    .filter((s): s is number => s !== undefined);
+
   const primeiraDoCliente = turnos
-    .filter((turno) => turno.locutor === 'Cliente')
-    .map((turno) => segundosDeQuando(turno.quando))
-    .find((segundos) => segundos !== undefined);
-  const segundaFala = falasDoAgente[1];
+    .filter(ehCliente)
+    .map(segundosDoTurno)
+    .find((s): s is number => s !== undefined);
+
+  if (primeiraDoCliente === undefined || falasDoAgente.length < 2) {
+    return undefined;
+  }
+
+  const segundaFala =
+    falasDoAgente.slice(1).find((s) => s >= primeiraDoCliente) ?? falasDoAgente[1];
 
   if (
     segundaFala === undefined ||
-    primeiraDoCliente === undefined ||
     segundaFala < primeiraDoCliente
   ) {
     return undefined;
