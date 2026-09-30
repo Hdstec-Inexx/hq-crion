@@ -8,7 +8,14 @@ import {
   semearSeNecessario
 } from '../modules/atendimentos/postgres.js';
 import { ingerirElevenLabs, coletarDaFonte, registrarMidiaLocal } from '../modules/ingestao/boot.js';
-import { lerMidiaDoDeposito, lerMidiaLocal, type MidiaGuardada } from '../modules/midia/deposito.js';
+import { baixarAudio } from '../modules/ingestao/elevenlabs.js';
+import {
+  gravarMidia,
+  guardarMidiaLocal,
+  lerMidiaDoDeposito,
+  lerMidiaLocal,
+  type MidiaGuardada
+} from '../modules/midia/deposito.js';
 import {
   buscarMidiaNoS3,
   bucketConfigurado,
@@ -82,9 +89,11 @@ export function fonteDePersistencia(env: {
 
 function montarLeitorDeMidia(
   obterLocal: (chave: string) => Promise<MidiaGuardada | undefined> | MidiaGuardada | undefined,
+  gravarLocal: ((chave: string, midia: MidiaGuardada) => Promise<void> | void) | null,
   clienteMinio: ReturnType<typeof criarClienteMinio>,
   clienteS3: ReturnType<typeof criarClienteS3>,
-  bucket: string
+  bucket: string,
+  elevenlabs?: { apiKey?: string; baseUrl: string }
 ) {
   return {
     lerMidia: async (arquivoOuId: string) => {
@@ -101,7 +110,32 @@ function montarLeitorDeMidia(
       }
 
       if (clienteS3) {
-        return buscarMidiaNoS3(clienteS3, bucket, arquivoOuId);
+        const doS3 = await buscarMidiaNoS3(clienteS3, bucket, arquivoOuId);
+        if (doS3) {
+          return doS3;
+        }
+      }
+
+      if (elevenlabs?.apiKey) {
+        const idLimpo = arquivoOuId.replace(/\.[A-Za-z0-9]+$/, '').replace(/^atendimentos\//, '');
+        if (idLimpo.startsWith('conv_')) {
+          try {
+            const midia = await baixarAudio(
+              fetch,
+              elevenlabs.baseUrl,
+              elevenlabs.apiKey,
+              idLimpo
+            );
+            if (midia) {
+              if (gravarLocal) {
+                await gravarLocal(idLimpo, midia);
+              }
+              return midia;
+            }
+          } catch {
+            // segue
+          }
+        }
       }
 
       return undefined;
@@ -122,7 +156,33 @@ function montarLeitorDeMidia(
       }
 
       if (clienteS3) {
-        return descobrirCaminhoNoS3(clienteS3, bucket, id);
+        const doS3 = await descobrirCaminhoNoS3(clienteS3, bucket, id);
+        if (doS3) {
+          return doS3;
+        }
+      }
+
+      if (elevenlabs?.apiKey) {
+        const idLimpo = id.replace(/\.[A-Za-z0-9]+$/, '').replace(/^atendimentos\//, '');
+        if (idLimpo.startsWith('conv_')) {
+          try {
+            const midia = await baixarAudio(
+              fetch,
+              elevenlabs.baseUrl,
+              elevenlabs.apiKey,
+              idLimpo
+            );
+            if (midia) {
+              if (gravarLocal) {
+                await gravarLocal(idLimpo, midia);
+              }
+              const extensao = midia.tipo === 'audio/mpeg' ? 'mp3' : 'wav';
+              return `/media/${idLimpo}.${extensao}`;
+            }
+          } catch {
+            // segue
+          }
+        }
       }
 
       return undefined;
@@ -149,7 +209,17 @@ export default fp(
       usarDepositoDaIa(null);
       const coletados = await coletarDaFonte(app.config, app.log);
       app.decorate('atendimentos', repositorioEmMemoria(registrarMidiaLocal(coletados)));
-      const resolvedor = montarLeitorDeMidia(lerMidiaLocal, clienteMinio, clienteS3, bucket);
+      const resolvedor = montarLeitorDeMidia(
+        lerMidiaLocal,
+        guardarMidiaLocal,
+        clienteMinio,
+        clienteS3,
+        bucket,
+        {
+          apiKey: app.config.ELEVENLABS_API_KEY,
+          baseUrl: app.config.ELEVENLABS_BASE_URL
+        }
+      );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);
       return;
@@ -190,9 +260,14 @@ export default fp(
       app.decorate('atendimentos', repositorioPostgres(pool));
       const resolvedor = montarLeitorDeMidia(
         (arquivoOuId) => lerMidiaDoDeposito(pool, arquivoOuId),
+        (arquivoOuId, midia) => gravarMidia(pool, arquivoOuId, midia),
         clienteMinio,
         clienteS3,
-        bucket
+        bucket,
+        {
+          apiKey: app.config.ELEVENLABS_API_KEY,
+          baseUrl: app.config.ELEVENLABS_BASE_URL
+        }
       );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);

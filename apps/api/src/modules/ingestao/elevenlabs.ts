@@ -362,7 +362,7 @@ async function buscarJson(
   return (await resposta.json()) as unknown;
 }
 
-async function baixarAudio(
+export async function baixarAudio(
   fetchImpl: typeof fetch,
   baseUrl: string,
   apiKey: string,
