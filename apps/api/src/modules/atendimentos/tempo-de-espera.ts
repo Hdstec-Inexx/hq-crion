@@ -49,7 +49,15 @@ function segundosDoTurno(turno: any): number | undefined {
     return Math.max(0, Math.floor(turno.quando));
   }
   if (typeof turno.quando === 'string') {
-    return segundosDeQuando(turno.quando);
+    const limpo = turno.quando.trim();
+    if (limpo.includes(':') && !limpo.includes('T') && !limpo.includes('-')) {
+      return segundosDeQuando(limpo);
+    }
+    const d = new Date(limpo);
+    if (!Number.isNaN(d.getTime())) {
+      return Math.floor(d.getTime() / 1000);
+    }
+    return segundosDeQuando(limpo);
   }
   return undefined;
 }

@@ -6,6 +6,12 @@ import {
   formatarEndpointS3,
   tipoDeMidiaPorChave
 } from '../../apps/api/src/modules/midia/s3.js';
+import {
+  buscarMidiaNoMinio,
+  chavesCandidatas as chavesCandidatasMinio,
+  descobrirCaminhoNoMinio,
+  formatarEndpointMinio
+} from '../../apps/api/src/modules/midia/minio.js';
 import { guardarMidiaLocal } from '../../apps/api/src/modules/midia/deposito.js';
 import { camposDeMidia } from '../../apps/api/src/modules/atendimentos/registro.js';
 import { buildApp } from '../../apps/api/src/app.js';
@@ -167,4 +173,47 @@ test('GET /atendimentos/:id descobre mÃ­dia por conversa quando o atendimento nÃ
   } finally {
     await app.close();
   }
+});
+
+test('chavesCandidatasMinio procura tanto na raiz quanto no prefixo atendimentos/', () => {
+  const chaves = chavesCandidatasMinio('conv_123');
+  assert.equal(chaves.includes('atendimentos/conv_123.mp3'), true);
+  assert.equal(chaves.includes('conv_123.mp3'), true);
+  assert.equal(chaves.includes('atendimentos/conv_123.wav'), true);
+  assert.equal(chaves.includes('conv_123.wav'), true);
+});
+
+test('formatarEndpointMinio extrai hostname, porta e ssl de URLs completas ou endpoints simples', () => {
+  const e1 = formatarEndpointMinio('http://minio:9000');
+  assert.equal(e1?.endPoint, 'minio');
+  assert.equal(e1?.port, 9000);
+  assert.equal(e1?.useSSL, false);
+
+  const e2 = formatarEndpointMinio('https://minio.example.com');
+  assert.equal(e2?.endPoint, 'minio.example.com');
+  assert.equal(e2?.port, 443);
+  assert.equal(e2?.useSSL, true);
+
+  const e3 = formatarEndpointMinio('minio:9000');
+  assert.equal(e3?.endPoint, 'minio');
+  assert.equal(e3?.port, 9000);
+  assert.equal(e3?.useSSL, false);
+});
+
+test('descobrirCaminhoNoMinio encontra arquivo sob prefixo atendimentos/ e normaliza caminho', async () => {
+  const mockMinio = {
+    statObject: async (bucket: string, chave: string) => {
+      if (chave === 'atendimentos/conv_prefix.mp3') {
+        return { size: 1024 };
+      }
+      throw new Error('NotFound');
+    }
+  };
+
+  const caminho = await descobrirCaminhoNoMinio(
+    mockMinio as any,
+    'hq-crion',
+    'conv_prefix'
+  );
+  assert.equal(caminho, '/media/conv_prefix.mp3');
 });

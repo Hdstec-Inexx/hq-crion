@@ -35,7 +35,13 @@ const configSchema = z
     S3_BUCKET: optionalString,
     S3_ENDPOINT: optionalString,
     S3_ACCESS_KEY: optionalString,
-    S3_SECRET_KEY: optionalString
+    S3_SECRET_KEY: optionalString,
+    STORAGE_PROVIDER: optionalString,
+    STORAGE_BUCKET: optionalString,
+    STORAGE_ENDPOINT: optionalString,
+    STORAGE_ACCESS_KEY: optionalString,
+    STORAGE_SECRET_KEY: optionalString,
+    STORAGE_PUBLIC_URL: optionalString
   })
   .superRefine((config, ctx) => {
     if (config.NODE_ENV !== 'production') {
@@ -50,12 +56,23 @@ const configSchema = z
       });
     }
   })
-  .transform((config) => ({
-    ...config,
-    HOST:
-      config.HOST ??
-      (config.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
-  }));
+  .transform((config) => {
+    const s3Bucket = config.S3_BUCKET ?? config.STORAGE_BUCKET;
+    const s3Endpoint = config.S3_ENDPOINT ?? config.STORAGE_ENDPOINT;
+    const s3AccessKey = config.S3_ACCESS_KEY ?? config.STORAGE_ACCESS_KEY;
+    const s3SecretKey = config.S3_SECRET_KEY ?? config.STORAGE_SECRET_KEY;
+
+    return {
+      ...config,
+      S3_BUCKET: s3Bucket,
+      S3_ENDPOINT: s3Endpoint,
+      S3_ACCESS_KEY: s3AccessKey,
+      S3_SECRET_KEY: s3SecretKey,
+      HOST:
+        config.HOST ??
+        (config.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
+    };
+  });
 
 export type AppConfig = z.infer<typeof configSchema>;
 
