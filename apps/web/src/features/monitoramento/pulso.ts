@@ -83,7 +83,7 @@ function normalizarItem(valor: unknown): ItemDaListaAoVivo | null {
 
   const item = valor as Record<string, unknown>;
   const id = textoPreenchido(item.id);
-  const agenteId = textoPreenchido(item.agenteId);
+  const agenteId = textoPreenchido(item.agenteId) || textoPreenchido(item.agentId);
 
   if (!id || !agenteId) {
     return null;

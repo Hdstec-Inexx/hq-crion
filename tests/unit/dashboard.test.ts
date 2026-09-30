@@ -11,6 +11,7 @@ import {
   fraseDoHoverDeConcordanciaPorCriterio,
   paineisDoDashboardSchema
 } from '../../packages/contracts/src/dashboard.js';
+import { pulsoDoDashboard } from '../../apps/api/src/modules/dashboard/agregacao.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import { destinoDoKpi, destinoDoPainel } from '../../packages/contracts/src/recorte.js';
 import { reguaDeAvaliacaoSchema } from '../../packages/contracts/src/regua.js';
@@ -591,4 +592,47 @@ test('barra revela a frase no ponteiro e no foco, sem title que atrase o toque',
   assert.match(paineis, /criteriosAtendidos: criterio/);
   assert.match(paineis, /destinoDaBarra=\{\(\) => destino\('concordancia'\)\}/);
   assert.doesNotMatch(paineis, /dashboard-concordancia-resumo[\s\S]*title=/);
+});
+
+test('pulso do Dashboard com ferramentas indefinidas ou parciais não gera NaN e valida o contrato', () => {
+  const itens = [
+    {
+      id: 'conv-incompleta',
+      administradora: 'Affix' as const,
+      agente: 'Clara Affix 0800',
+      agenteId: 'affix-0800',
+      iniciadoEm: '2026-09-01T10:00:00Z',
+      motivo: 'Dúvidas sobre o plano',
+      nota: 0,
+      status: 'Concluído' as const,
+      curadoria: false,
+      conversa: 'conv-incompleta',
+      transcricao: [],
+      ferramentas: {} as any
+    },
+    {
+      id: 'conv-com-zero',
+      administradora: 'Affix' as const,
+      agente: 'Clara Affix 0800',
+      agenteId: 'affix-0800',
+      iniciadoEm: '2026-09-01T11:00:00Z',
+      motivo: 'Dúvidas sobre o plano',
+      nota: 0,
+      status: 'Concluído' as const,
+      curadoria: false,
+      conversa: 'conv-com-zero',
+      transcricao: [],
+      ferramentas: { executadas: 0, sucesso: 0 }
+    }
+  ];
+
+  const resultado = pulsoDoDashboard(
+    itens as any,
+    { administradora: null, agente: null },
+    { inicio: '2026-09-01', fim: '2026-09-30' }
+  );
+
+  const parsed = dashboardResponseSchema.parse(resultado);
+  const kpiPromessas = parsed.kpis.find((item) => item.id === 'promessasCumpridas');
+  assert.equal(kpiPromessas?.valor, null);
 });

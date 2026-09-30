@@ -286,6 +286,17 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ statusCode: 404 });
     }
 
+    if (!encontrado.audio && app.descobrirMidia) {
+      const chaveBusca = encontrado.conversa || id;
+      const descoberto =
+        (await app.descobrirMidia(chaveBusca)) ??
+        (chaveBusca !== id ? await app.descobrirMidia(id) : undefined);
+      if (descoberto) {
+        encontrado.audio = descoberto;
+        encontrado.downloadDeAudio = descoberto;
+      }
+    }
+
     return responderDetalhe(encontrado, perfil.papel);
   });
 

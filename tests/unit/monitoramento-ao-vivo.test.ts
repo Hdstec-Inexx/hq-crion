@@ -964,6 +964,46 @@ test('lista ao vivo não inventa horário e descarta linha sem identidade', () =
   assert.equal(textoDaLinhaAoVivo(epoca?.itens[0] ?? { agente: '' }), 'Leo - Vinnk - Affix');
 });
 
+test('lista ao vivo aceita agentId e mapeia para agenteId no item', () => {
+  const corpo = {
+    recorte: { administradora: null, agente: null },
+    pagina: 1,
+    tamanho: 50,
+    total: 1,
+    fonteConfigurada: true,
+    itens: [
+      {
+        id: 'conv_8401m3sfqg6qf3081k5rp9d3txxy',
+        agente: 'Clara - Roteador | Alter',
+        agentId: 'agent_3701kr451qfdevqry90mp8p2qrxz',
+        motivo: 'Não informado',
+        status: 'Em andamento'
+      }
+    ]
+  };
+
+  const normalizado = normalizarListagemAoVivo(corpo);
+  assert.ok(normalizado);
+  assert.equal(normalizado?.itens.length, 1);
+  assert.equal(normalizado?.itens[0]?.agenteId, 'agent_3701kr451qfdevqry90mp8p2qrxz');
+});
+
+test('lista ao vivo com 0 atendimentos normaliza com sucesso e exibe mensagem de recorte vazio', () => {
+  const corpoVazio = {
+    recorte: { administradora: null, agente: null },
+    pagina: 1,
+    tamanho: 50,
+    total: 0,
+    fonteConfigurada: true,
+    itens: []
+  };
+
+  const normalizado = normalizarListagemAoVivo(corpoVazio);
+  assert.ok(normalizado);
+  assert.equal(normalizado?.itens.length, 0);
+  assert.equal(mensagemDaListaAoVivo(normalizado), 'Nenhum Atendimento aberto neste Recorte.');
+});
+
 test('lista ao vivo lê o início em segundos e não grava o relógio atual', async () => {
   const segundos = agoraUnix;
 

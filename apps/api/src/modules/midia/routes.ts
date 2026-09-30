@@ -16,11 +16,11 @@ const midiaRoutes: FastifyPluginAsync = async (app) => {
 
     const { arquivo } = request.params as { arquivo: string };
 
-    if (!/^[A-Za-z0-9_-]+\.wav$/.test(arquivo)) {
+    if (!/^[A-Za-z0-9_-]+(\.(wav|mp3))?$/.test(arquivo)) {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    const bytes = await app.lerMidia(arquivo.slice(0, -'.wav'.length));
+    const bytes = await app.lerMidia(arquivo);
 
     if (!bytes) {
       return reply.code(404).send({ statusCode: 404 });
