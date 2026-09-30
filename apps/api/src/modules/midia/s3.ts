@@ -19,15 +19,31 @@ export function tipoDeMidiaPorChave(chave: string): string {
   return 'audio/wav';
 }
 
-function chavesCandidatas(arquivoOuId: string): string[] {
-  if (arquivoOuId.endsWith('.mp3') || arquivoOuId.endsWith('.wav')) {
-    return [arquivoOuId];
+export function formatarEndpointS3(endpoint: string | undefined): string | undefined {
+  if (!endpoint || endpoint.trim() === '') {
+    return undefined;
   }
+  const limpo = endpoint.trim().replace(/\/+$/, '');
+  if (/^https?:\/\//i.test(limpo)) {
+    return limpo;
+  }
+  return `http://${limpo}`;
+}
 
-  return [
-    `${arquivoOuId}.mp3`,
-    `${arquivoOuId}.wav`
-  ];
+function chavesCandidatas(arquivoOuId: string): string[] {
+  const limpo = arquivoOuId.trim();
+  const semExt = limpo.replace(/\.[A-Za-z0-9]+$/, '');
+
+  const set = new Set<string>();
+  if (limpo.endsWith('.mp3') || limpo.endsWith('.wav')) {
+    set.add(limpo);
+  }
+  set.add(`${semExt}.mp3`);
+  set.add(`${semExt}.wav`);
+  set.add(semExt);
+  set.add(limpo);
+
+  return Array.from(set);
 }
 
 export function criarClienteS3(
@@ -45,11 +61,14 @@ export function criarClienteS3(
         }
       : undefined;
 
+  const endpoint = formatarEndpointS3(config.S3_ENDPOINT);
+
   return new S3Client({
-    endpoint: config.S3_ENDPOINT || undefined,
+    endpoint,
     region: 'us-east-1',
     ...(credentials ? { credentials } : {}),
-    forcePathStyle: true
+    forcePathStyle: true,
+    tls: endpoint ? endpoint.startsWith('https://') : false
   });
 }
 
@@ -107,9 +126,27 @@ export async function descobrirCaminhoNoS3(
         })
       );
 
-      return `/media/${chave}`;
+      const extensao = chave.endsWith('.mp3') ? 'mp3' : chave.endsWith('.wav') ? 'wav' : 'mp3';
+      const caminhoLimpo = chave.includes('.') ? chave : `${chave}.${extensao}`;
+      return `/media/${caminhoLimpo}`;
     } catch {
-      continue;
+      try {
+        const getRes = await cliente.send(
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: chave,
+            Range: 'bytes=0-0'
+          })
+        );
+
+        if (getRes.Body) {
+          const extensao = chave.endsWith('.mp3') ? 'mp3' : chave.endsWith('.wav') ? 'wav' : 'mp3';
+          const caminhoLimpo = chave.includes('.') ? chave : `${chave}.${extensao}`;
+          return `/media/${caminhoLimpo}`;
+        }
+      } catch {
+        continue;
+      }
     }
   }
 

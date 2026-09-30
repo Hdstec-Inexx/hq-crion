@@ -3,11 +3,31 @@ import test from 'node:test';
 import {
   buscarMidiaNoS3,
   descobrirCaminhoNoS3,
+  formatarEndpointS3,
   tipoDeMidiaPorChave
 } from '../../apps/api/src/modules/midia/s3.js';
 import { guardarMidiaLocal } from '../../apps/api/src/modules/midia/deposito.js';
+import { camposDeMidia } from '../../apps/api/src/modules/atendimentos/registro.js';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
+
+test('formatarEndpointS3 garante protocolo http quando omitido', () => {
+  assert.equal(formatarEndpointS3('minio:9000'), 'http://minio:9000');
+  assert.equal(formatarEndpointS3('http://minio:9000/'), 'http://minio:9000');
+  assert.equal(formatarEndpointS3('https://s3.example.com'), 'https://s3.example.com');
+  assert.equal(formatarEndpointS3(undefined), undefined);
+});
+
+test('camposDeMidia normaliza nomes de arquivo para caminhos /media/', () => {
+  assert.deepEqual(camposDeMidia('conv_123.mp3'), {
+    audio: '/media/conv_123.mp3',
+    downloadDeAudio: '/media/conv_123.mp3'
+  });
+  assert.deepEqual(camposDeMidia('/media/conv_123.wav'), {
+    audio: '/media/conv_123.wav',
+    downloadDeAudio: '/media/conv_123.wav'
+  });
+});
 
 test('tipoDeMidiaPorChave detecta audio/mpeg para .mp3 e audio/wav para .wav', () => {
   assert.equal(tipoDeMidiaPorChave('conv_123.mp3'), 'audio/mpeg');
@@ -56,6 +76,32 @@ test('descobrirCaminhoNoS3 encontra arquivo com extensão e retorna caminho rela
     'conv_2401m1hhmwk6f7db0nv869w62pmg'
   );
   assert.equal(caminho, '/media/conv_2401m1hhmwk6f7db0nv869w62pmg.mp3');
+});
+
+test('descobrirCaminhoNoS3 recorre a GetObject se HeadObject for negado por política', async () => {
+  const mockS3 = {
+    send: async (command: any) => {
+      // Se for HeadObjectCommand, simula recusa 403 / AccessDenied
+      if (command.constructor.name === 'HeadObjectCommand') {
+        const erro = new Error('AccessDenied');
+        (erro as any).name = 'AccessDenied';
+        throw erro;
+      }
+      if (command.input.Key === 'conv_policy.mp3') {
+        return { Body: {} };
+      }
+      const erro = new Error('NoSuchKey');
+      (erro as any).name = 'NoSuchKey';
+      throw erro;
+    }
+  };
+
+  const caminho = await descobrirCaminhoNoS3(
+    mockS3 as any,
+    'hq-crion',
+    'conv_policy'
+  );
+  assert.equal(caminho, '/media/conv_policy.mp3');
 });
 
 test('rota /media/:arquivo aceita .mp3 e serve com Content-Type audio/mpeg', async () => {
