@@ -31,6 +31,9 @@ export function camposDeMidia(caminho: string | null | undefined) {
   }
 
   const limpo = caminho.trim();
+  if (/^https?:\/\//i.test(limpo)) {
+    return { audio: limpo, downloadDeAudio: limpo };
+  }
   const normalizado = limpo.startsWith('/') ? limpo : `/media/${limpo}`;
   return { audio: normalizado, downloadDeAudio: normalizado };
 }

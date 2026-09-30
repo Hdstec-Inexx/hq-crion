@@ -89,7 +89,9 @@ export function repositorioEmMemoria(
       item.avaliacaoDaIa = {
         nota: entrada.nota,
         aprovacao: aprovacaoDaNota(entrada.nota),
-        criterios: criteriosComChave(entrada.criterios)
+        criterios: criteriosComChave(entrada.criterios),
+        resumo: entrada.resumo ?? undefined,
+        falhasIdentificadas: entrada.falhasIdentificadas ?? []
       };
 
       return 'ok';

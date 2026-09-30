@@ -14,12 +14,23 @@ export const caminhoDeMidiaSchema = z
   .string()
   .min(1)
   .refine(
-    (caminho) =>
-      caminho.startsWith('/') &&
-      !caminho.startsWith('//') &&
-      !caminho.includes('\\') &&
-      !caminho.includes(':'),
-    { message: 'Caminho de mídia deve ser relativo ao HQ' }
+    (caminho) => {
+      if (/^https?:\/\//i.test(caminho)) {
+        try {
+          const u = new URL(caminho);
+          return u.protocol === 'http:' || u.protocol === 'https:';
+        } catch {
+          return false;
+        }
+      }
+      return (
+        caminho.startsWith('/') &&
+        !caminho.startsWith('//') &&
+        !caminho.includes('\\') &&
+        !caminho.includes(':')
+      );
+    },
+    { message: 'Caminho de mídia deve ser relativo ao HQ ou URL http/https' }
   );
 
 export function caminhoDeMidiaPermitido(caminho: string) {
@@ -102,7 +113,9 @@ export const criterioAvaliadoSchema = z.object({
 export const avaliacaoSchema = z.object({
   nota: z.number(),
   aprovacao: z.enum(['Aprovado', 'Reprovado']),
-  criterios: z.array(criterioAvaliadoSchema).min(1)
+  criterios: z.array(criterioAvaliadoSchema).min(1),
+  resumo: z.string().nullable().optional(),
+  falhasIdentificadas: z.array(z.string()).optional()
 });
 
 export const avaliacaoDoCuradorSchema = avaliacaoSchema.extend({
@@ -118,7 +131,9 @@ const criterioDaGravacaoSchema = criterioAvaliadoSchema.extend({
 
 export const gravacaoDaAvaliacaoDaIaSchema = z.object({
   nota: z.number().finite().min(0).max(10),
-  criterios: z.array(criterioDaGravacaoSchema).min(1).max(30)
+  criterios: z.array(criterioDaGravacaoSchema).min(1).max(30),
+  resumo: z.string().trim().nullable().optional(),
+  falhasIdentificadas: z.array(z.string().trim()).optional()
 });
 
 export const conferenciaRequestSchema = z.object({
