@@ -28,8 +28,38 @@ export function posicaoDoAudio(segundos: number, duracao: number) {
   return Math.min(segundos, duracao);
 }
 
+function duracaoUtil(duracao: number) {
+  return Number.isFinite(duracao) && duracao > 0 ? duracao : 0;
+}
+
+function dentroDoAudio(segundos: number, duracao: number) {
+  const teto = duracaoUtil(duracao);
+
+  if (teto === 0) {
+    return 0;
+  }
+
+  return posicaoDoAudio(segundos, teto);
+}
+
+export function saltoDeTrintaSegundosParaTras(atual: number, duracao: number) {
+  return dentroDoAudio(dentroDoAudio(atual, duracao) - 30, duracao);
+}
+
+export function saltoDeTrintaSegundosParaFrente(atual: number, duracao: number) {
+  return dentroDoAudio(dentroDoAudio(atual, duracao) + 30, duracao);
+}
+
 export function saltoDeTrintaSegundos(atual: number, duracao: number) {
-  return posicaoDoAudio(posicaoDoAudio(atual, duracao) + 30, duracao);
+  return saltoDeTrintaSegundosParaFrente(atual, duracao);
+}
+
+export function instanteDaBuscaNaOnda(deslocamento: number, largura: number, duracao: number) {
+  if (!Number.isFinite(deslocamento) || !Number.isFinite(largura) || largura <= 0) {
+    return 0;
+  }
+
+  return dentroDoAudio((deslocamento / largura) * duracao, duracao);
 }
 
 export function barraContinuaVisivel({

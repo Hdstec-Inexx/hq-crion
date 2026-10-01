@@ -1,11 +1,13 @@
 import { caminhoDeMidiaPermitido } from '@hq-crion/contracts/atendimento';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { buscarObjetoDaMidia } from './api';
 import {
   barraContinuaVisivel,
+  instanteDaBuscaNaOnda,
   posicaoDoAudio,
   reproducaoEmCurso,
-  saltoDeTrintaSegundos,
+  saltoDeTrintaSegundosParaFrente,
+  saltoDeTrintaSegundosParaTras,
   velocidadeDoPlayer,
   velocidadesDoPlayer,
   type VelocidadeDoPlayer
@@ -32,6 +34,27 @@ function RelogioDoAudio({ atual, duracao }: { atual: number; duracao: number }) 
     <span className="audio-time">
       {formatarTempo(atual)} / {formatarTempo(duracao)}
     </span>
+  );
+}
+
+function BotaoSalto({
+  sentido,
+  onSalto
+}: {
+  sentido: 'tras' | 'frente';
+  onSalto: () => void;
+}) {
+  const frente = sentido === 'frente';
+
+  return (
+    <button
+      className="audio-salto"
+      type="button"
+      aria-label={frente ? 'Avançar 30 segundos' : 'Voltar 30 segundos'}
+      onClick={onSalto}
+    >
+      {frente ? '+30s' : '-30s'}
+    </button>
   );
 }
 
@@ -224,6 +247,36 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
     void onReproduzir();
   }
 
+  function saltar(sentido: 'tras' | 'frente') {
+    const destino =
+      sentido === 'frente'
+        ? saltoDeTrintaSegundosParaFrente(atual, duracao)
+        : saltoDeTrintaSegundosParaTras(atual, duracao);
+
+    onSeek(destino);
+  }
+
+  function buscarNaOnda(event: PointerEvent<HTMLDivElement>) {
+    const faixa = event.currentTarget.getBoundingClientRect();
+
+    onSeek(instanteDaBuscaNaOnda(event.clientX - faixa.left, faixa.width, duracao));
+  }
+
+  function onPonteiroNaOnda(event: PointerEvent<HTMLDivElement>) {
+    if (event.type === 'pointermove' && !event.currentTarget.hasPointerCapture(event.pointerId)) {
+      return;
+    }
+
+    if (event.type === 'pointerdown') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
+    buscarNaOnda(event);
+  }
+
+  const progresso =
+    duracao > 0 ? `${(posicaoDoAudio(atual, duracao) / duracao) * 100}%` : '0%';
+
   return (
     <>
       <div ref={playerPrincipal} className="audio-player" title="Player de áudio">
@@ -267,15 +320,31 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
             }}
           />
         ) : null}
+        <BotaoSalto sentido="tras" onSalto={() => saltar('tras')} />
         <BotaoReproduzir tocando={tocando} onReproduzir={onReproduzirClique} />
+        <BotaoSalto sentido="frente" onSalto={() => saltar('frente')} />
         <RelogioDoAudio atual={atual} duracao={duracao} />
-        <div className="audio-onda" aria-hidden="true" />
+        <div
+          className="audio-onda"
+          role="slider"
+          aria-label="Posição na onda"
+          aria-valuemin={0}
+          aria-valuemax={duracao || 0}
+          aria-valuenow={Number.isFinite(atual) ? atual : 0}
+          aria-valuetext={formatarTempo(atual)}
+          tabIndex={0}
+          style={{ '--progresso': progresso } as CSSProperties}
+          onPointerDown={onPonteiroNaOnda}
+          onPointerMove={onPonteiroNaOnda}
+          onPointerUp={onPonteiroNaOnda}
+        />
         <SeletorDeVelocidade velocidade={velocidade} onEscolher={setVelocidade} />
       </div>
       {mostrarBarra ? (
         <div className="audio-barra-continua" title="Player de áudio">
           <BotaoReproduzir tocando={tocando} onReproduzir={onReproduzirClique} />
           <RelogioDoAudio atual={atual} duracao={duracao} />
+          <BotaoSalto sentido="tras" onSalto={() => saltar('tras')} />
           <input
             className="audio-progresso"
             type="range"
@@ -288,16 +357,7 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
               onSeek(Number(event.currentTarget.value));
             }}
           />
-          <button
-            className="audio-salto"
-            type="button"
-            aria-label="Avançar 30 segundos"
-            onClick={() => {
-              onSeek(saltoDeTrintaSegundos(atual, duracao));
-            }}
-          >
-            +30s
-          </button>
+          <BotaoSalto sentido="frente" onSalto={() => saltar('frente')} />
           <SeletorDeVelocidade velocidade={velocidade} onEscolher={setVelocidade} />
         </div>
       ) : null}
