@@ -42,16 +42,27 @@ function dentroDoAudio(segundos: number, duracao: number) {
   return posicaoDoAudio(segundos, teto);
 }
 
+function saltoDeTrintaSegundos(atual: number, duracao: number, deslocamento: number) {
+  return dentroDoAudio(dentroDoAudio(atual, duracao) + deslocamento, duracao);
+}
+
 export function saltoDeTrintaSegundosParaTras(atual: number, duracao: number) {
-  return dentroDoAudio(dentroDoAudio(atual, duracao) - 30, duracao);
+  return saltoDeTrintaSegundos(atual, duracao, -30);
 }
 
 export function saltoDeTrintaSegundosParaFrente(atual: number, duracao: number) {
-  return dentroDoAudio(dentroDoAudio(atual, duracao) + 30, duracao);
+  return saltoDeTrintaSegundos(atual, duracao, 30);
 }
 
-export function saltoDeTrintaSegundos(atual: number, duracao: number) {
-  return saltoDeTrintaSegundosParaFrente(atual, duracao);
+export function posicaoDoArraste(segundos: number, duracao: number, solto: boolean) {
+  const destino = dentroDoAudio(segundos, duracao);
+  const teto = duracaoUtil(duracao);
+
+  if (!solto && teto > 0 && destino >= teto) {
+    return Math.max(0, teto - Math.min(0.05, teto / 2));
+  }
+
+  return destino;
 }
 
 export function instanteDaBuscaNaOnda(deslocamento: number, largura: number, duracao: number) {

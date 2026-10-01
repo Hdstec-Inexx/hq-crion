@@ -1,9 +1,17 @@
 import { caminhoDeMidiaPermitido } from '@hq-crion/contracts/atendimento';
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent
+} from 'react';
 import { buscarObjetoDaMidia } from './api';
 import {
   barraContinuaVisivel,
   instanteDaBuscaNaOnda,
+  posicaoDoArraste,
   posicaoDoAudio,
   reproducaoEmCurso,
   saltoDeTrintaSegundosParaFrente,
@@ -37,23 +45,33 @@ function RelogioDoAudio({ atual, duracao }: { atual: number; duracao: number }) 
   );
 }
 
+const saltos = {
+  tras: {
+    rotulo: 'Voltar 30 segundos',
+    texto: '-30s',
+    calcular: saltoDeTrintaSegundosParaTras
+  },
+  frente: {
+    rotulo: 'Avançar 30 segundos',
+    texto: '+30s',
+    calcular: saltoDeTrintaSegundosParaFrente
+  }
+} as const;
+
+type SentidoDoSalto = keyof typeof saltos;
+
 function BotaoSalto({
   sentido,
   onSalto
 }: {
-  sentido: 'tras' | 'frente';
+  sentido: SentidoDoSalto;
   onSalto: () => void;
 }) {
-  const frente = sentido === 'frente';
+  const salto = saltos[sentido];
 
   return (
-    <button
-      className="audio-salto"
-      type="button"
-      aria-label={frente ? 'Avançar 30 segundos' : 'Voltar 30 segundos'}
-      onClick={onSalto}
-    >
-      {frente ? '+30s' : '-30s'}
+    <button className="audio-salto" type="button" aria-label={salto.rotulo} onClick={onSalto}>
+      {salto.texto}
     </button>
   );
 }
@@ -120,6 +138,10 @@ function aplicarVelocidade(elemento: HTMLAudioElement | null, velocidade: Veloci
 export function PlayerDeAudio({ caminho }: { caminho: string }) {
   const audio = useRef<HTMLAudioElement>(null);
   const playerPrincipal = useRef<HTMLDivElement>(null);
+  const onda = useRef<HTMLDivElement>(null);
+  const quadroDoArraste = useRef(0);
+  const ponteiroDoArraste = useRef(0);
+  const arrasteAberto = useRef(false);
   const [src, setSrc] = useState('');
   const [tocando, setTocando] = useState(false);
   const [iniciada, setIniciada] = useState(false);
@@ -198,6 +220,14 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
     aplicarVelocidade(audio.current, velocidade);
   }, [velocidade, src]);
 
+  useEffect(() => {
+    return () => {
+      if (quadroDoArraste.current !== 0) {
+        cancelAnimationFrame(quadroDoArraste.current);
+      }
+    };
+  }, []);
+
   async function onReproduzir() {
     const elemento = audio.current;
 
@@ -222,18 +252,18 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
     }
   }
 
-  function onSeek(segundos: number) {
+  function onSeek(segundos: number, solto = true) {
     const elemento = audio.current;
 
     if (!elemento) {
       return;
     }
 
-    const destino = posicaoDoAudio(segundos, duracao);
+    const destino = posicaoDoArraste(segundos, duracao, solto);
     elemento.currentTime = destino;
     setAtual(destino);
 
-    if (duracao > 0 && destino >= duracao) {
+    if (solto && duracao > 0 && destino >= duracao) {
       elemento.pause();
       setTocando(false);
       setEncerrada(true);
@@ -247,19 +277,34 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
     void onReproduzir();
   }
 
-  function saltar(sentido: 'tras' | 'frente') {
-    const destino =
-      sentido === 'frente'
-        ? saltoDeTrintaSegundosParaFrente(atual, duracao)
-        : saltoDeTrintaSegundosParaTras(atual, duracao);
-
-    onSeek(destino);
+  function saltar(sentido: SentidoDoSalto) {
+    onSeek(saltos[sentido].calcular(atual, duracao));
   }
 
-  function buscarNaOnda(event: PointerEvent<HTMLDivElement>) {
-    const faixa = event.currentTarget.getBoundingClientRect();
+  function instanteNoPonteiro(clientX: number) {
+    const faixa = onda.current?.getBoundingClientRect();
 
-    onSeek(instanteDaBuscaNaOnda(event.clientX - faixa.left, faixa.width, duracao));
+    if (!faixa) {
+      return 0;
+    }
+
+    return instanteDaBuscaNaOnda(clientX - faixa.left, faixa.width, duracao);
+  }
+
+  function agendarArraste() {
+    if (quadroDoArraste.current !== 0) {
+      return;
+    }
+
+    quadroDoArraste.current = requestAnimationFrame(() => {
+      quadroDoArraste.current = 0;
+
+      if (!arrasteAberto.current) {
+        return;
+      }
+
+      onSeek(instanteNoPonteiro(ponteiroDoArraste.current), false);
+    });
   }
 
   function onPonteiroNaOnda(event: PointerEvent<HTMLDivElement>) {
@@ -267,11 +312,41 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
       return;
     }
 
+    ponteiroDoArraste.current = event.clientX;
+
     if (event.type === 'pointerdown') {
       event.currentTarget.setPointerCapture(event.pointerId);
+      arrasteAberto.current = true;
+      agendarArraste();
+      return;
     }
 
-    buscarNaOnda(event);
+    if (event.type === 'pointerup' || event.type === 'pointercancel') {
+      arrasteAberto.current = false;
+
+      if (quadroDoArraste.current !== 0) {
+        cancelAnimationFrame(quadroDoArraste.current);
+        quadroDoArraste.current = 0;
+      }
+
+      onSeek(instanteNoPonteiro(event.clientX), true);
+      return;
+    }
+
+    agendarArraste();
+  }
+
+  function onTeclaNaOnda(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      saltar('tras');
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      saltar('frente');
+    }
   }
 
   const progresso =
@@ -325,6 +400,7 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
         <BotaoSalto sentido="frente" onSalto={() => saltar('frente')} />
         <RelogioDoAudio atual={atual} duracao={duracao} />
         <div
+          ref={onda}
           className="audio-onda"
           role="slider"
           aria-label="Posição na onda"
@@ -337,6 +413,8 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
           onPointerDown={onPonteiroNaOnda}
           onPointerMove={onPonteiroNaOnda}
           onPointerUp={onPonteiroNaOnda}
+          onPointerCancel={onPonteiroNaOnda}
+          onKeyDown={onTeclaNaOnda}
         />
         <SeletorDeVelocidade velocidade={velocidade} onEscolher={setVelocidade} />
       </div>

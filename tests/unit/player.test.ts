@@ -3,9 +3,9 @@ import test from 'node:test';
 import {
   barraContinuaVisivel,
   instanteDaBuscaNaOnda,
+  posicaoDoArraste,
   posicaoDoAudio,
   reproducaoEmCurso,
-  saltoDeTrintaSegundos,
   saltoDeTrintaSegundosParaFrente,
   saltoDeTrintaSegundosParaTras,
   velocidadeDoPlayer,
@@ -60,11 +60,6 @@ test('reprodução em curso é a iniciada que ainda não encerrou', () => {
   assert.equal(reproducaoEmCurso({ iniciada: true, encerrada: true }), false);
 });
 
-test('salto avança 30 segundos e não passa da duração', () => {
-  assert.equal(saltoDeTrintaSegundos(10, 120), 40);
-  assert.equal(saltoDeTrintaSegundos(100, 120), 120);
-});
-
 test('salto para trás recua 30 segundos e não passa de zero', () => {
   assert.equal(saltoDeTrintaSegundosParaTras(50, 120), 20);
   assert.equal(saltoDeTrintaSegundosParaTras(10, 120), 0);
@@ -87,6 +82,13 @@ test('busca na onda converte o ponto do ponteiro no instante do áudio', () => {
   assert.equal(instanteDaBuscaNaOnda(0, 200, 80), 0);
   assert.equal(instanteDaBuscaNaOnda(50, 200, 80), 20);
   assert.equal(instanteDaBuscaNaOnda(200, 200, 80), 80);
+});
+
+test('arraste no fim da onda fica antes da duração até soltar o ponteiro', () => {
+  assert.equal(posicaoDoArraste(80, 80, false), 79.95);
+  assert.equal(posicaoDoArraste(20, 80, false), 20);
+  assert.equal(posicaoDoArraste(80, 80, true), 80);
+  assert.equal(posicaoDoArraste(0.04, 0.04, false), 0.02);
 });
 
 test('busca na onda não sai do intervalo quando o ponteiro ou a faixa são inválidos', () => {
