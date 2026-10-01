@@ -247,12 +247,30 @@ export function PlayerDeAudio({
       return;
     }
 
-    aplicarDestino(salto.segundos, true);
+    const encerrou = aplicarDestino(salto.segundos, true);
 
-    if (duracao > 0) {
-      saltoAplicado.current = salto.id;
+    if (duracao <= 0) {
+      return;
     }
-  }, [salto, duracao, src]);
+
+    saltoAplicado.current = salto.id;
+
+    if (encerrou) {
+      return;
+    }
+
+    aplicarVelocidade(elemento, velocidade);
+    void elemento.play().then(
+      () => {
+        setTocando(true);
+        setIniciada(true);
+        setEncerrada(false);
+      },
+      () => {
+        setTocando(false);
+      }
+    );
+  }, [salto, duracao, src, velocidade]);
 
   useEffect(() => {
     return () => {
@@ -290,7 +308,7 @@ export function PlayerDeAudio({
     const elemento = audio.current;
 
     if (!elemento) {
-      return;
+      return true;
     }
 
     const destino =
@@ -305,10 +323,11 @@ export function PlayerDeAudio({
       elemento.pause();
       setTocando(false);
       setEncerrada(true);
-      return;
+      return true;
     }
 
     setEncerrada(false);
+    return false;
   }
 
   function onSeek(segundos: number, solto = true) {
