@@ -16,11 +16,12 @@ import {
   lerRecorte,
   proximoDestinoDoPercurso
 } from '@hq-crion/contracts/recorte';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { buscarAtendimento, buscarObjetoDaMidia, buscarPercursoDaFila, gravarConferencia, marcarComentarioResolvido } from './api';
-import { PlayerDeAudio } from './PlayerDeAudio';
+import { PlayerDeAudio, type BuscaDoPlayer } from './PlayerDeAudio';
+import { TranscricaoDoAtendimento } from './TranscricaoDoAtendimento';
 
 function formatarNota(nota: number) {
   return nota.toFixed(1).replace('.', ',');
@@ -253,9 +254,17 @@ export function DetalheAtendimento() {
   const [percurso, setPercurso] = useState<PercursoDaFilaDeManutencao | null>(null);
   const [erroResolucao, setErroResolucao] = useState(false);
   const [resolvendo, setResolvendo] = useState(false);
+  const [progressoDoAudio, setProgressoDoAudio] = useState({ atual: 0, tocando: false });
+  const [buscaDoAudio, setBuscaDoAudio] = useState<BuscaDoPlayer | null>(null);
+  const buscaDoAudioId = useRef(0);
   const vindoDaFila = searchParams.get('lista') === '/manutencao';
   const operaPercurso = perfil.papel === 'Admin' && vindoDaFila;
   const volta = vindoDaFila ? destinoDaFilaDeManutencao(searchParams) : listaComRecorte(searchParams);
+
+  useEffect(() => {
+    setProgressoDoAudio({ atual: 0, tocando: false });
+    setBuscaDoAudio(null);
+  }, [id]);
 
   useEffect(() => {
     if (!id) {
@@ -449,7 +458,11 @@ export function DetalheAtendimento() {
             ) : null}
           </dl>
           <div className="audio-faixa">
-            <PlayerDeAudio caminho={atendimento.audio ?? ''} />
+            <PlayerDeAudio
+              caminho={atendimento.audio ?? ''}
+              onProgresso={setProgressoDoAudio}
+              busca={buscaDoAudio}
+            />
             {downloadVisivelPara(perfil.papel) &&
             atendimento.downloadDeAudio &&
             caminhoDeMidiaPermitido(atendimento.downloadDeAudio) ? (
@@ -503,46 +516,17 @@ export function DetalheAtendimento() {
               </button>
             </div>
           ) : null}
-          <section className="transcricao" aria-label="Transcrição">
-            <h2>Transcrição</h2>
-            <div className="transcricao-colunas">
-              {atendimento.transcricao.map((turno, index) => {
-                const agente = turno.locutor === 'Agente de Voz';
-
-                return (
-                  <article
-                    className={`transcricao-turno ${agente ? 'is-agente' : 'is-cliente'}`}
-                    key={`${turno.quando}-${index}`}
-                  >
-                    {agente ? (
-                      <div className="transcricao-celula">
-                        <span className="transcricao-trilho" aria-hidden="true" />
-                        <div>
-                          <div className="transcricao-meta">
-                            {atendimento.agente} · {turno.quando}
-                          </div>
-                          <p>{turno.texto}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div />
-                    )}
-                    {agente ? (
-                      <div />
-                    ) : (
-                      <div className="transcricao-celula is-cliente">
-                        <div>
-                          <div className="transcricao-meta">Cliente · {turno.quando}</div>
-                          <p>{turno.texto}</p>
-                        </div>
-                        <span className="transcricao-trilho" aria-hidden="true" />
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+          <TranscricaoDoAtendimento
+            turnos={atendimento.transcricao}
+            agente={atendimento.agente}
+            iniciadoEm={atendimento.iniciadoEm}
+            atual={progressoDoAudio.atual}
+            tocando={progressoDoAudio.tocando}
+            onSeek={(segundos) => {
+              buscaDoAudioId.current += 1;
+              setBuscaDoAudio({ id: buscaDoAudioId.current, segundos });
+            }}
+          />
         </>
       ) : null}
     </div>

@@ -966,6 +966,26 @@ a.login-cta {
   gap: 28px;
 }
 
+.transcricao-sincronizada .transcricao-turno {
+  cursor: pointer;
+  border-radius: 12px;
+}
+
+.transcricao-sincronizada .transcricao-turno:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.transcricao-sincronizada .transcricao-turno.ativa .transcricao-celula > div {
+  background: color-mix(in srgb, var(--cyan) 24%, #fff);
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cyan) 70%, var(--line));
+}
+
+.transcricao-sincronizada .transcricao-turno.ativa .transcricao-meta {
+  color: var(--ink);
+}
+
 .transcricao-celula {
   display: grid;
   grid-template-columns: 8px 1fr;
