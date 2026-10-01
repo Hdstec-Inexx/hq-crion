@@ -1,27 +1,26 @@
 import { caminhoDeMidiaPermitido } from '@hq-crion/contracts/atendimento';
-import { useEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent
+} from 'react';
 import { buscarObjetoDaMidia } from './api';
 import {
   barraContinuaVisivel,
+  formatarRelogio,
+  instanteDaBuscaNaOnda,
+  posicaoDoArraste,
   posicaoDoAudio,
   reproducaoEmCurso,
-  saltoDeTrintaSegundos,
+  saltoDeTrintaSegundosParaFrente,
+  saltoDeTrintaSegundosParaTras,
   velocidadeDoPlayer,
   velocidadesDoPlayer,
   type VelocidadeDoPlayer
 } from './player';
-
-function formatarTempo(segundos: number) {
-  if (!Number.isFinite(segundos) || segundos < 0) {
-    return '0:00';
-  }
-
-  const total = Math.floor(segundos);
-  const minutos = Math.floor(total / 60);
-  const resto = String(total % 60).padStart(2, '0');
-
-  return `${minutos}:${resto}`;
-}
 
 function rotuloDaVelocidade(velocidade: VelocidadeDoPlayer) {
   return `${String(velocidade).replace('.', ',')}×`;
@@ -30,8 +29,39 @@ function rotuloDaVelocidade(velocidade: VelocidadeDoPlayer) {
 function RelogioDoAudio({ atual, duracao }: { atual: number; duracao: number }) {
   return (
     <span className="audio-time">
-      {formatarTempo(atual)} / {formatarTempo(duracao)}
+      {formatarRelogio(atual)} / {formatarRelogio(duracao)}
     </span>
+  );
+}
+
+const saltos = {
+  tras: {
+    rotulo: 'Voltar 30 segundos',
+    texto: '-30s',
+    calcular: saltoDeTrintaSegundosParaTras
+  },
+  frente: {
+    rotulo: 'Avançar 30 segundos',
+    texto: '+30s',
+    calcular: saltoDeTrintaSegundosParaFrente
+  }
+} as const;
+
+type SentidoDoSalto = keyof typeof saltos;
+
+function BotaoSalto({
+  sentido,
+  onSalto
+}: {
+  sentido: SentidoDoSalto;
+  onSalto: () => void;
+}) {
+  const salto = saltos[sentido];
+
+  return (
+    <button className="audio-salto" type="button" aria-label={salto.rotulo} onClick={onSalto}>
+      {salto.texto}
+    </button>
   );
 }
 
@@ -94,9 +124,31 @@ function aplicarVelocidade(elemento: HTMLAudioElement | null, velocidade: Veloci
   }
 }
 
-export function PlayerDeAudio({ caminho }: { caminho: string }) {
+export type ProgressoDoAudio = {
+  instante: number;
+  tocando: boolean;
+};
+
+export type SaltoDoPlayer = {
+  id: number;
+  segundos: number;
+};
+
+export function PlayerDeAudio({
+  caminho,
+  onProgresso,
+  salto
+}: {
+  caminho: string;
+  onProgresso?: (progresso: ProgressoDoAudio) => void;
+  salto?: SaltoDoPlayer | null;
+}) {
   const audio = useRef<HTMLAudioElement>(null);
   const playerPrincipal = useRef<HTMLDivElement>(null);
+  const onda = useRef<HTMLDivElement>(null);
+  const quadroDoArraste = useRef(0);
+  const ponteiroDoArraste = useRef(0);
+  const arrasteAberto = useRef(false);
   const [src, setSrc] = useState('');
   const [tocando, setTocando] = useState(false);
   const [iniciada, setIniciada] = useState(false);
@@ -105,6 +157,7 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
   const [duracao, setDuracao] = useState(0);
   const [velocidade, setVelocidade] = useState<VelocidadeDoPlayer>(1);
   const [principalVisivel, setPrincipalVisivel] = useState(true);
+  const saltoAplicado = useRef<number | null>(null);
   const audioPresente = Boolean(src);
   const mostrarBarra = barraContinuaVisivel({
     playerPrincipalForaDaTela: !principalVisivel,
@@ -175,6 +228,40 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
     aplicarVelocidade(audio.current, velocidade);
   }, [velocidade, src]);
 
+  useEffect(() => {
+    onProgresso?.({ instante: atual, tocando });
+  }, [atual, tocando, onProgresso]);
+
+  useEffect(() => {
+    if (!salto) {
+      return;
+    }
+
+    const elemento = audio.current;
+
+    if (!elemento) {
+      return;
+    }
+
+    if (duracao > 0 && saltoAplicado.current === salto.id) {
+      return;
+    }
+
+    aplicarDestino(salto.segundos, true);
+
+    if (duracao > 0) {
+      saltoAplicado.current = salto.id;
+    }
+  }, [salto, duracao, src]);
+
+  useEffect(() => {
+    return () => {
+      if (quadroDoArraste.current !== 0) {
+        cancelAnimationFrame(quadroDoArraste.current);
+      }
+    };
+  }, []);
+
   async function onReproduzir() {
     const elemento = audio.current;
 
@@ -199,18 +286,22 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
     }
   }
 
-  function onSeek(segundos: number) {
+  function aplicarDestino(segundos: number, solto: boolean) {
     const elemento = audio.current;
 
     if (!elemento) {
       return;
     }
 
-    const destino = posicaoDoAudio(segundos, duracao);
+    const destino =
+      duracao > 0
+        ? posicaoDoArraste(segundos, duracao, solto)
+        : Math.max(0, Number.isFinite(segundos) ? segundos : 0);
+
     elemento.currentTime = destino;
     setAtual(destino);
 
-    if (duracao > 0 && destino >= duracao) {
+    if (solto && duracao > 0 && destino >= duracao) {
       elemento.pause();
       setTocando(false);
       setEncerrada(true);
@@ -220,9 +311,88 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
     setEncerrada(false);
   }
 
+  function onSeek(segundos: number, solto = true) {
+    aplicarDestino(segundos, solto);
+  }
+
   function onReproduzirClique() {
     void onReproduzir();
   }
+
+  function saltar(sentido: SentidoDoSalto) {
+    onSeek(saltos[sentido].calcular(atual, duracao));
+  }
+
+  function instanteNoPonteiro(clientX: number) {
+    const faixa = onda.current?.getBoundingClientRect();
+
+    if (!faixa) {
+      return 0;
+    }
+
+    return instanteDaBuscaNaOnda(clientX - faixa.left, faixa.width, duracao);
+  }
+
+  function agendarArraste() {
+    if (quadroDoArraste.current !== 0) {
+      return;
+    }
+
+    quadroDoArraste.current = requestAnimationFrame(() => {
+      quadroDoArraste.current = 0;
+
+      if (!arrasteAberto.current) {
+        return;
+      }
+
+      onSeek(instanteNoPonteiro(ponteiroDoArraste.current), false);
+    });
+  }
+
+  function onPonteiroNaOnda(event: PointerEvent<HTMLDivElement>) {
+    if (event.type === 'pointermove' && !event.currentTarget.hasPointerCapture(event.pointerId)) {
+      return;
+    }
+
+    ponteiroDoArraste.current = event.clientX;
+
+    if (event.type === 'pointerdown') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      arrasteAberto.current = true;
+      agendarArraste();
+      return;
+    }
+
+    if (event.type === 'pointerup' || event.type === 'pointercancel') {
+      arrasteAberto.current = false;
+
+      if (quadroDoArraste.current !== 0) {
+        cancelAnimationFrame(quadroDoArraste.current);
+        quadroDoArraste.current = 0;
+      }
+
+      onSeek(instanteNoPonteiro(event.clientX), true);
+      return;
+    }
+
+    agendarArraste();
+  }
+
+  function onTeclaNaOnda(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      saltar('tras');
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      saltar('frente');
+    }
+  }
+
+  const progresso =
+    duracao > 0 ? `${(posicaoDoAudio(atual, duracao) / duracao) * 100}%` : '0%';
 
   return (
     <>
@@ -267,15 +437,34 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
             }}
           />
         ) : null}
+        <BotaoSalto sentido="tras" onSalto={() => saltar('tras')} />
         <BotaoReproduzir tocando={tocando} onReproduzir={onReproduzirClique} />
+        <BotaoSalto sentido="frente" onSalto={() => saltar('frente')} />
         <RelogioDoAudio atual={atual} duracao={duracao} />
-        <div className="audio-onda" aria-hidden="true" />
+        <div
+          ref={onda}
+          className="audio-onda"
+          role="slider"
+          aria-label="Posição na onda"
+          aria-valuemin={0}
+          aria-valuemax={duracao || 0}
+          aria-valuenow={Number.isFinite(atual) ? atual : 0}
+          aria-valuetext={formatarRelogio(atual)}
+          tabIndex={0}
+          style={{ '--progresso': progresso } as CSSProperties}
+          onPointerDown={onPonteiroNaOnda}
+          onPointerMove={onPonteiroNaOnda}
+          onPointerUp={onPonteiroNaOnda}
+          onPointerCancel={onPonteiroNaOnda}
+          onKeyDown={onTeclaNaOnda}
+        />
         <SeletorDeVelocidade velocidade={velocidade} onEscolher={setVelocidade} />
       </div>
       {mostrarBarra ? (
         <div className="audio-barra-continua" title="Player de áudio">
           <BotaoReproduzir tocando={tocando} onReproduzir={onReproduzirClique} />
           <RelogioDoAudio atual={atual} duracao={duracao} />
+          <BotaoSalto sentido="tras" onSalto={() => saltar('tras')} />
           <input
             className="audio-progresso"
             type="range"
@@ -288,16 +477,7 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
               onSeek(Number(event.currentTarget.value));
             }}
           />
-          <button
-            className="audio-salto"
-            type="button"
-            aria-label="Avançar 30 segundos"
-            onClick={() => {
-              onSeek(saltoDeTrintaSegundos(atual, duracao));
-            }}
-          >
-            +30s
-          </button>
+          <BotaoSalto sentido="frente" onSalto={() => saltar('frente')} />
           <SeletorDeVelocidade velocidade={velocidade} onEscolher={setVelocidade} />
         </div>
       ) : null}
