@@ -138,49 +138,23 @@ function sqlDePersistirAvaliacaoDaIa() {
   return migracao.sql.replace(/--[^\n]*/g, '');
 }
 
-test('a aplicação da migration cria persistir_avaliacao_da_ia uma vez', async () => {
+test('persistir_avaliacao_da_ia troca a avaliação inteira sem colidir na chave dos critérios', () => {
   const sql = sqlDePersistirAvaliacaoDaIa();
   assert.match(
     sql,
     /CREATE OR REPLACE FUNCTION persistir_avaliacao_da_ia\s*\(\s*p_atendimento_id\s+text\s*,\s*p_nota\s+numeric\s*,\s*p_criterios\s+jsonb\s*,\s*p_resumo_atendimento\s+text\s+default\s+null\s*,\s*p_falhas_identificadas\s+jsonb\s+default\s+'\[\]'::jsonb\s*\)/i
   );
-
-  const aplicadas = new Set<string>();
-  const { vistos, pool } = poolDeTeste((texto, valores) => {
-    if (texto.includes('INSERT INTO hq_migracao')) {
-      aplicadas.add(String(valores?.[0]));
-    }
-
-    if (texto.includes('SELECT nome FROM hq_migracao')) {
-      return { rows: [...aplicadas].map((nome) => ({ nome })) };
-    }
-
-    return { rows: [] };
-  });
-
-  await aplicarMigracoes(pool);
-  const marco = vistos.length;
-  await aplicarMigracoes(pool);
-
-  assert.equal(aplicadas.has('07_funcao_persistir_avaliacao_da_ia.sql'), true);
-  assert.equal(
-    vistos.filter((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')).length,
-    1
+  const bloqueiaAtendimento = sql.search(
+    /FROM\s+hq_atendimento\b[\s\S]*FOR\s+UPDATE/i
   );
-  assert.equal(
-    vistos.slice(marco).some((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')),
-    false
-  );
-});
-
-test('persistir_avaliacao_da_ia troca a avaliação inteira sem colidir na chave dos critérios', () => {
-  const sql = sqlDePersistirAvaliacaoDaIa();
   const apagaCriterios = sql.search(/DELETE\s+FROM\s+hq_criterio_da_avaliacao_da_ia\b/i);
   const apagaAvaliacao = sql.search(/DELETE\s+FROM\s+hq_avaliacao_da_ia\b/i);
   const insereAvaliacao = sql.search(/INSERT\s+INTO\s+hq_avaliacao_da_ia\b/i);
   const insereCriterios = sql.search(/INSERT\s+INTO\s+hq_criterio_da_avaliacao_da_ia\b/i);
 
+  assert.equal(bloqueiaAtendimento >= 0 && bloqueiaAtendimento < apagaCriterios, true);
   assert.equal(apagaCriterios >= 0 && apagaCriterios < apagaAvaliacao, true);
+  assert.match(sql, /search_path\s*=\s*pg_catalog\s*,\s*public/i);
   assert.equal(apagaAvaliacao < insereAvaliacao, true);
   assert.equal(insereAvaliacao < insereCriterios, true);
   assert.equal(/\bWITH\b/i.test(sql), false);
@@ -244,9 +218,18 @@ test('segunda aplicação não repete a migration', async () => {
   const marco = vistos.length;
   await aplicarMigracoes(pool);
 
-    assert.equal(aplicadas.has('001_deposito_relacional.sql'), true);
-    assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
-    assert.equal(aplicadas.has('005_boot_e_custo_ausente.sql'), true);
+  assert.equal(aplicadas.has('001_deposito_relacional.sql'), true);
+  assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
+  assert.equal(aplicadas.has('005_boot_e_custo_ausente.sql'), true);
+  assert.equal(aplicadas.has('07_funcao_persistir_avaliacao_da_ia.sql'), true);
+  assert.equal(
+    vistos.filter((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')).length,
+    1
+  );
+  assert.equal(
+    vistos.slice(marco).some((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')),
+    false
+  );
   assert.equal(
     vistos.slice(marco).some((texto) => texto.includes('hq_perfil')),
     false

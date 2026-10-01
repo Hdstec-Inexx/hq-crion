@@ -10,8 +10,14 @@ CREATE OR REPLACE FUNCTION persistir_avaliacao_da_ia(
 )
 RETURNS boolean
 LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
+  PERFORM 1
+  FROM hq_atendimento
+  WHERE id = p_atendimento_id
+  FOR UPDATE;
+
   DELETE FROM hq_criterio_da_avaliacao_da_ia
   WHERE atendimento_id = p_atendimento_id;
 
