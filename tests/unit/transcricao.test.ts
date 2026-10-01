@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  acompanhamentoAposRolagem,
   deveRolarAteAFalaAtiva,
   exibirVoltarAoMomentoAtual,
   falaForaDeVista,
+  gestoDaRolagem,
   indiceDoTurnoAtivo,
   inicioDaFalaEmSegundos,
-  retomarAcompanhamento,
   teclaSaltaParaAFala,
   tempoRelativoDaFala
 } from '../../apps/web/src/features/atendimentos/transcricao.js';
@@ -67,12 +66,8 @@ test('turno ativo é a última fala cujo início já passou', () => {
   assert.equal(indiceDoTurnoAtivo([0, 12], Number.NaN), -1);
 });
 
-test('rolagem manual pausa o acompanhamento e a rolagem do programa não', () => {
-  assert.equal(acompanhamentoAposRolagem('wheel', true), false);
-  assert.equal(acompanhamentoAposRolagem('touchmove', true), false);
-  assert.equal(acompanhamentoAposRolagem('scroll', true), false);
-  assert.equal(acompanhamentoAposRolagem('programa', true), true);
-  assert.equal(acompanhamentoAposRolagem('programa', false), false);
+test('gesto do usuário na caixa não é rolagem do programa', () => {
+  assert.equal(gestoDaRolagem({ destino: null, anterior: 10, agora: 40 }), 'usuario');
 });
 
 test('botão voltar ao momento atual aparece com acompanhamento pausado e fala ativa fora de vista', () => {
@@ -92,10 +87,6 @@ test('botão voltar ao momento atual aparece com acompanhamento pausado e fala a
     exibirVoltarAoMomentoAtual({ acompanhando: false, foraDeVista: true, haFalaAtiva: false }),
     false
   );
-});
-
-test('voltar ao momento atual retoma o acompanhamento', () => {
-  assert.equal(retomarAcompanhamento(), true);
 });
 
 test('fala ativa fora da caixa de rolagem fica fora de vista', () => {
@@ -127,4 +118,12 @@ test('Enter e espaço saltam a reprodução para a fala', () => {
   assert.equal(teclaSaltaParaAFala('Enter'), true);
   assert.equal(teclaSaltaParaAFala(' '), true);
   assert.equal(teclaSaltaParaAFala('ArrowDown'), false);
+});
+
+test('rolagem que se aproxima do destino segue sendo do programa', () => {
+  assert.equal(gestoDaRolagem({ destino: 200, anterior: 0, agora: 40 }), 'programa');
+  assert.equal(gestoDaRolagem({ destino: 200, anterior: 40, agora: 120 }), 'programa');
+  assert.equal(gestoDaRolagem({ destino: 200, anterior: 180, agora: 199 }), 'chegou');
+  assert.equal(gestoDaRolagem({ destino: 200, anterior: 80, agora: 20 }), 'usuario');
+  assert.equal(gestoDaRolagem({ destino: null, anterior: 0, agora: 40 }), 'usuario');
 });

@@ -1,15 +1,9 @@
+import { formatarRelogio } from './player.js';
+
 export type TempoRelativoDaFala = {
   texto: string;
   titulo?: string;
 };
-
-function formatarMmSs(total: number) {
-  const segundos = Math.max(0, Math.floor(total));
-  const minutos = Math.floor(segundos / 60);
-  const resto = String(segundos % 60).padStart(2, '0');
-
-  return `${String(minutos).padStart(2, '0')}:${resto}`;
-}
 
 function instanteIso(valor: string) {
   const texto = valor.trim();
@@ -65,7 +59,7 @@ export function tempoRelativoDaFala(entrada: {
   }
 
   return {
-    texto: formatarMmSs(segundos),
+    texto: formatarRelogio(segundos, true),
     ...(iso ? { titulo: entrada.quando } : {})
   };
 }
@@ -86,20 +80,6 @@ export function indiceDoTurnoAtivo(inicios: readonly number[], instante: number)
   }
 
   return ativo;
-}
-
-export type OrigemDaRolagem = 'wheel' | 'touchmove' | 'scroll' | 'programa';
-
-export function acompanhamentoAposRolagem(origem: OrigemDaRolagem, acompanhando: boolean) {
-  if (origem === 'programa') {
-    return acompanhando;
-  }
-
-  return false;
-}
-
-export function retomarAcompanhamento() {
-  return true;
 }
 
 export function falaForaDeVista(caixa: {
@@ -132,4 +112,24 @@ export function deveRolarAteAFalaAtiva(entrada: {
 
 export function teclaSaltaParaAFala(tecla: string) {
   return tecla === 'Enter' || tecla === ' ';
+}
+
+export function gestoDaRolagem(entrada: {
+  destino: number | null;
+  anterior: number;
+  agora: number;
+}) {
+  if (entrada.destino === null) {
+    return 'usuario' as const;
+  }
+
+  const depois = Math.abs(entrada.agora - entrada.destino);
+
+  if (depois <= 2) {
+    return 'chegou' as const;
+  }
+
+  const antes = Math.abs(entrada.anterior - entrada.destino);
+
+  return depois <= antes + 1 ? ('programa' as const) : ('usuario' as const);
 }

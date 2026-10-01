@@ -9,7 +9,8 @@ import {
   saltoDeTrintaSegundosParaFrente,
   saltoDeTrintaSegundosParaTras,
   velocidadeDoPlayer,
-  velocidadesDoPlayer
+  velocidadesDoPlayer,
+  formatarRelogio
 } from '../../apps/web/src/features/atendimentos/player.js';
 
 test('Player oferece 0,5×, 1×, 1,25×, 1,5× e 2×', () => {
@@ -102,6 +103,13 @@ test('busca na onda não sai do intervalo quando o ponteiro ou a faixa são inv�
 test('velocidade fora da lista cai em 1×', () => {
   assert.equal(velocidadeDoPlayer(1.25), 1.25);
   assert.equal(velocidadeDoPlayer(3), 1);
+});
+
+test('relógio do player não preenche o minuto e o da transcrição usa mm:ss', () => {
+  assert.equal(formatarRelogio(65), '1:05');
+  assert.equal(formatarRelogio(65, true), '01:05');
+  assert.equal(formatarRelogio(Number.NaN), '0:00');
+  assert.equal(formatarRelogio(-3, true), '00:00');
 });
 
 test('posição do áudio ignora NaN e não passa da duração', () => {

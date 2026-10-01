@@ -10,6 +10,7 @@ import {
 import { buscarObjetoDaMidia } from './api';
 import {
   barraContinuaVisivel,
+  formatarRelogio,
   instanteDaBuscaNaOnda,
   posicaoDoArraste,
   posicaoDoAudio,
@@ -21,18 +22,6 @@ import {
   type VelocidadeDoPlayer
 } from './player';
 
-function formatarTempo(segundos: number) {
-  if (!Number.isFinite(segundos) || segundos < 0) {
-    return '0:00';
-  }
-
-  const total = Math.floor(segundos);
-  const minutos = Math.floor(total / 60);
-  const resto = String(total % 60).padStart(2, '0');
-
-  return `${minutos}:${resto}`;
-}
-
 function rotuloDaVelocidade(velocidade: VelocidadeDoPlayer) {
   return `${String(velocidade).replace('.', ',')}×`;
 }
@@ -40,7 +29,7 @@ function rotuloDaVelocidade(velocidade: VelocidadeDoPlayer) {
 function RelogioDoAudio({ atual, duracao }: { atual: number; duracao: number }) {
   return (
     <span className="audio-time">
-      {formatarTempo(atual)} / {formatarTempo(duracao)}
+      {formatarRelogio(atual)} / {formatarRelogio(duracao)}
     </span>
   );
 }
@@ -135,7 +124,12 @@ function aplicarVelocidade(elemento: HTMLAudioElement | null, velocidade: Veloci
   }
 }
 
-export type BuscaDoPlayer = {
+export type ProgressoDoAudio = {
+  instante: number;
+  tocando: boolean;
+};
+
+export type SaltoDoPlayer = {
   id: number;
   segundos: number;
 };
@@ -143,11 +137,11 @@ export type BuscaDoPlayer = {
 export function PlayerDeAudio({
   caminho,
   onProgresso,
-  busca
+  salto
 }: {
   caminho: string;
-  onProgresso?: (progresso: { atual: number; tocando: boolean }) => void;
-  busca?: BuscaDoPlayer | null;
+  onProgresso?: (progresso: ProgressoDoAudio) => void;
+  salto?: SaltoDoPlayer | null;
 }) {
   const audio = useRef<HTMLAudioElement>(null);
   const playerPrincipal = useRef<HTMLDivElement>(null);
@@ -163,7 +157,7 @@ export function PlayerDeAudio({
   const [duracao, setDuracao] = useState(0);
   const [velocidade, setVelocidade] = useState<VelocidadeDoPlayer>(1);
   const [principalVisivel, setPrincipalVisivel] = useState(true);
-  const buscaAplicada = useRef<number | null>(null);
+  const saltoAplicado = useRef<number | null>(null);
   const audioPresente = Boolean(src);
   const mostrarBarra = barraContinuaVisivel({
     playerPrincipalForaDaTela: !principalVisivel,
@@ -235,11 +229,11 @@ export function PlayerDeAudio({
   }, [velocidade, src]);
 
   useEffect(() => {
-    onProgresso?.({ atual, tocando });
+    onProgresso?.({ instante: atual, tocando });
   }, [atual, tocando, onProgresso]);
 
   useEffect(() => {
-    if (!busca) {
+    if (!salto) {
       return;
     }
 
@@ -249,16 +243,16 @@ export function PlayerDeAudio({
       return;
     }
 
-    if (duracao > 0 && buscaAplicada.current === busca.id) {
+    if (duracao > 0 && saltoAplicado.current === salto.id) {
       return;
     }
 
-    aplicarDestino(busca.segundos, true);
+    aplicarDestino(salto.segundos, true);
 
     if (duracao > 0) {
-      buscaAplicada.current = busca.id;
+      saltoAplicado.current = salto.id;
     }
-  }, [busca, duracao, src]);
+  }, [salto, duracao, src]);
 
   useEffect(() => {
     return () => {
@@ -455,7 +449,7 @@ export function PlayerDeAudio({
           aria-valuemin={0}
           aria-valuemax={duracao || 0}
           aria-valuenow={Number.isFinite(atual) ? atual : 0}
-          aria-valuetext={formatarTempo(atual)}
+          aria-valuetext={formatarRelogio(atual)}
           tabIndex={0}
           style={{ '--progresso': progresso } as CSSProperties}
           onPointerDown={onPonteiroNaOnda}

@@ -2,22 +2,43 @@ import type { TurnoDaTranscricao } from '@hq-crion/contracts/atendimento';
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode
 } from 'react';
+import { PlayerDeAudio, type ProgressoDoAudio, type SaltoDoPlayer } from './PlayerDeAudio';
 import {
-  acompanhamentoAposRolagem,
   deveRolarAteAFalaAtiva,
   exibirVoltarAoMomentoAtual,
   falaForaDeVista,
+  gestoDaRolagem,
   indiceDoTurnoAtivo,
   inicioDaFalaEmSegundos,
-  retomarAcompanhamento,
   teclaSaltaParaAFala,
   tempoRelativoDaFala,
-  type OrigemDaRolagem
+  type TempoRelativoDaFala
 } from './transcricao';
+
+function ConteudoDoBalao({
+  rotulo,
+  tempo,
+  texto
+}: {
+  rotulo: string;
+  tempo: TempoRelativoDaFala;
+  texto: string;
+}) {
+  return (
+    <>
+      <div className="transcricao-meta" title={tempo.titulo}>
+        {rotulo} · {tempo.texto}
+      </div>
+      <p>{texto}</p>
+    </>
+  );
+}
 
 function medirForaDeVista(caixa: HTMLElement, fala: HTMLElement) {
   const caixaRect = caixa.getBoundingClientRect();
@@ -35,29 +56,36 @@ export function TranscricaoDoAtendimento({
   turnos,
   agente,
   iniciadoEm,
-  atual,
+  instante,
   tocando,
   onSeek
 }: {
   turnos: readonly TurnoDaTranscricao[];
   agente: string;
   iniciadoEm: string;
-  atual: number;
+  instante: number;
   tocando: boolean;
   onSeek: (segundos: number) => void;
 }) {
   const rolagemRef = useRef<HTMLDivElement>(null);
   const falasRef = useRef<Array<HTMLElement | null>>([]);
   const rolagemDePrograma = useRef(false);
+  const destinoPrograma = useRef<number | null>(null);
+  const scrollAnterior = useRef(0);
   const fimDaRolagemDePrograma = useRef(0);
   const [acompanhando, setAcompanhando] = useState(true);
   const [foraDeVista, setForaDeVista] = useState(false);
-  const inicios = turnos.map((turno) =>
-    inicioDaFalaEmSegundos({ quando: turno.quando, iniciadoEm })
+  const falas = useMemo(
+    () =>
+      turnos.map((turno) => ({
+        inicio: inicioDaFalaEmSegundos({ quando: turno.quando, iniciadoEm }),
+        tempo: tempoRelativoDaFala({ quando: turno.quando, iniciadoEm })
+      })),
+    [turnos, iniciadoEm]
   );
   const indiceAtivo = indiceDoTurnoAtivo(
-    inicios.map((inicio) => (inicio === undefined ? Number.NaN : inicio)),
-    atual
+    falas.map((fala) => (fala.inicio === undefined ? Number.NaN : fala.inicio)),
+    instante
   );
   const haFalaAtiva = indiceAtivo >= 0;
 
@@ -66,6 +94,12 @@ export function TranscricaoDoAtendimento({
     const fala = haFalaAtiva ? falasRef.current[indiceAtivo] : null;
 
     setForaDeVista(caixa && fala ? medirForaDeVista(caixa, fala) : false);
+  }
+
+  function encerrarRolagemDePrograma() {
+    rolagemDePrograma.current = false;
+    destinoPrograma.current = null;
+    window.clearTimeout(fimDaRolagemDePrograma.current);
   }
 
   function rolarAteAFalaAtiva() {
@@ -81,13 +115,15 @@ export function TranscricaoDoAtendimento({
     const delta = falaRect.top - caixaRect.top - (caixa.clientHeight - falaRect.height) / 2;
     const topo = Math.max(0, caixa.scrollTop + delta);
 
+    destinoPrograma.current = topo;
+    scrollAnterior.current = caixa.scrollTop;
     rolagemDePrograma.current = true;
     caixa.scrollTo({ top: topo, behavior: 'smooth' });
     window.clearTimeout(fimDaRolagemDePrograma.current);
     fimDaRolagemDePrograma.current = window.setTimeout(() => {
-      rolagemDePrograma.current = false;
+      encerrarRolagemDePrograma();
       atualizarForaDeVista();
-    }, 400);
+    }, 700);
   }
 
   useLayoutEffect(() => {
@@ -98,7 +134,7 @@ export function TranscricaoDoAtendimento({
     rolarAteAFalaAtiva();
 
     return () => {
-      window.clearTimeout(fimDaRolagemDePrograma.current);
+      encerrarRolagemDePrograma();
     };
   }, [indiceAtivo, tocando, acompanhando, haFalaAtiva]);
 
@@ -106,34 +142,50 @@ export function TranscricaoDoAtendimento({
     atualizarForaDeVista();
   }, [indiceAtivo, haFalaAtiva, turnos]);
 
-  function aoInteragir(origem: OrigemDaRolagem) {
-    if (origem === 'scroll' && rolagemDePrograma.current) {
-      setAcompanhando((atualAcompanhamento) =>
-        acompanhamentoAposRolagem('programa', atualAcompanhamento)
-      );
-      window.clearTimeout(fimDaRolagemDePrograma.current);
-      fimDaRolagemDePrograma.current = window.setTimeout(() => {
-        rolagemDePrograma.current = false;
-        atualizarForaDeVista();
-      }, 80);
+  function pausarAcompanhamento() {
+    encerrarRolagemDePrograma();
+    setAcompanhando(false);
+    atualizarForaDeVista();
+  }
+
+  function aoRolar() {
+    const caixa = rolagemRef.current;
+
+    if (!caixa) {
       return;
     }
 
-    if (origem !== 'scroll') {
-      rolagemDePrograma.current = false;
+    if (rolagemDePrograma.current) {
+      const gesto = gestoDaRolagem({
+        destino: destinoPrograma.current,
+        anterior: scrollAnterior.current,
+        agora: caixa.scrollTop
+      });
+      scrollAnterior.current = caixa.scrollTop;
+
+      if (gesto === 'programa') {
+        return;
+      }
+
+      encerrarRolagemDePrograma();
+
+      if (gesto === 'chegou') {
+        atualizarForaDeVista();
+        return;
+      }
     }
 
-    setAcompanhando((atualAcompanhamento) => acompanhamentoAposRolagem(origem, atualAcompanhamento));
+    setAcompanhando(false);
     atualizarForaDeVista();
   }
 
   function voltarAoMomentoAtual() {
-    setAcompanhando(retomarAcompanhamento());
+    setAcompanhando(true);
     rolarAteAFalaAtiva();
   }
 
   function saltar(indice: number) {
-    const inicio = inicios[indice];
+    const inicio = falas[indice]?.inicio;
 
     if (inicio === undefined) {
       return;
@@ -164,22 +216,17 @@ export function TranscricaoDoAtendimento({
         <div
           className="transcricao-rolagem"
           ref={rolagemRef}
-          onWheel={() => {
-            aoInteragir('wheel');
-          }}
-          onTouchMove={() => {
-            aoInteragir('touchmove');
-          }}
-          onScroll={() => {
-            aoInteragir('scroll');
-          }}
+          onWheel={pausarAcompanhamento}
+          onTouchMove={pausarAcompanhamento}
+          onScroll={aoRolar}
         >
           <div className="transcricao-colunas">
             {turnos.map((turno, index) => {
               const doAgente = turno.locutor === 'Agente de Voz';
-              const tempo = tempoRelativoDaFala({ quando: turno.quando, iniciadoEm });
+              const tempo = falas[index]?.tempo ?? { texto: turno.quando };
               const ativa = index === indiceAtivo;
               const rotulo = doAgente ? agente : 'Cliente';
+              const conteudo = <ConteudoDoBalao rotulo={rotulo} tempo={tempo} texto={turno.texto} />;
 
               return (
                 <article
@@ -200,12 +247,7 @@ export function TranscricaoDoAtendimento({
                   {doAgente ? (
                     <div className="transcricao-celula">
                       <span className="transcricao-trilho" aria-hidden="true" />
-                      <div>
-                        <div className="transcricao-meta" title={tempo.titulo}>
-                          {rotulo} · {tempo.texto}
-                        </div>
-                        <p>{turno.texto}</p>
-                      </div>
+                      <div>{conteudo}</div>
                     </div>
                   ) : (
                     <div />
@@ -214,12 +256,7 @@ export function TranscricaoDoAtendimento({
                     <div />
                   ) : (
                     <div className="transcricao-celula is-cliente">
-                      <div>
-                        <div className="transcricao-meta" title={tempo.titulo}>
-                          {rotulo} · {tempo.texto}
-                        </div>
-                        <p>{turno.texto}</p>
-                      </div>
+                      <div>{conteudo}</div>
                       <span className="transcricao-trilho" aria-hidden="true" />
                     </div>
                   )}
@@ -237,5 +274,51 @@ export function TranscricaoDoAtendimento({
         ) : null}
       </div>
     </section>
+  );
+}
+
+export function ReproducaoDoAtendimento({
+  caminho,
+  download,
+  turnos,
+  agente,
+  iniciadoEm,
+  children
+}: {
+  caminho: string;
+  download?: ReactNode;
+  turnos: readonly TurnoDaTranscricao[];
+  agente: string;
+  iniciadoEm: string;
+  children?: ReactNode;
+}) {
+  const [progresso, setProgresso] = useState<ProgressoDoAudio>({ instante: 0, tocando: false });
+  const [salto, setSalto] = useState<SaltoDoPlayer | null>(null);
+  const saltoId = useRef(0);
+
+  useEffect(() => {
+    setProgresso({ instante: 0, tocando: false });
+    setSalto(null);
+  }, [caminho]);
+
+  return (
+    <>
+      <div className="audio-faixa">
+        <PlayerDeAudio caminho={caminho} onProgresso={setProgresso} salto={salto} />
+        {download}
+      </div>
+      {children}
+      <TranscricaoDoAtendimento
+        turnos={turnos}
+        agente={agente}
+        iniciadoEm={iniciadoEm}
+        instante={progresso.instante}
+        tocando={progresso.tocando}
+        onSeek={(segundos) => {
+          saltoId.current += 1;
+          setSalto({ id: saltoId.current, segundos });
+        }}
+      />
+    </>
   );
 }

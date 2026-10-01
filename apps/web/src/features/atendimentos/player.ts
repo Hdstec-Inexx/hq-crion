@@ -16,6 +16,19 @@ export function reproducaoEmCurso({
   return iniciada && !encerrada;
 }
 
+export function formatarRelogio(segundos: number, minutosComDoisDigitos = false) {
+  if (!Number.isFinite(segundos) || segundos < 0) {
+    return minutosComDoisDigitos ? '00:00' : '0:00';
+  }
+
+  const total = Math.floor(segundos);
+  const minutos = Math.floor(total / 60);
+  const resto = String(total % 60).padStart(2, '0');
+  const textoMinutos = minutosComDoisDigitos ? String(minutos).padStart(2, '0') : String(minutos);
+
+  return `${textoMinutos}:${resto}`;
+}
+
 export function posicaoDoAudio(segundos: number, duracao: number) {
   if (!Number.isFinite(segundos) || segundos < 0) {
     return 0;
