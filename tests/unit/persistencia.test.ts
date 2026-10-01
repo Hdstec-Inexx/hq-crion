@@ -117,7 +117,8 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia e o boot', 
       '003_midia.sql',
       '004_tipo_da_midia.sql',
       '005_boot_e_custo_ausente.sql',
-      '006_resumo_e_falhas_da_ia.sql'
+      '006_resumo_e_falhas_da_ia.sql',
+      '07_funcao_persistir_avaliacao_da_ia.sql'
     ]
   );
 });
@@ -127,6 +128,44 @@ test('SKIP_SEED pula só a demonstração; a semente estrutural não recebe esse
   assert.equal(deveSemear({ skipSeed: false, jaSemeado: true }), false);
   assert.equal(deveSemear({ skipSeed: false, jaSemeado: false }), true);
   assert.equal(semearEstrutura.length, 1);
+});
+
+function sqlDePersistirAvaliacaoDaIa() {
+  const migracao = listarMigracoes().find(
+    (item) => item.nome === '07_funcao_persistir_avaliacao_da_ia.sql'
+  );
+  assert.ok(migracao, 'migration 07 ausente');
+  return migracao.sql.replace(/--[^\n]*/g, '');
+}
+
+test('persistir_avaliacao_da_ia troca a avaliação inteira sem colidir na chave dos critérios', () => {
+  const sql = sqlDePersistirAvaliacaoDaIa();
+  assert.match(
+    sql,
+    /CREATE OR REPLACE FUNCTION persistir_avaliacao_da_ia\s*\(\s*p_atendimento_id\s+text\s*,\s*p_nota\s+numeric\s*,\s*p_criterios\s+jsonb\s*,\s*p_resumo_atendimento\s+text\s+default\s+null\s*,\s*p_falhas_identificadas\s+jsonb\s+default\s+'\[\]'::jsonb\s*\)/i
+  );
+  const bloqueiaAtendimento = sql.search(
+    /FROM\s+hq_atendimento\b[\s\S]*FOR\s+UPDATE/i
+  );
+  const apagaCriterios = sql.search(/DELETE\s+FROM\s+hq_criterio_da_avaliacao_da_ia\b/i);
+  const apagaAvaliacao = sql.search(/DELETE\s+FROM\s+hq_avaliacao_da_ia\b/i);
+  const insereAvaliacao = sql.search(/INSERT\s+INTO\s+hq_avaliacao_da_ia\b/i);
+  const insereCriterios = sql.search(/INSERT\s+INTO\s+hq_criterio_da_avaliacao_da_ia\b/i);
+
+  assert.equal(bloqueiaAtendimento >= 0 && bloqueiaAtendimento < apagaCriterios, true);
+  assert.equal(apagaCriterios >= 0 && apagaCriterios < apagaAvaliacao, true);
+  assert.match(sql, /search_path\s*=\s*pg_catalog\s*,\s*public/i);
+  assert.equal(apagaAvaliacao < insereAvaliacao, true);
+  assert.equal(insereAvaliacao < insereCriterios, true);
+  assert.equal(/\bWITH\b/i.test(sql), false);
+  assert.match(sql, /WHERE\s+atendimento_id\s*=\s*p_atendimento_id/i);
+  assert.match(sql, /resumo_atendimento/);
+  assert.match(sql, /falhas_identificadas/);
+  assert.match(sql, /jsonb_array_elements\s*\(/i);
+  assert.match(
+    sql,
+    /ordem[\s\S]*chave[\s\S]*nome[\s\S]*estado[\s\S]*pontos[\s\S]*critico/i
+  );
 });
 
 test('as migrations não nomeiam sessão', () => {
@@ -179,9 +218,18 @@ test('segunda aplicação não repete a migration', async () => {
   const marco = vistos.length;
   await aplicarMigracoes(pool);
 
-    assert.equal(aplicadas.has('001_deposito_relacional.sql'), true);
-    assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
-    assert.equal(aplicadas.has('005_boot_e_custo_ausente.sql'), true);
+  assert.equal(aplicadas.has('001_deposito_relacional.sql'), true);
+  assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
+  assert.equal(aplicadas.has('005_boot_e_custo_ausente.sql'), true);
+  assert.equal(aplicadas.has('07_funcao_persistir_avaliacao_da_ia.sql'), true);
+  assert.equal(
+    vistos.filter((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')).length,
+    1
+  );
+  assert.equal(
+    vistos.slice(marco).some((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')),
+    false
+  );
   assert.equal(
     vistos.slice(marco).some((texto) => texto.includes('hq_perfil')),
     false
