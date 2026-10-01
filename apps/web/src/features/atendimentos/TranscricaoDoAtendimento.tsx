@@ -5,11 +5,13 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode
 } from 'react';
-import { PlayerDeAudio, type ProgressoDoAudio, type SaltoDoPlayer } from './PlayerDeAudio';
+import { PlayerDeAudio, type SaltoDoPlayer } from './PlayerDeAudio';
 import {
+  criarRelogioDoAudio,
   deveRolarAteAFalaAtiva,
   exibirVoltarAoMomentoAtual,
   falaForaDeVista,
@@ -18,6 +20,7 @@ import {
   inicioDaFalaEmSegundos,
   teclaSaltaParaAFala,
   tempoRelativoDaFala,
+  type RelogioDoAudio,
   type TempoRelativoDaFala
 } from './transcricao';
 
@@ -56,17 +59,18 @@ export function TranscricaoDoAtendimento({
   turnos,
   agente,
   iniciadoEm,
-  instante,
-  tocando,
+  relogio,
   onSeek
 }: {
   turnos: readonly TurnoDaTranscricao[];
   agente: string;
   iniciadoEm: string;
-  instante: number;
-  tocando: boolean;
+  relogio: RelogioDoAudio;
   onSeek: (segundos: number) => void;
 }) {
+  const quadro = useSyncExternalStore(relogio.assinar, relogio.ler, relogio.ler);
+  const instante = quadro.instante;
+  const tocando = quadro.tocando;
   const rolagemRef = useRef<HTMLDivElement>(null);
   const falasRef = useRef<Array<HTMLElement | null>>([]);
   const rolagemDePrograma = useRef(false);
@@ -292,19 +296,19 @@ export function ReproducaoDoAtendimento({
   iniciadoEm: string;
   children?: ReactNode;
 }) {
-  const [progresso, setProgresso] = useState<ProgressoDoAudio>({ instante: 0, tocando: false });
+  const relogio = useRef(criarRelogioDoAudio()).current;
   const [salto, setSalto] = useState<SaltoDoPlayer | null>(null);
   const saltoId = useRef(0);
 
   useEffect(() => {
-    setProgresso({ instante: 0, tocando: false });
+    relogio.definir({ instante: 0, tocando: false });
     setSalto(null);
-  }, [caminho]);
+  }, [caminho, relogio]);
 
   return (
     <>
       <div className="audio-faixa">
-        <PlayerDeAudio caminho={caminho} onProgresso={setProgresso} salto={salto} />
+        <PlayerDeAudio caminho={caminho} onProgresso={relogio.definir} salto={salto} />
         {download}
       </div>
       {children}
@@ -312,8 +316,7 @@ export function ReproducaoDoAtendimento({
         turnos={turnos}
         agente={agente}
         iniciadoEm={iniciadoEm}
-        instante={progresso.instante}
-        tocando={progresso.tocando}
+        relogio={relogio}
         onSeek={(segundos) => {
           saltoId.current += 1;
           setSalto({ id: saltoId.current, segundos });

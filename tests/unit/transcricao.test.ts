@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  criarRelogioDoAudio,
   deveRolarAteAFalaAtiva,
   exibirVoltarAoMomentoAtual,
   falaForaDeVista,
@@ -10,6 +11,29 @@ import {
   teclaSaltaParaAFala,
   tempoRelativoDaFala
 } from '../../apps/web/src/features/atendimentos/transcricao.js';
+
+test('relógio do áudio só avisa a transcrição quando o instante ou a reprodução mudam', () => {
+  const relogio = criarRelogioDoAudio();
+  let avisos = 0;
+  const cancelar = relogio.assinar(() => {
+    avisos += 1;
+  });
+  const parado = relogio.ler();
+
+  relogio.definir({ instante: 0, tocando: false });
+  assert.equal(avisos, 0);
+  assert.equal(relogio.ler(), parado);
+
+  relogio.definir({ instante: 12.4, tocando: true });
+  assert.equal(avisos, 1);
+  assert.deepEqual(relogio.ler(), { instante: 12.4, tocando: true });
+
+  relogio.definir({ instante: 12.4, tocando: true });
+  assert.equal(avisos, 1);
+  cancelar();
+  relogio.definir({ instante: 13, tocando: true });
+  assert.equal(avisos, 1);
+});
 
 test('tempo relativo da fala sai de iniciadoEm e do timestamp ISO do turno', () => {
   const tempo = tempoRelativoDaFala({

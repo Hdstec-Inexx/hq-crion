@@ -133,3 +133,42 @@ export function gestoDaRolagem(entrada: {
 
   return depois <= antes + 1 ? ('programa' as const) : ('usuario' as const);
 }
+
+export type QuadroDoAudio = {
+  instante: number;
+  tocando: boolean;
+};
+
+export type RelogioDoAudio = {
+  ler: () => QuadroDoAudio;
+  definir: (quadro: QuadroDoAudio) => void;
+  assinar: (ouvinte: () => void) => () => void;
+};
+
+const audioParado: QuadroDoAudio = { instante: 0, tocando: false };
+
+export function criarRelogioDoAudio(): RelogioDoAudio {
+  let quadro = audioParado;
+  const ouvintes = new Set<() => void>();
+
+  return {
+    ler: () => quadro,
+    definir(proximo) {
+      if (quadro.instante === proximo.instante && quadro.tocando === proximo.tocando) {
+        return;
+      }
+
+      quadro = proximo;
+
+      for (const ouvinte of ouvintes) {
+        ouvinte();
+      }
+    },
+    assinar(ouvinte) {
+      ouvintes.add(ouvinte);
+      return () => {
+        ouvintes.delete(ouvinte);
+      };
+    }
+  };
+}
