@@ -535,11 +535,18 @@ a.login-cta {
 }
 
 .audio-onda {
+  --progresso: 0%;
   flex: 1;
   height: 22px;
   border-radius: 6px;
-  background: repeating-linear-gradient(90deg, var(--cyan) 0 3px, transparent 3px 7px);
-  opacity: 0.85;
+  background: linear-gradient(
+    90deg,
+    var(--cyan) var(--progresso),
+    color-mix(in srgb, var(--cyan) 28%, var(--canvas)) var(--progresso)
+  );
+  mask-image: repeating-linear-gradient(90deg, #000 0 3px, transparent 3px 7px);
+  cursor: pointer;
+  touch-action: none;
   clip-path: polygon(
     0 40%,
     4% 20%,

@@ -28,8 +28,49 @@ export function posicaoDoAudio(segundos: number, duracao: number) {
   return Math.min(segundos, duracao);
 }
 
-export function saltoDeTrintaSegundos(atual: number, duracao: number) {
-  return posicaoDoAudio(posicaoDoAudio(atual, duracao) + 30, duracao);
+function duracaoUtil(duracao: number) {
+  return Number.isFinite(duracao) && duracao > 0 ? duracao : 0;
+}
+
+function dentroDoAudio(segundos: number, duracao: number) {
+  const teto = duracaoUtil(duracao);
+
+  if (teto === 0) {
+    return 0;
+  }
+
+  return posicaoDoAudio(segundos, teto);
+}
+
+function saltoDeTrintaSegundos(atual: number, duracao: number, deslocamento: number) {
+  return dentroDoAudio(dentroDoAudio(atual, duracao) + deslocamento, duracao);
+}
+
+export function saltoDeTrintaSegundosParaTras(atual: number, duracao: number) {
+  return saltoDeTrintaSegundos(atual, duracao, -30);
+}
+
+export function saltoDeTrintaSegundosParaFrente(atual: number, duracao: number) {
+  return saltoDeTrintaSegundos(atual, duracao, 30);
+}
+
+export function posicaoDoArraste(segundos: number, duracao: number, solto: boolean) {
+  const destino = dentroDoAudio(segundos, duracao);
+  const teto = duracaoUtil(duracao);
+
+  if (!solto && teto > 0 && destino >= teto) {
+    return Math.max(0, teto - Math.min(0.05, teto / 2));
+  }
+
+  return destino;
+}
+
+export function instanteDaBuscaNaOnda(deslocamento: number, largura: number, duracao: number) {
+  if (!Number.isFinite(deslocamento) || !Number.isFinite(largura) || largura <= 0) {
+    return 0;
+  }
+
+  return dentroDoAudio((deslocamento / largura) * duracao, duracao);
 }
 
 export function barraContinuaVisivel({
