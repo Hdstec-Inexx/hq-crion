@@ -3,6 +3,7 @@ import {
   caminhoDeMidiaPermitido,
   custoVisivelPara,
   downloadVisivelPara,
+  falhasIdentificadasDe,
   type AtendimentoDetalhe,
   type Avaliacao,
   type AvaliacaoDoCurador,
@@ -65,6 +66,11 @@ function PainelAvaliacao({
 }) {
   const aprovado = avaliacao.aprovacao === 'Aprovado';
   const doCurador = 'notaDaAvaliacaoDaIa' in avaliacao;
+  const resumo =
+    'resumo' in avaliacao && typeof avaliacao.resumo === 'string' ? avaliacao.resumo.trim() : '';
+  const falhas = falhasIdentificadasDe(
+    'falhasIdentificadas' in avaliacao ? avaliacao.falhasIdentificadas : []
+  );
 
   return (
     <section className="avaliacao-painel" aria-label={titulo}>
@@ -105,17 +111,16 @@ function PainelAvaliacao({
           <div className="avaliacao-note-col">
             <p className="panel-label">Resumo do Atendimento</p>
             <div className="avaliacao-resumo-scroll">
-              <p>{('resumo' in avaliacao && avaliacao.resumo) || 'Resumo não informado.'}</p>
+              <p>{resumo || 'Resumo não informado.'}</p>
             </div>
           </div>
           <div className="avaliacao-note-col">
             <p className="panel-label">Falhas Identificadas</p>
             <div className="avaliacao-falhas-scroll">
-              {'falhasIdentificadas' in avaliacao &&
-              (avaliacao.falhasIdentificadas?.length ?? 0) > 0 ? (
+              {falhas.length > 0 ? (
                 <ul>
-                  {avaliacao.falhasIdentificadas!.map((falha, index) => (
-                    <li key={index}>{falha}</li>
+                  {falhas.map((falha, index) => (
+                    <li key={`${index}:${falha}`}>{falha}</li>
                   ))}
                 </ul>
               ) : (

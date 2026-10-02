@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { aplicarMigracoes, listarMigracoes } from '../../apps/api/src/db/migrar.js';
 import { semearEstrutura } from '../../apps/api/src/db/semente-estrutural.js';
 import { motivoUltimoAdmin } from '../../packages/contracts/src/perfil.js';
@@ -166,6 +169,17 @@ test('persistir_avaliacao_da_ia troca a avaliação inteira sem colidir na chave
     sql,
     /ordem[\s\S]*chave[\s\S]*nome[\s\S]*estado[\s\S]*pontos[\s\S]*critico/i
   );
+});
+
+test('nó n8n grava resumo e falhas como parâmetros, sem interpolar texto', () => {
+  const raiz = join(dirname(fileURLToPath(import.meta.url)), '../../db/n8n');
+  const avaliacao = readFileSync(join(raiz, 'salva-avaliacao.sql'), 'utf8');
+
+  assert.match(
+    avaliacao,
+    /SELECT \* FROM persistir_avaliacao_da_ia\(\s*\$1::text,\s*\$2::numeric,\s*\$3::jsonb,\s*\$4::text,\s*\$5::jsonb\s*\)/
+  );
+  assert.equal(avaliacao.includes('{{'), false);
 });
 
 test('as migrations não nomeiam sessão', () => {

@@ -5,7 +5,8 @@ import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import {
   caminhoDeMidiaPermitido,
   custoVisivelPara,
-  downloadVisivelPara
+  downloadVisivelPara,
+  falhasIdentificadasDe
 } from '../../packages/contracts/src/atendimento.js';
 import {
   destinoDaLista,
@@ -849,6 +850,51 @@ test('POST /atendimentos/:id/avaliacao-da-ia grava resumo e falhas identificadas
     const detalhe = gravacao.json();
     assert.equal(detalhe.avaliacaoDaIa.resumo, 'Cliente solicitou boleto e foi orientado.');
     assert.deepEqual(detalhe.avaliacaoDaIa.falhasIdentificadas, ['Falta de confirmação de e-mail']);
+  } finally {
+    await app.close();
+  }
+});
+
+test('falha em branco ou JSON que não é lista não vira Falha Identificada', () => {
+  assert.deepEqual(falhasIdentificadasDe(['  ', 'Falta de confirmação de e-mail', '']), [
+    'Falta de confirmação de e-mail'
+  ]);
+  assert.deepEqual(falhasIdentificadasDe('["Protocolo não confirmado"]'), [
+    'Protocolo não confirmado'
+  ]);
+  assert.deepEqual(falhasIdentificadasDe('texto solto'), []);
+  assert.deepEqual(falhasIdentificadasDe([{ item: 'objeto' }, 1, '  ']), []);
+});
+
+test('POST /atendimentos/:id/avaliacao-da-ia descarta falha em branco', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'bruno.alves@crion');
+    const gravacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/avaliacao-da-ia',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        nota: 10,
+        resumo: '   ',
+        falhasIdentificadas: ['  ', ''],
+        criterios: [
+          {
+            nome: 'Saudação',
+            chave: 'saudacao',
+            estado: 'Atendido',
+            pontos: 1.0,
+            critico: false
+          }
+        ]
+      }
+    });
+
+    assert.equal(gravacao.statusCode, 200);
+    const detalhe = gravacao.json();
+    assert.equal(detalhe.avaliacaoDaIa.resumo, '');
+    assert.deepEqual(detalhe.avaliacaoDaIa.falhasIdentificadas, []);
   } finally {
     await app.close();
   }

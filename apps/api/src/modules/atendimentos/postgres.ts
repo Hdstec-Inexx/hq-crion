@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { CriterioAvaliado } from '@hq-crion/contracts/atendimento';
+import { falhasIdentificadasDe, type CriterioAvaliado } from '@hq-crion/contracts/atendimento';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import {
   aplicarConsultaDaListagem,
@@ -244,9 +244,7 @@ function montarRegistro(
           aprovacao: aprovacaoDaNota(notaIa),
           criterios: criteriosIa.get(linha.id) ?? [],
           resumo: linha.ia_resumo_atendimento ?? undefined,
-          falhasIdentificadas: Array.isArray(linha.ia_falhas_identificadas)
-            ? (linha.ia_falhas_identificadas as string[])
-            : []
+          falhasIdentificadas: falhasIdentificadasDe(linha.ia_falhas_identificadas)
         };
   const notaCurador =
     linha.nota_curador === null || linha.nota_curador === undefined
