@@ -9,9 +9,19 @@ function copiar(turno: TurnoDaTranscricao): TurnoDaTranscricao {
   return { locutor: turno.locutor, quando: turno.quando, texto: turno.texto };
 }
 
+function turnoSoDeFerramenta(turno: TurnoDaTranscricao) {
+  const linhas = turno.texto
+    .split('\n')
+    .map((linha) => linha.trim())
+    .filter(Boolean);
+
+  return linhas.length > 0 && linhas.every((linha) => linhaDeFerramenta(linha));
+}
+
 function indiceDaUltimaFalaDoAgente(turnos: readonly TurnoDaTranscricao[]) {
   for (let indice = turnos.length - 1; indice >= 0; indice -= 1) {
-    if (turnos[indice]?.locutor === 'Agente de Voz') {
+    const turno = turnos[indice];
+    if (turno?.locutor === 'Agente de Voz' && !turnoSoDeFerramenta(turno)) {
       return indice;
     }
   }
@@ -44,7 +54,10 @@ function incorporarFerramentas(
   return tela.map((turno) => {
     const indice = fonte.findIndex(
       (item, posicao) =>
-        posicao >= cursor && item.locutor === turno.locutor && item.quando === turno.quando
+        posicao >= cursor &&
+        item.locutor === turno.locutor &&
+        (item.quando === turno.quando || turno.quando === '—') &&
+        acrescentaLinhaDeFerramenta(turno.texto, item.texto)
     );
 
     if (indice < 0) {
@@ -54,11 +67,15 @@ function incorporarFerramentas(
     cursor = indice + 1;
     const daFonte = fonte[indice];
 
-    if (!daFonte || !acrescentaLinhaDeFerramenta(turno.texto, daFonte.texto)) {
+    if (!daFonte) {
       return copiar(turno);
     }
 
-    return { ...copiar(turno), texto: daFonte.texto };
+    return {
+      ...copiar(turno),
+      texto: daFonte.texto,
+      quando: turno.quando === '—' ? daFonte.quando : turno.quando
+    };
   });
 }
 
