@@ -1,4 +1,8 @@
-import type { TurnoDaTranscricao } from '@hq-crion/contracts/atendimento';
+import {
+  textoDaChamadaDeFerramenta,
+  textoDoResultadoDaFerramenta,
+  type TurnoDaTranscricao
+} from '@hq-crion/contracts/atendimento';
 import {
   administradoras,
   agentesDeVoz,
@@ -185,7 +189,7 @@ function linhasDeFerramenta(
 
     const nome = nomeDaFerramenta(chamada);
     if (nome) {
-      chamadas.push(`[Chamada de Ferramenta: ${nome}]`);
+      chamadas.push(textoDaChamadaDeFerramenta(nome));
     }
   }
 
@@ -193,18 +197,13 @@ function linhasDeFerramenta(
 
   for (const resultado of turno.tool_results ?? []) {
     const peloId = resultado.tool_call_id ? nomes.get(resultado.tool_call_id) : undefined;
-    const noMesmoTurno = turno.tool_calls?.find(
-      (chamada) => chamada.tool_call_id && chamada.tool_call_id === resultado.tool_call_id
-    );
-    const nome = nomeDaFerramenta(resultado) ?? peloId ?? (noMesmoTurno ? nomeDaFerramenta(noMesmoTurno) : undefined);
+    const nome = nomeDaFerramenta(resultado) ?? peloId;
 
     if (!nome) {
       continue;
     }
 
-    resultados.push(
-      `[Resultado da Ferramenta: ${nome} - ${resultadoFalhou(resultado) ? 'Falha' : 'Sucesso'}]`
-    );
+    resultados.push(textoDoResultadoDaFerramenta(nome, resultadoFalhou(resultado)));
   }
 
   return [...chamadas, ...resultados];

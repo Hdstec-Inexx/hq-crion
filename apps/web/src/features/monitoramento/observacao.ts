@@ -1,4 +1,9 @@
-import type { EventoDaObservacao, TurnoDaTranscricao } from '@hq-crion/contracts/atendimento';
+import {
+  linhaDeFerramenta,
+  textoSoDeFerramenta,
+  type EventoDaObservacao,
+  type TurnoDaTranscricao
+} from '@hq-crion/contracts/atendimento';
 
 export type ObservacaoDaTranscricao = {
   transcricao: TurnoDaTranscricao[];
@@ -10,12 +15,7 @@ function copiar(turno: TurnoDaTranscricao): TurnoDaTranscricao {
 }
 
 function turnoSoDeFerramenta(turno: TurnoDaTranscricao) {
-  const linhas = turno.texto
-    .split('\n')
-    .map((linha) => linha.trim())
-    .filter(Boolean);
-
-  return linhas.length > 0 && linhas.every((linha) => linhaDeFerramenta(linha));
+  return textoSoDeFerramenta(turno.texto);
 }
 
 function indiceDaUltimaFalaDoAgente(turnos: readonly TurnoDaTranscricao[]) {
@@ -27,13 +27,6 @@ function indiceDaUltimaFalaDoAgente(turnos: readonly TurnoDaTranscricao[]) {
   }
 
   return -1;
-}
-
-function linhaDeFerramenta(linha: string) {
-  const texto = linha.trim();
-  return (
-    texto.startsWith('[Chamada de Ferramenta:') || texto.startsWith('[Resultado da Ferramenta:')
-  );
 }
 
 function acrescentaLinhaDeFerramenta(atual: string, vindo: string) {

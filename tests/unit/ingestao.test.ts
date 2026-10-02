@@ -182,6 +182,40 @@ test('ao vivo usa a mesma transcrição de ferramenta', () => {
   );
 });
 
+test('nome alternativo e erro da fonte viram chamada e falha', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-apelidos',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Consultando.',
+        time_in_call_secs: 2,
+        tool_calls: [{ name: 'consultar_plano', tool_call_id: 'c1' }],
+        tool_results: [{ tool_call_id: 'c1', error: 'timeout' }]
+      },
+      {
+        role: 'agent',
+        message: 'De novo.',
+        time_in_call_secs: 4,
+        tool_calls: [{ toolName: 'outra' }],
+        tool_results: [{ toolName: 'outra', status: 'Falha' }]
+      }
+    ]
+  });
+
+  assert.equal(
+    atendimento?.transcricao[0]?.texto,
+    'Consultando.\n[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Falha]'
+  );
+  assert.equal(
+    atendimento?.transcricao[1]?.texto,
+    'De novo.\n[Chamada de Ferramenta: outra]\n[Resultado da Ferramenta: outra - Falha]'
+  );
+});
+
 test('turno só de ferramenta não entra no Tempo de Espera', () => {
   const atendimento = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-espera-ferramenta',

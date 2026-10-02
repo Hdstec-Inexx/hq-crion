@@ -1,3 +1,5 @@
+import { textoSoDeFerramenta } from '@hq-crion/contracts/atendimento';
+
 export function quandoDaFonte(segundos: number) {
   const total = Math.max(0, Math.floor(segundos));
   const minutos = Math.floor(total / 60);
@@ -63,20 +65,7 @@ function segundosDoTurno(turno: any): number | undefined {
 }
 
 function turnoSoDeFerramenta(turno: any) {
-  const texto = typeof turno?.texto === 'string' ? turno.texto : '';
-  const linhas = texto
-    .split('\n')
-    .map((linha: string) => linha.trim())
-    .filter(Boolean);
-
-  return (
-    linhas.length > 0 &&
-    linhas.every(
-      (linha: string) =>
-        linha.startsWith('[Chamada de Ferramenta:') ||
-        linha.startsWith('[Resultado da Ferramenta:')
-    )
-  );
+  return typeof turno?.texto === 'string' && textoSoDeFerramenta(turno.texto);
 }
 
 function ehCliente(turno: any): boolean {
