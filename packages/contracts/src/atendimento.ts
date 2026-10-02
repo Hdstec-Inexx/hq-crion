@@ -185,6 +185,21 @@ export function textoDoResultadoDaFerramenta(nome: string, falhou: boolean) {
   return `${prefixoDoResultadoDaFerramenta} ${nome} - ${falhou ? 'Falha' : 'Sucesso'}]`;
 }
 
+export function linhasDeFerramentaNoTexto(texto: string) {
+  return texto
+    .split('\n')
+    .map((linha) => linha.trim())
+    .filter((linha) => linhaDeFerramenta(linha));
+}
+
+export function falaDoTexto(texto: string) {
+  return texto
+    .split('\n')
+    .map((linha) => linha.trim())
+    .filter((linha) => linha.length > 0 && !linhaDeFerramenta(linha))
+    .join('\n');
+}
+
 export function linhaDeFerramenta(linha: string) {
   const texto = linha.trim();
   return (

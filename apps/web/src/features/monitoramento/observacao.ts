@@ -1,5 +1,6 @@
 import {
-  linhaDeFerramenta,
+  falaDoTexto,
+  linhasDeFerramentaNoTexto,
   textoSoDeFerramenta,
   type EventoDaObservacao,
   type TurnoDaTranscricao
@@ -29,13 +30,13 @@ function indiceDaUltimaFalaDoAgente(turnos: readonly TurnoDaTranscricao[]) {
   return -1;
 }
 
-function acrescentaLinhaDeFerramenta(atual: string, vindo: string) {
+function textoGanhaFerramenta(atual: string, vindo: string) {
   if (!vindo.startsWith(atual)) {
     return false;
   }
 
   const resto = vindo.slice(atual.length).trim();
-  return resto.length > 0 && resto.split('\n').every((linha) => linhaDeFerramenta(linha));
+  return resto.length > 0 && linhasDeFerramentaNoTexto(resto).length === resto.split('\n').filter(Boolean).length;
 }
 
 function incorporarFerramentas(
@@ -50,7 +51,7 @@ function incorporarFerramentas(
         posicao >= cursor &&
         item.locutor === turno.locutor &&
         (item.quando === turno.quando || turno.quando === '—') &&
-        acrescentaLinhaDeFerramenta(turno.texto, item.texto)
+        textoGanhaFerramenta(turno.texto, item.texto)
     );
 
     if (indice < 0) {
@@ -78,6 +79,61 @@ function mesmoTurno(a: TurnoDaTranscricao, b: TurnoDaTranscricao) {
 
 function mesmoInstante(a: TurnoDaTranscricao, b: TurnoDaTranscricao) {
   return a.locutor === b.locutor && a.quando === b.quando;
+}
+
+function abreAMesmaFala(
+  tela: readonly TurnoDaTranscricao[],
+  fonte: readonly TurnoDaTranscricao[]
+) {
+  const daTela = tela[0];
+  const daFonte = fonte[0];
+
+  if (!daTela || !daFonte || daTela.locutor !== daFonte.locutor) {
+    return false;
+  }
+
+  const falaDaTela = falaDoTexto(daTela.texto);
+  const falaDaFonte = falaDoTexto(daFonte.texto);
+
+  if (!falaDaTela || !falaDaFonte) {
+    return false;
+  }
+
+  return (
+    falaDaTela === falaDaFonte ||
+    falaDaTela.startsWith(falaDaFonte) ||
+    falaDaFonte.startsWith(falaDaTela)
+  );
+}
+
+function falaCoberta(base: readonly TurnoDaTranscricao[], turno: TurnoDaTranscricao) {
+  const fala = falaDoTexto(turno.texto);
+
+  return base.some((item) => {
+    if (item.locutor !== turno.locutor) {
+      return false;
+    }
+
+    const daFonte = falaDoTexto(item.texto);
+    return daFonte === fala || daFonte.startsWith(fala) || fala.startsWith(daFonte);
+  });
+}
+
+function adotarFonte(
+  tela: readonly TurnoDaTranscricao[],
+  fonte: readonly TurnoDaTranscricao[]
+) {
+  const base = fonte.map(copiar);
+
+  for (const turno of tela) {
+    if (falaCoberta(base, turno) || jaEstaNaTela(base, turno)) {
+      continue;
+    }
+
+    base.push(copiar(turno));
+  }
+
+  return base;
 }
 
 function jaEstaNaTela(tela: readonly TurnoDaTranscricao[], turno: TurnoDaTranscricao) {
@@ -186,6 +242,10 @@ export function mesclarTranscricao(
     return fonte.map(copiar);
   }
 
+  if (abreAMesmaFala(comFerramentas, fonte)) {
+    return adotarFonte(comFerramentas, fonte);
+  }
+
   return mesclarFragmento(comFerramentas, fonte);
 }
 
@@ -204,10 +264,7 @@ function corrigirUltimaFalaDoAgente(
       return copiar(turno);
     }
 
-    const linhas = turno.texto
-      .split('\n')
-      .map((linha) => linha.trim())
-      .filter((linha) => linhaDeFerramenta(linha));
+    const linhas = linhasDeFerramentaNoTexto(turno.texto);
 
     return { ...copiar(turno), texto: [texto, ...linhas].filter(Boolean).join('\n') };
   });
