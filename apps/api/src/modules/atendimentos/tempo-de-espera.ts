@@ -1,3 +1,5 @@
+import { textoSoDeFerramenta } from '@hq-crion/contracts/atendimento';
+
 export function quandoDaFonte(segundos: number) {
   const total = Math.max(0, Math.floor(segundos));
   const minutos = Math.floor(total / 60);
@@ -62,6 +64,10 @@ function segundosDoTurno(turno: any): number | undefined {
   return undefined;
 }
 
+function turnoSoDeFerramenta(turno: any) {
+  return typeof turno?.texto === 'string' && textoSoDeFerramenta(turno.texto);
+}
+
 function ehCliente(turno: any): boolean {
   if (!turno || typeof turno !== 'object') return false;
   const loc = String(turno.locutor ?? turno.role ?? turno.speaker ?? '').toLowerCase().trim();
@@ -81,12 +87,14 @@ export function tempoDeEsperaDaTranscricao(
     return undefined;
   }
 
-  const falasDoAgente = turnos
+  const falas = turnos.filter((turno) => !turnoSoDeFerramenta(turno));
+
+  const falasDoAgente = falas
     .filter(ehAgente)
     .map(segundosDoTurno)
     .filter((s): s is number => s !== undefined);
 
-  const primeiraDoCliente = turnos
+  const primeiraDoCliente = falas
     .filter(ehCliente)
     .map(segundosDoTurno)
     .find((s): s is number => s !== undefined);

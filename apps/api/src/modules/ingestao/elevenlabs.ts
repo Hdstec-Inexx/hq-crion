@@ -1,4 +1,8 @@
-import type { TurnoDaTranscricao } from '@hq-crion/contracts/atendimento';
+import {
+  textoDaChamadaDeFerramenta,
+  textoDoResultadoDaFerramenta,
+  type TurnoDaTranscricao
+} from '@hq-crion/contracts/atendimento';
 import {
   administradoras,
   agentesDeVoz,
@@ -22,13 +26,27 @@ export type PayloadElevenLabs = {
   termination_reason?: string;
   call_successful?: string;
   metadata?: { cost?: number; start_time_unix_secs?: number };
-  transcript?: {
-    role: string;
-    message?: string;
-    time_in_call_secs?: number;
-    tool_name?: string;
-    tool_calls?: { tool_name?: string }[];
-  }[];
+  transcript?: TurnoDaFonteElevenLabs[];
+};
+
+type FerramentaDaFonte = {
+  tool_name?: string;
+  name?: string;
+  toolName?: string;
+  tool_call_id?: string;
+  tool_has_been_called?: boolean;
+  is_error?: boolean;
+  error?: unknown;
+  status?: string;
+};
+
+type TurnoDaFonteElevenLabs = {
+  role: string;
+  message?: string;
+  time_in_call_secs?: number;
+  tool_name?: string;
+  tool_calls?: FerramentaDaFonte[];
+  tool_results?: FerramentaDaFonte[];
 };
 
 export type AtendimentoColetado = RegistroDeAtendimento & {
@@ -128,9 +146,75 @@ export function custoDaFonte(payload: PayloadElevenLabs) {
   return `R$ ${bruto.toFixed(2).replace('.', ',')}`;
 }
 
+function nomeDaFerramenta(item: FerramentaDaFonte) {
+  const nome = item.tool_name ?? item.name ?? item.toolName;
+  return typeof nome === 'string' && nome.trim() ? nome.trim() : undefined;
+}
+
+function nomesPorChamada(payload: PayloadElevenLabs) {
+  const nomes = new Map<string, string>();
+
+  for (const turno of payload.transcript ?? []) {
+    for (const chamada of turno.tool_calls ?? []) {
+      const nome = nomeDaFerramenta(chamada);
+      if (chamada.tool_call_id && nome) {
+        nomes.set(chamada.tool_call_id, nome);
+      }
+    }
+  }
+
+  return nomes;
+}
+
+function resultadoFalhou(resultado: FerramentaDaFonte) {
+  return (
+    resultado.is_error === true ||
+    Boolean(resultado.error) ||
+    resultado.status === 'error' ||
+    resultado.status === 'failure' ||
+    resultado.status === 'Falha'
+  );
+}
+
+function linhasDeFerramenta(
+  turno: TurnoDaFonteElevenLabs,
+  nomes: Map<string, string>
+) {
+  const chamadas: string[] = [];
+
+  for (const chamada of turno.tool_calls ?? []) {
+    if (chamada.tool_has_been_called === false) {
+      continue;
+    }
+
+    const nome = nomeDaFerramenta(chamada);
+    if (nome) {
+      chamadas.push(textoDaChamadaDeFerramenta(nome));
+    }
+  }
+
+  const resultados: string[] = [];
+
+  for (const resultado of turno.tool_results ?? []) {
+    const peloId = resultado.tool_call_id ? nomes.get(resultado.tool_call_id) : undefined;
+    const nome = nomeDaFerramenta(resultado) ?? peloId;
+
+    if (!nome) {
+      continue;
+    }
+
+    resultados.push(textoDoResultadoDaFerramenta(nome, resultadoFalhou(resultado)));
+  }
+
+  return [...chamadas, ...resultados];
+}
+
 function turnosDaFonte(payload: PayloadElevenLabs) {
+  const nomes = nomesPorChamada(payload);
+
   return (payload.transcript ?? []).flatMap((turno) => {
-    const texto = turno.message?.trim();
+    const fala = turno.message?.trim() ?? '';
+    const texto = [fala, ...linhasDeFerramenta(turno, nomes)].filter(Boolean).join('\n');
 
     if (!texto) {
       return [];
@@ -262,7 +346,8 @@ export function atendimentoDaFonteElevenLabs(
   const tempoDeEsperaEmSegundos = tempoDeEsperaDaTranscricao(
     transcricao.map((turno) => ({
       locutor: turno.locutor,
-      quando: turno.comTempo ? turno.quando : ''
+      quando: turno.comTempo ? turno.quando : '',
+      texto: turno.texto
     }))
   );
   const custo = custoDaFonte(payload);

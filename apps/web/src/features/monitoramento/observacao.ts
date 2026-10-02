@@ -1,4 +1,9 @@
-import type { EventoDaObservacao, TurnoDaTranscricao } from '@hq-crion/contracts/atendimento';
+import {
+  linhaDeFerramenta,
+  textoSoDeFerramenta,
+  type EventoDaObservacao,
+  type TurnoDaTranscricao
+} from '@hq-crion/contracts/atendimento';
 
 export type ObservacaoDaTranscricao = {
   transcricao: TurnoDaTranscricao[];
@@ -9,14 +14,62 @@ function copiar(turno: TurnoDaTranscricao): TurnoDaTranscricao {
   return { locutor: turno.locutor, quando: turno.quando, texto: turno.texto };
 }
 
+function turnoSoDeFerramenta(turno: TurnoDaTranscricao) {
+  return textoSoDeFerramenta(turno.texto);
+}
+
 function indiceDaUltimaFalaDoAgente(turnos: readonly TurnoDaTranscricao[]) {
   for (let indice = turnos.length - 1; indice >= 0; indice -= 1) {
-    if (turnos[indice]?.locutor === 'Agente de Voz') {
+    const turno = turnos[indice];
+    if (turno?.locutor === 'Agente de Voz' && !turnoSoDeFerramenta(turno)) {
       return indice;
     }
   }
 
   return -1;
+}
+
+function acrescentaLinhaDeFerramenta(atual: string, vindo: string) {
+  if (!vindo.startsWith(atual)) {
+    return false;
+  }
+
+  const resto = vindo.slice(atual.length).trim();
+  return resto.length > 0 && resto.split('\n').every((linha) => linhaDeFerramenta(linha));
+}
+
+function incorporarFerramentas(
+  tela: readonly TurnoDaTranscricao[],
+  fonte: readonly TurnoDaTranscricao[]
+) {
+  let cursor = 0;
+
+  return tela.map((turno) => {
+    const indice = fonte.findIndex(
+      (item, posicao) =>
+        posicao >= cursor &&
+        item.locutor === turno.locutor &&
+        (item.quando === turno.quando || turno.quando === '—') &&
+        acrescentaLinhaDeFerramenta(turno.texto, item.texto)
+    );
+
+    if (indice < 0) {
+      return copiar(turno);
+    }
+
+    cursor = indice + 1;
+    const daFonte = fonte[indice];
+
+    if (!daFonte) {
+      return copiar(turno);
+    }
+
+    return {
+      ...copiar(turno),
+      texto: daFonte.texto,
+      quando: turno.quando === '—' ? daFonte.quando : turno.quando
+    };
+  });
 }
 
 function mesmoTurno(a: TurnoDaTranscricao, b: TurnoDaTranscricao) {
@@ -127,11 +180,13 @@ export function mesclarTranscricao(
     return tela.map(copiar);
   }
 
-  if (tela.length === 0 || transcricaoInteiraDaFonte(tela, fonte)) {
+  const comFerramentas = incorporarFerramentas(tela, fonte);
+
+  if (comFerramentas.length === 0 || transcricaoInteiraDaFonte(comFerramentas, fonte)) {
     return fonte.map(copiar);
   }
 
-  return mesclarFragmento(tela, fonte);
+  return mesclarFragmento(comFerramentas, fonte);
 }
 
 function corrigirUltimaFalaDoAgente(
@@ -144,9 +199,18 @@ function corrigirUltimaFalaDoAgente(
     return turnos.map(copiar);
   }
 
-  return turnos.map((turno, posicao) =>
-    posicao === indice ? { ...copiar(turno), texto } : copiar(turno)
-  );
+  return turnos.map((turno, posicao) => {
+    if (posicao !== indice) {
+      return copiar(turno);
+    }
+
+    const linhas = turno.texto
+      .split('\n')
+      .map((linha) => linha.trim())
+      .filter((linha) => linhaDeFerramenta(linha));
+
+    return { ...copiar(turno), texto: [texto, ...linhas].filter(Boolean).join('\n') };
+  });
 }
 
 function acrescentarFala(

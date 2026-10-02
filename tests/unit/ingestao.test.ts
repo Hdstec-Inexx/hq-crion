@@ -5,6 +5,7 @@ import { avaliacaoDaIaTemVeredito } from '../../apps/api/src/modules/atendimento
 import {
   atendimentoDaFonteElevenLabs,
   coletarAtendimentosElevenLabs,
+  leituraAoVivoDaFonte,
   listarConversasElevenLabs
 } from '../../apps/api/src/modules/ingestao/elevenlabs.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
@@ -95,6 +96,146 @@ test('turnos sem tempo na fonte não inventam Tempo de Espera', () => {
   assert.equal(atendimento?.tempoDeEsperaEmSegundos, undefined);
   assert.equal(atendimento?.transcricao[0]?.quando, '—');
   assert.equal(atendimento?.audio, undefined);
+});
+
+test('transcrição traz chamada e resultado da ferramenta na fala do turno', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-ferramenta',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Vou consultar seu plano.',
+        time_in_call_secs: 8,
+        tool_calls: [{ tool_name: 'consultar_plano', tool_call_id: 'c1' }],
+        tool_results: [{ tool_call_id: 'c1', tool_name: 'consultar_plano', is_error: false }]
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transcricao.length, 1);
+  assert.equal(atendimento?.transcricao[0]?.locutor, 'Agente de Voz');
+  assert.equal(
+    atendimento?.transcricao[0]?.texto,
+    'Vou consultar seu plano.\n[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Sucesso]'
+  );
+});
+
+test('resultado fica no locutor do turno e chamada sem retorno não ganha veredito', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-resultado-cliente',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Vou consultar seu plano.',
+        time_in_call_secs: 8,
+        tool_calls: [
+          { tool_name: 'consultar_plano', tool_call_id: 'c1' },
+          { tool_name: 'ocultar', tool_has_been_called: false }
+        ]
+      },
+      {
+        role: 'user',
+        message: 'pode seguir',
+        time_in_call_secs: 12,
+        tool_results: [{ tool_call_id: 'c1', is_error: true }]
+      }
+    ]
+  });
+
+  assert.equal(
+    atendimento?.transcricao[0]?.texto,
+    'Vou consultar seu plano.\n[Chamada de Ferramenta: consultar_plano]'
+  );
+  assert.equal(atendimento?.transcricao[0]?.locutor, 'Agente de Voz');
+  assert.equal(
+    atendimento?.transcricao[1]?.texto,
+    'pode seguir\n[Resultado da Ferramenta: consultar_plano - Falha]'
+  );
+  assert.equal(atendimento?.transcricao[1]?.locutor, 'Cliente');
+});
+
+test('ao vivo usa a mesma transcrição de ferramenta', () => {
+  const leitura = leituraAoVivoDaFonte({
+    conversation_id: 'conv-ao-vivo',
+    agent_id: 'agent-fora',
+    agent_name: 'Clara Affix',
+    status: 'in-progress',
+    transcript: [
+      {
+        role: 'agent',
+        time_in_call_secs: 3,
+        tool_calls: [{ tool_name: 'consultar_plano', tool_has_been_called: true }],
+        tool_results: [{ tool_name: 'consultar_plano', status: 'failure' }]
+      }
+    ]
+  });
+
+  assert.equal(
+    leitura?.transcricao[0]?.texto,
+    '[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Falha]'
+  );
+});
+
+test('nome alternativo e erro da fonte viram chamada e falha', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-apelidos',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Consultando.',
+        time_in_call_secs: 2,
+        tool_calls: [{ name: 'consultar_plano', tool_call_id: 'c1' }],
+        tool_results: [{ tool_call_id: 'c1', error: 'timeout' }]
+      },
+      {
+        role: 'agent',
+        message: 'De novo.',
+        time_in_call_secs: 4,
+        tool_calls: [{ toolName: 'outra' }],
+        tool_results: [{ toolName: 'outra', status: 'Falha' }]
+      }
+    ]
+  });
+
+  assert.equal(
+    atendimento?.transcricao[0]?.texto,
+    'Consultando.\n[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Falha]'
+  );
+  assert.equal(
+    atendimento?.transcricao[1]?.texto,
+    'De novo.\n[Chamada de Ferramenta: outra]\n[Resultado da Ferramenta: outra - Falha]'
+  );
+});
+
+test('turno só de ferramenta não entra no Tempo de Espera', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-espera-ferramenta',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      { role: 'agent', message: 'Olá.', time_in_call_secs: 0 },
+      { role: 'user', message: 'Quero a rede.', time_in_call_secs: 5 },
+      {
+        role: 'agent',
+        time_in_call_secs: 8,
+        tool_calls: [{ tool_name: 'consultar_plano' }]
+      },
+      { role: 'agent', message: 'Encontrei.', time_in_call_secs: 20 }
+    ]
+  });
+
+  assert.equal(atendimento?.transcricao[2]?.texto, '[Chamada de Ferramenta: consultar_plano]');
+  assert.equal(atendimento?.tempoDeEsperaEmSegundos, 15);
 });
 
 test('ingestão não inventa Custo e só marca Transferência quando a ferramenta aparece na fonte', () => {

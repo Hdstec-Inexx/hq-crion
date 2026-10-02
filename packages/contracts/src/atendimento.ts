@@ -174,6 +174,34 @@ export const turnoDaTranscricaoSchema = z.object({
   texto: z.string().min(1)
 });
 
+const prefixoDaChamadaDeFerramenta = '[Chamada de Ferramenta:';
+const prefixoDoResultadoDaFerramenta = '[Resultado da Ferramenta:';
+
+export function textoDaChamadaDeFerramenta(nome: string) {
+  return `${prefixoDaChamadaDeFerramenta} ${nome}]`;
+}
+
+export function textoDoResultadoDaFerramenta(nome: string, falhou: boolean) {
+  return `${prefixoDoResultadoDaFerramenta} ${nome} - ${falhou ? 'Falha' : 'Sucesso'}]`;
+}
+
+export function linhaDeFerramenta(linha: string) {
+  const texto = linha.trim();
+  return (
+    texto.startsWith(prefixoDaChamadaDeFerramenta) ||
+    texto.startsWith(prefixoDoResultadoDaFerramenta)
+  );
+}
+
+export function textoSoDeFerramenta(texto: string) {
+  const linhas = texto
+    .split('\n')
+    .map((linha) => linha.trim())
+    .filter((linha) => linha.length > 0);
+
+  return linhas.length > 0 && linhas.every(linhaDeFerramenta);
+}
+
 export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
   audio: caminhoDeMidiaSchema.optional(),
   downloadDeAudio: caminhoDeMidiaSchema.optional(),
