@@ -1503,3 +1503,64 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
   fonte.emitir('close');
   assert.equal(JSON.parse(enviadosAoCliente.at(-1) ?? '').tipo, 'encerrada');
 });
+
+test('observação atualiza turno já visto com a ferramenta e a correção conserva a linha', () => {
+  const atualizada = observarTranscricao(
+    {
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '0:01', texto: 'Olá.' },
+        { locutor: 'Cliente', quando: '0:05', texto: 'pode seguir' },
+        { locutor: 'Agente de Voz', quando: '0:20', texto: 'Pronto.' },
+        { locutor: 'Agente de Voz', quando: '0:22', texto: 'Encontrei.' }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:01',
+          texto: 'Olá.\n[Chamada de Ferramenta: consultar_plano]'
+        },
+        {
+          locutor: 'Cliente',
+          quando: '0:05',
+          texto: 'pode seguir\n[Resultado da Ferramenta: consultar_plano - Sucesso]'
+        },
+        { locutor: 'Agente de Voz', quando: '0:20', texto: 'Pronto.' }
+      ]
+    }
+  );
+
+  assert.equal(atualizada.transcricao.length, 4);
+  assert.equal(
+    atualizada.transcricao[0]?.texto,
+    'Olá.\n[Chamada de Ferramenta: consultar_plano]'
+  );
+  assert.equal(
+    atualizada.transcricao[1]?.texto,
+    'pode seguir\n[Resultado da Ferramenta: consultar_plano - Sucesso]'
+  );
+  assert.equal(atualizada.transcricao[3]?.texto, 'Encontrei.');
+
+  const corrigida = aplicarEventoDaObservacao(
+    {
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:08',
+          texto:
+            'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Sucesso]'
+        }
+      ],
+      observando: true
+    },
+    { tipo: 'correcao', texto: 'Vou verificar seu plano.' }
+  );
+
+  assert.equal(
+    corrigida.transcricao[0]?.texto,
+    'Vou verificar seu plano.\n[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Sucesso]'
+  );
+});

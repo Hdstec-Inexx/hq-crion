@@ -62,6 +62,23 @@ function segundosDoTurno(turno: any): number | undefined {
   return undefined;
 }
 
+function turnoSoDeFerramenta(turno: any) {
+  const texto = typeof turno?.texto === 'string' ? turno.texto : '';
+  const linhas = texto
+    .split('\n')
+    .map((linha: string) => linha.trim())
+    .filter(Boolean);
+
+  return (
+    linhas.length > 0 &&
+    linhas.every(
+      (linha: string) =>
+        linha.startsWith('[Chamada de Ferramenta:') ||
+        linha.startsWith('[Resultado da Ferramenta:')
+    )
+  );
+}
+
 function ehCliente(turno: any): boolean {
   if (!turno || typeof turno !== 'object') return false;
   const loc = String(turno.locutor ?? turno.role ?? turno.speaker ?? '').toLowerCase().trim();
@@ -81,12 +98,14 @@ export function tempoDeEsperaDaTranscricao(
     return undefined;
   }
 
-  const falasDoAgente = turnos
+  const falas = turnos.filter((turno) => !turnoSoDeFerramenta(turno));
+
+  const falasDoAgente = falas
     .filter(ehAgente)
     .map(segundosDoTurno)
     .filter((s): s is number => s !== undefined);
 
-  const primeiraDoCliente = turnos
+  const primeiraDoCliente = falas
     .filter(ehCliente)
     .map(segundosDoTurno)
     .find((s): s is number => s !== undefined);

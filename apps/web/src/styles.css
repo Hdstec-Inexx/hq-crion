@@ -1026,6 +1026,7 @@ a.login-cta {
   font-size: 14px;
   line-height: 1.5;
   font-weight: 500;
+  white-space: pre-line;
 }
 
 @media (max-width: 900px) {

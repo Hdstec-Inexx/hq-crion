@@ -19,6 +19,49 @@ function indiceDaUltimaFalaDoAgente(turnos: readonly TurnoDaTranscricao[]) {
   return -1;
 }
 
+function linhaDeFerramenta(linha: string) {
+  const texto = linha.trim();
+  return (
+    texto.startsWith('[Chamada de Ferramenta:') || texto.startsWith('[Resultado da Ferramenta:')
+  );
+}
+
+function acrescentaLinhaDeFerramenta(atual: string, vindo: string) {
+  if (!vindo.startsWith(atual)) {
+    return false;
+  }
+
+  const resto = vindo.slice(atual.length).trim();
+  return resto.length > 0 && resto.split('\n').every((linha) => linhaDeFerramenta(linha));
+}
+
+function incorporarFerramentas(
+  tela: readonly TurnoDaTranscricao[],
+  fonte: readonly TurnoDaTranscricao[]
+) {
+  let cursor = 0;
+
+  return tela.map((turno) => {
+    const indice = fonte.findIndex(
+      (item, posicao) =>
+        posicao >= cursor && item.locutor === turno.locutor && item.quando === turno.quando
+    );
+
+    if (indice < 0) {
+      return copiar(turno);
+    }
+
+    cursor = indice + 1;
+    const daFonte = fonte[indice];
+
+    if (!daFonte || !acrescentaLinhaDeFerramenta(turno.texto, daFonte.texto)) {
+      return copiar(turno);
+    }
+
+    return { ...copiar(turno), texto: daFonte.texto };
+  });
+}
+
 function mesmoTurno(a: TurnoDaTranscricao, b: TurnoDaTranscricao) {
   return a.locutor === b.locutor && a.quando === b.quando && a.texto === b.texto;
 }
@@ -127,11 +170,13 @@ export function mesclarTranscricao(
     return tela.map(copiar);
   }
 
-  if (tela.length === 0 || transcricaoInteiraDaFonte(tela, fonte)) {
+  const comFerramentas = incorporarFerramentas(tela, fonte);
+
+  if (comFerramentas.length === 0 || transcricaoInteiraDaFonte(comFerramentas, fonte)) {
     return fonte.map(copiar);
   }
 
-  return mesclarFragmento(tela, fonte);
+  return mesclarFragmento(comFerramentas, fonte);
 }
 
 function corrigirUltimaFalaDoAgente(
@@ -144,9 +189,18 @@ function corrigirUltimaFalaDoAgente(
     return turnos.map(copiar);
   }
 
-  return turnos.map((turno, posicao) =>
-    posicao === indice ? { ...copiar(turno), texto } : copiar(turno)
-  );
+  return turnos.map((turno, posicao) => {
+    if (posicao !== indice) {
+      return copiar(turno);
+    }
+
+    const linhas = turno.texto
+      .split('\n')
+      .map((linha) => linha.trim())
+      .filter((linha) => linhaDeFerramenta(linha));
+
+    return { ...copiar(turno), texto: [texto, ...linhas].filter(Boolean).join('\n') };
+  });
 }
 
 function acrescentarFala(
