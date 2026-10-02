@@ -1412,6 +1412,54 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
     'correcao'
   );
   assert.equal(eventoDaMensagemDaFonte({ type: 'interruption' }), undefined);
+  assert.deepEqual(
+    eventoDaMensagemDaFonte({
+      type: 'agent_tool_request',
+      agent_tool_request: { tool_name: 'enviar_sms', tool_call_id: 'c1' }
+    }),
+    { tipo: 'fala', locutor: 'Agente de Voz', texto: '[Chamada de Ferramenta: enviar_sms]' }
+  );
+  assert.deepEqual(
+    eventoDaMensagemDaFonte({
+      type: 'agent_tool_response',
+      agent_tool_response: {
+        tool_name: 'enviar_sms',
+        tool_call_id: 'c1',
+        tool_type: 'webhook',
+        is_error: false,
+        event_id: 4,
+        is_called: true,
+        status: 'success'
+      }
+    }),
+    {
+      tipo: 'fala',
+      locutor: 'Agente de Voz',
+      texto: '[Resultado da Ferramenta: enviar_sms - Sucesso]'
+    }
+  );
+  assert.equal(
+    eventoDaMensagemDaFonte({
+      type: 'agent_tool_response',
+      agent_tool_response: {
+        tool_name: 'ocultar',
+        tool_call_id: 'c2',
+        tool_type: 'system',
+        is_error: false,
+        event_id: 5,
+        is_called: false,
+        status: 'skipped'
+      }
+    }),
+    undefined
+  );
+  assert.deepEqual(
+    eventoDaMensagemDaFonte({
+      type: 'client_tool_call',
+      client_tool_call: { tool_name: 'transfer_to_number', tool_call_id: 'c3', parameters: {} }
+    }),
+    { tipo: 'fala', locutor: 'Agente de Voz', texto: '[Chamada de Ferramenta: transfer_to_number]' }
+  );
   assert.equal(sessaoDaMensagem('{"tipo":"sessao","sessao":"abc"}'), 'abc');
   assert.equal(sessaoDaMensagem('{"type":"interrupt"}'), undefined);
 
@@ -1502,6 +1550,62 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
   assert.equal(enviadosAoCliente.some((item) => item.includes('segredo-da-fonte')), false);
   fonte.emitir('close');
   assert.equal(JSON.parse(enviadosAoCliente.at(-1) ?? '').tipo, 'encerrada');
+});
+
+test('pulso troca a fala longa do socket pela transcrição da fonte com ferramenta', () => {
+  const tela = observarTranscricao(
+    {
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '—',
+          texto: 'Aguarde um instante enquanto consulto aqui. Seu protocolo foi enviado.'
+        },
+        { locutor: 'Cliente', quando: '—', texto: 'Quero falar com a atendente.' },
+        {
+          locutor: 'Agente de Voz',
+          quando: '—',
+          texto: 'Vou te transferir para uma atendente agora.'
+        }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:05',
+          texto: 'Aguarde um instante enquanto consulto aqui.\n[Chamada de Ferramenta: enviar_sms]'
+        },
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:12',
+          texto: 'Seu protocolo foi enviado.\n[Resultado da Ferramenta: enviar_sms - Sucesso]'
+        },
+        { locutor: 'Cliente', quando: '0:40', texto: 'Quero falar com a atendente.' },
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:44',
+          texto:
+            'Vou te transferir para uma atendente agora.\n[Chamada de Ferramenta: transfer_to_number]\n[Resultado da Ferramenta: transfer_to_number - Sucesso]'
+        }
+      ]
+    }
+  );
+
+  assert.equal(tela.transcricao.length, 4);
+  assert.equal(tela.transcricao[0]?.quando, '0:05');
+  assert.equal(
+    tela.transcricao[0]?.texto,
+    'Aguarde um instante enquanto consulto aqui.\n[Chamada de Ferramenta: enviar_sms]'
+  );
+  assert.equal(
+    tela.transcricao[1]?.texto,
+    'Seu protocolo foi enviado.\n[Resultado da Ferramenta: enviar_sms - Sucesso]'
+  );
+  assert.equal(tela.transcricao[3]?.quando, '0:44');
+  assert.equal(tela.transcricao.filter((turno) => turno.quando === '—').length, 0);
 });
 
 test('pulso não duplica a fala do socket quando a fonte acrescenta a ferramenta', () => {
