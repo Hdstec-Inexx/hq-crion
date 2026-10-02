@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import test from 'node:test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test from 'node:test';
 import { aplicarMigracoes, listarMigracoes } from '../../apps/api/src/db/migrar.js';
 import { semearEstrutura } from '../../apps/api/src/db/semente-estrutural.js';
 import { motivoUltimoAdmin } from '../../packages/contracts/src/perfil.js';

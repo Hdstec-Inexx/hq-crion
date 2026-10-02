@@ -5,6 +5,7 @@ import {
   downloadVisivelPara,
   filaDeManutencaoResponseSchema,
   percursoDaFilaDeManutencaoSchema,
+  falhasIdentificadasDe,
   gravacaoDaAvaliacaoDaIaSchema,
   listagemResponseSchema,
   comentarioDaFilaSchema,
@@ -369,7 +370,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { id } = request.params as { id: string };
-    const resultado = await app.atendimentos.gravarAvaliacaoDaIa(id, lido.data);
+    const resultado = await app.atendimentos.gravarAvaliacaoDaIa(id, {
+      ...lido.data,
+      falhasIdentificadas: falhasIdentificadasDe(lido.data.falhasIdentificadas)
+    });
 
     if (resultado === 'ausente') {
       return reply.code(404).send({ statusCode: 404 });

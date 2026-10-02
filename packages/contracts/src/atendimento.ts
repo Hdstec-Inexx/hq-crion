@@ -110,6 +110,31 @@ export const criterioAvaliadoSchema = z.object({
   critico: z.boolean()
 });
 
+export function falhasIdentificadasDe(valor: unknown): string[] {
+  const bruto = typeof valor === 'string' ? jsonDeFalhas(valor) : valor;
+
+  if (!Array.isArray(bruto)) {
+    return [];
+  }
+
+  return bruto.flatMap((item) => {
+    if (typeof item !== 'string') {
+      return [];
+    }
+
+    const texto = item.trim();
+    return texto.length > 0 ? [texto] : [];
+  });
+}
+
+function jsonDeFalhas(texto: string): unknown {
+  try {
+    return JSON.parse(texto) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 export const avaliacaoSchema = z.object({
   nota: z.number(),
   aprovacao: z.enum(['Aprovado', 'Reprovado']),
