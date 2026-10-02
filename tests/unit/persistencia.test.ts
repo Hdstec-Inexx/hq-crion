@@ -171,10 +171,18 @@ test('persistir_avaliacao_da_ia troca a avaliação inteira sem colidir na chave
   );
 });
 
-test('nó n8n grava resumo e falhas como parâmetros, sem interpolar texto', () => {
+test('nós n8n regravam atendimento e avaliação com parâmetros, sem interpolar texto', () => {
   const raiz = join(dirname(fileURLToPath(import.meta.url)), '../../db/n8n');
+  const atendimento = readFileSync(join(raiz, 'salva-atendimento.sql'), 'utf8');
   const avaliacao = readFileSync(join(raiz, 'salva-avaliacao.sql'), 'utf8');
 
+  assert.match(atendimento, /ON CONFLICT \(id\) DO UPDATE SET/);
+  assert.match(atendimento, /status = EXCLUDED\.status/);
+  assert.match(atendimento, /duracao_em_segundos = EXCLUDED\.duracao_em_segundos/);
+  assert.match(atendimento, /transcricao = EXCLUDED\.transcricao/);
+  assert.match(atendimento, /audio = EXCLUDED\.audio/);
+  assert.match(atendimento, /tempo_de_espera_em_segundos = EXCLUDED\.tempo_de_espera_em_segundos/);
+  assert.equal(atendimento.includes('{{'), false);
   assert.match(
     avaliacao,
     /SELECT \* FROM persistir_avaliacao_da_ia\(\s*\$1::text,\s*\$2::numeric,\s*\$3::jsonb,\s*\$4::text,\s*\$5::jsonb\s*\)/

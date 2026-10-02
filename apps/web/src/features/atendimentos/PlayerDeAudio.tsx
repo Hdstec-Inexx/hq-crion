@@ -10,6 +10,7 @@ import {
 import { buscarObjetoDaMidia } from './api';
 import {
   barraContinuaVisivel,
+  formatarRelogio,
   instanteDaBuscaNaOnda,
   posicaoDoArraste,
   posicaoDoAudio,
@@ -21,18 +22,6 @@ import {
   type VelocidadeDoPlayer
 } from './player';
 
-function formatarTempo(segundos: number) {
-  if (!Number.isFinite(segundos) || segundos < 0) {
-    return '0:00';
-  }
-
-  const total = Math.floor(segundos);
-  const minutos = Math.floor(total / 60);
-  const resto = String(total % 60).padStart(2, '0');
-
-  return `${minutos}:${resto}`;
-}
-
 function rotuloDaVelocidade(velocidade: VelocidadeDoPlayer) {
   return `${String(velocidade).replace('.', ',')}×`;
 }
@@ -40,7 +29,7 @@ function rotuloDaVelocidade(velocidade: VelocidadeDoPlayer) {
 function RelogioDoAudio({ atual, duracao }: { atual: number; duracao: number }) {
   return (
     <span className="audio-time">
-      {formatarTempo(atual)} / {formatarTempo(duracao)}
+      {formatarRelogio(atual)} / {formatarRelogio(duracao)}
     </span>
   );
 }
@@ -135,7 +124,25 @@ function aplicarVelocidade(elemento: HTMLAudioElement | null, velocidade: Veloci
   }
 }
 
-export function PlayerDeAudio({ caminho }: { caminho: string }) {
+export type ProgressoDoAudio = {
+  instante: number;
+  tocando: boolean;
+};
+
+export type SaltoDoPlayer = {
+  id: number;
+  segundos: number;
+};
+
+export function PlayerDeAudio({
+  caminho,
+  onProgresso,
+  salto
+}: {
+  caminho: string;
+  onProgresso?: (progresso: ProgressoDoAudio) => void;
+  salto?: SaltoDoPlayer | null;
+}) {
   const audio = useRef<HTMLAudioElement>(null);
   const playerPrincipal = useRef<HTMLDivElement>(null);
   const onda = useRef<HTMLDivElement>(null);
@@ -150,6 +157,7 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
   const [duracao, setDuracao] = useState(0);
   const [velocidade, setVelocidade] = useState<VelocidadeDoPlayer>(1);
   const [principalVisivel, setPrincipalVisivel] = useState(true);
+  const saltoAplicado = useRef<number | null>(null);
   const audioPresente = Boolean(src);
   const mostrarBarra = barraContinuaVisivel({
     playerPrincipalForaDaTela: !principalVisivel,
@@ -221,6 +229,50 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
   }, [velocidade, src]);
 
   useEffect(() => {
+    onProgresso?.({ instante: atual, tocando });
+  }, [atual, tocando, onProgresso]);
+
+  useEffect(() => {
+    if (!salto) {
+      return;
+    }
+
+    const elemento = audio.current;
+
+    if (!elemento) {
+      return;
+    }
+
+    if (duracao > 0 && saltoAplicado.current === salto.id) {
+      return;
+    }
+
+    const encerrou = aplicarDestino(salto.segundos, true);
+
+    if (duracao <= 0) {
+      return;
+    }
+
+    saltoAplicado.current = salto.id;
+
+    if (encerrou) {
+      return;
+    }
+
+    aplicarVelocidade(elemento, velocidade);
+    void elemento.play().then(
+      () => {
+        setTocando(true);
+        setIniciada(true);
+        setEncerrada(false);
+      },
+      () => {
+        setTocando(false);
+      }
+    );
+  }, [salto, duracao, src, velocidade]);
+
+  useEffect(() => {
     return () => {
       if (quadroDoArraste.current !== 0) {
         cancelAnimationFrame(quadroDoArraste.current);
@@ -252,14 +304,18 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
     }
   }
 
-  function onSeek(segundos: number, solto = true) {
+  function aplicarDestino(segundos: number, solto: boolean) {
     const elemento = audio.current;
 
     if (!elemento) {
-      return;
+      return true;
     }
 
-    const destino = posicaoDoArraste(segundos, duracao, solto);
+    const destino =
+      duracao > 0
+        ? posicaoDoArraste(segundos, duracao, solto)
+        : Math.max(0, Number.isFinite(segundos) ? segundos : 0);
+
     elemento.currentTime = destino;
     setAtual(destino);
 
@@ -267,10 +323,15 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
       elemento.pause();
       setTocando(false);
       setEncerrada(true);
-      return;
+      return true;
     }
 
     setEncerrada(false);
+    return false;
+  }
+
+  function onSeek(segundos: number, solto = true) {
+    aplicarDestino(segundos, solto);
   }
 
   function onReproduzirClique() {
@@ -407,7 +468,7 @@ export function PlayerDeAudio({ caminho }: { caminho: string }) {
           aria-valuemin={0}
           aria-valuemax={duracao || 0}
           aria-valuenow={Number.isFinite(atual) ? atual : 0}
-          aria-valuetext={formatarTempo(atual)}
+          aria-valuetext={formatarRelogio(atual)}
           tabIndex={0}
           style={{ '--progresso': progresso } as CSSProperties}
           onPointerDown={onPonteiroNaOnda}
