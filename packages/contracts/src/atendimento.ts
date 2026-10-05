@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { detalheDaFerramentaSchema, resultadoDaChamadaSchema } from './ferramenta.js';
 import type { Papel } from './perfil.js';
 import { administradoraSchema, recorteSchema } from './recorte.js';
 
@@ -171,7 +172,8 @@ export const conferenciaRequestSchema = z.object({
 export const turnoDaTranscricaoSchema = z.object({
   locutor: z.enum(['Agente de Voz', 'Cliente']),
   quando: z.string().min(1),
-  texto: z.string().min(1)
+  texto: z.string().min(1),
+  detalhes: z.array(detalheDaFerramentaSchema).min(1).optional()
 });
 
 const prefixoDaChamadaDeFerramenta = '[Chamada de Ferramenta:';
@@ -321,7 +323,15 @@ export const eventoDaObservacaoSchema = z.discriminatedUnion('tipo', [
     texto: z.string().min(1).max(maximoDoTextoDaFala)
   }),
   z.object({ tipo: z.literal('encerrada') }),
-  z.object({ tipo: z.literal('erro') })
+  z.object({ tipo: z.literal('erro') }),
+  z.object({
+    tipo: z.literal('chamada'),
+    detalhe: detalheDaFerramentaSchema
+  }),
+  z.object({
+    tipo: z.literal('resultado'),
+    resultado: resultadoDaChamadaSchema
+  })
 ]);
 
 export type SessaoDaObservacao = z.infer<typeof sessaoDaObservacaoSchema>;

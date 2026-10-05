@@ -2,19 +2,19 @@ import {
   eventoDaObservacaoSchema,
   maximoDoTextoDaFala,
   sessaoDaObservacaoSchema,
-  textoDaChamadaDeFerramenta,
-  textoDoResultadoDaFerramenta,
   type EventoDaObservacao
 } from '@hq-crion/contracts/atendimento';
+import {
+  chamadaExecutada,
+  detalheDaChamada,
+  nomeDaFerramenta,
+  resultadoDaFonte,
+  type ItemDaFonte
+} from '../ferramenta/da-fonte.js';
 
 export const maximoDaMensagemDaFonte = 64_000;
 
-type FerramentaDaMensagem = {
-  tool_name?: string;
-  is_error?: boolean;
-  is_called?: boolean;
-  status?: string;
-};
+type FerramentaDaMensagem = ItemDaFonte;
 
 type MensagemDaFonte = {
   type?: string;
@@ -61,43 +61,28 @@ function textoDaFala(valor: unknown) {
   return texto.length > maximoDoTextoDaFala ? texto.slice(0, maximoDoTextoDaFala) : texto;
 }
 
-function nomeDaFerramentaDaMensagem(valor: FerramentaDaMensagem | undefined) {
-  const nome = valor?.tool_name?.trim();
-  return nome ? nome : undefined;
-}
-
-function chamadaNaoExecutada(valor: FerramentaDaMensagem) {
-  return valor.is_called === false || valor.status === 'skipped';
-}
-
-function resultadoFalhou(valor: FerramentaDaMensagem) {
-  return (
-    valor.is_error === true ||
-    valor.status === 'error' ||
-    valor.status === 'failure' ||
-    valor.status === 'Falha' ||
-    valor.status === 'blocked'
-  );
-}
-
-function falaDeFerramenta(mensagem: MensagemDaFonte) {
+function eventoDeFerramenta(mensagem: MensagemDaFonte): EventoDaObservacao | undefined {
   if (mensagem.type === 'agent_tool_request' || mensagem.type === 'client_tool_call') {
     const ferramenta =
       mensagem.type === 'agent_tool_request' ? mensagem.agent_tool_request : mensagem.client_tool_call;
-    const nome = nomeDaFerramentaDaMensagem(ferramenta);
-    if (!ferramenta || !nome || chamadaNaoExecutada(ferramenta)) {
+    const detalhe = ferramenta ? detalheDaChamada(ferramenta) : undefined;
+
+    if (!detalhe || !nomeDaFerramenta(ferramenta ?? {}) || !chamadaExecutada(ferramenta ?? {})) {
       return undefined;
     }
-    return textoDaChamadaDeFerramenta(nome);
+
+    return { tipo: 'chamada', detalhe };
   }
 
   if (mensagem.type === 'agent_tool_response') {
     const ferramenta = mensagem.agent_tool_response;
-    const nome = nomeDaFerramentaDaMensagem(ferramenta);
-    if (!ferramenta || !nome || chamadaNaoExecutada(ferramenta)) {
+    const resultado = ferramenta ? resultadoDaFonte(ferramenta) : undefined;
+
+    if (!resultado) {
       return undefined;
     }
-    return textoDoResultadoDaFerramenta(nome, resultadoFalhou(ferramenta));
+
+    return { tipo: 'resultado', resultado };
   }
 
   return undefined;
@@ -109,9 +94,9 @@ export function eventoDaMensagemDaFonte(bruto: unknown): EventoDaObservacao | un
   }
 
   const mensagem = bruto as MensagemDaFonte;
-  const ferramenta = falaDeFerramenta(mensagem);
+  const ferramenta = eventoDeFerramenta(mensagem);
   const candidato = ferramenta
-    ? { tipo: 'fala' as const, locutor: 'Agente de Voz' as const, texto: textoDaFala(ferramenta) }
+    ? ferramenta
     :
     mensagem.type === 'user_transcript'
       ? {
@@ -132,7 +117,11 @@ export function eventoDaMensagemDaFonte(bruto: unknown): EventoDaObservacao | un
             }
           : undefined;
 
-  if (!candidato?.texto) {
+  if (!candidato) {
+    return undefined;
+  }
+
+  if ((candidato.tipo === 'fala' || candidato.tipo === 'correcao') && !candidato.texto) {
     return undefined;
   }
 

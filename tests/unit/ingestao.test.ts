@@ -119,11 +119,13 @@ test('transcrição traz chamada e resultado da ferramenta na fala do turno', ()
   assert.equal(atendimento?.transcricao[0]?.locutor, 'Agente de Voz');
   assert.equal(
     atendimento?.transcricao[0]?.texto,
-    'Vou consultar seu plano.\n[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Sucesso]'
+    'Vou consultar seu plano.\n[Chamada de Ferramenta: consultar_plano]'
   );
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.nome, 'consultar_plano');
 });
 
-test('resultado fica no locutor do turno e chamada sem retorno não ganha veredito', () => {
+test('resultado completa o detalhe da chamada e não entra no turno seguinte', () => {
   const atendimento = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-resultado-cliente',
     agent_id: 'affix-0800',
@@ -153,10 +155,9 @@ test('resultado fica no locutor do turno e chamada sem retorno não ganha veredi
     'Vou consultar seu plano.\n[Chamada de Ferramenta: consultar_plano]'
   );
   assert.equal(atendimento?.transcricao[0]?.locutor, 'Agente de Voz');
-  assert.equal(
-    atendimento?.transcricao[1]?.texto,
-    'pode seguir\n[Resultado da Ferramenta: consultar_plano - Falha]'
-  );
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.veredito, 'Falha');
+  assert.equal(atendimento?.transcricao[1]?.texto, 'pode seguir');
+  assert.equal(atendimento?.transcricao[1]?.detalhes, undefined);
   assert.equal(atendimento?.transcricao[1]?.locutor, 'Cliente');
 });
 
@@ -176,10 +177,8 @@ test('ao vivo usa a mesma transcrição de ferramenta', () => {
     ]
   });
 
-  assert.equal(
-    leitura?.transcricao[0]?.texto,
-    '[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Falha]'
-  );
+  assert.equal(leitura?.transcricao[0]?.texto, '[Chamada de Ferramenta: consultar_plano]');
+  assert.equal(leitura?.transcricao[0]?.detalhes?.[0]?.veredito, 'Falha');
 });
 
 test('nome alternativo e erro da fonte viram chamada e falha', () => {
@@ -208,12 +207,12 @@ test('nome alternativo e erro da fonte viram chamada e falha', () => {
 
   assert.equal(
     atendimento?.transcricao[0]?.texto,
-    'Consultando.\n[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Falha]'
+    'Consultando.\n[Chamada de Ferramenta: consultar_plano]'
   );
-  assert.equal(
-    atendimento?.transcricao[1]?.texto,
-    'De novo.\n[Chamada de Ferramenta: outra]\n[Resultado da Ferramenta: outra - Falha]'
-  );
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.veredito, 'Falha');
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.resposta, 'timeout');
+  assert.equal(atendimento?.transcricao[1]?.texto, 'De novo.\n[Chamada de Ferramenta: outra]');
+  assert.equal(atendimento?.transcricao[1]?.detalhes?.[0]?.veredito, 'Falha');
 });
 
 test('turno só de ferramenta não entra no Tempo de Espera', () => {
@@ -264,6 +263,127 @@ test('ingestão não inventa Custo e só marca Transferência quando a ferrament
   assert.equal(semFato?.transferencia, false);
   assert.equal(comFato?.custo, 'R$ 1,50');
   assert.equal(comFato?.transferencia, true);
+  assert.equal(comFato?.transcricao[0]?.detalhes?.[0]?.tipo, 'Ferramenta');
+  assert.equal(comFato?.transcricao[0]?.detalhes?.[0]?.nome, 'transfer_to_number');
+});
+
+test('transferência não executada não vira fato nem detalhe', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-transfer-parada',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Vou transferir.',
+        tool_calls: [{ tool_name: 'transfer_to_number', tool_has_been_called: false }]
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transferencia, false);
+  assert.equal(atendimento?.transcricao[0]?.texto, 'Vou transferir.');
+  assert.equal(atendimento?.transcricao[0]?.detalhes, undefined);
+});
+
+test('procedimento mostra o nome da fonte e o resultado cola pelo índice', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-procedimento',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Vou consultar a rede.',
+        time_in_call_secs: 17,
+        conversation_turn_metrics: { convai_llm_service_ttfb: { elapsed_time: 1.3 } },
+        reasoning: 'O agente escolheu a rede odontológica.',
+        tool_calls: [
+          {
+            type: 'system',
+            tool_name: 'start_procedure',
+            params_as_json: '{"procedure_index":"7"}'
+          },
+          {
+            type: 'system',
+            tool_name: 'start_procedure',
+            params_as_json: '{"procedure_index":"9"}'
+          }
+        ],
+        tool_results: [
+          {
+            type: 'system',
+            tool_name: 'start_procedure',
+            tool_latency_secs: 0,
+            result_value:
+              '{"result_type":"start_procedure_success","procedure_index":"9","procedure_id":"agtprc_7101","procedure_name":"Consulta de Rede Odontológica"}'
+          }
+        ]
+      },
+      {
+        role: 'agent',
+        message: 'Encerro.',
+        time_in_call_secs: 40,
+        tool_calls: [{ tool_name: 'end_procedure', tool_call_id: 'fim' }]
+      }
+    ]
+  });
+
+  const detalhes = atendimento?.transcricao[0]?.detalhes;
+  assert.equal(detalhes?.length, 2);
+  assert.equal(detalhes?.[0]?.tipo, 'Procedimento');
+  assert.equal(detalhes?.[0]?.nome, '7');
+  assert.equal(detalhes?.[0]?.veredito, undefined);
+  assert.equal(detalhes?.[0]?.tempoNoAtendimento, '0:17');
+  assert.equal(detalhes?.[0]?.tempoDoLlm, '1,3 s');
+  assert.equal(detalhes?.[0]?.raciocinio, 'O agente escolheu a rede odontológica.');
+  assert.equal(detalhes?.[1]?.nome, 'Consulta de Rede Odontológica');
+  assert.equal(detalhes?.[1]?.idDoProcedimento, 'agtprc_7101');
+  assert.equal(detalhes?.[1]?.veredito, 'Sucesso');
+  assert.equal(detalhes?.[1]?.tempoDeExecucao, '0 ms');
+  assert.equal(detalhes?.[1]?.parametros, '{\n  "procedure_index": "9"\n}');
+  assert.equal(atendimento?.transcricao[1]?.detalhes?.[0]?.acao, 'encerrou');
+  assert.equal(atendimento?.transcricao[1]?.detalhes?.[0]?.nome, 'end_procedure');
+});
+
+test('fim de procedimento não completa o início que ainda está sem veredito', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-fim-procedimento',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Começo.',
+        tool_calls: [
+          {
+            tool_name: 'start_procedure',
+            params_as_json: '{"procedure_id":"agtprc_1","procedure_name":"Rede"}'
+          }
+        ]
+      },
+      {
+        role: 'agent',
+        message: 'Termino.',
+        tool_calls: [{ tool_name: 'end_procedure' }],
+        tool_results: [
+          {
+            tool_name: 'end_procedure',
+            result_value: '{"procedure_id":"agtprc_1","procedure_name":"Rede"}'
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.acao, 'iniciou');
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.veredito, undefined);
+  assert.equal(atendimento?.transcricao[1]?.detalhes?.[0]?.acao, 'encerrou');
+  assert.equal(atendimento?.transcricao[1]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(atendimento?.transcricao[1]?.detalhes?.[0]?.nome, 'Rede');
 });
 
 test('coleta grava o arquivo da fonte e omite o caminho quando ele não vem', async () => {

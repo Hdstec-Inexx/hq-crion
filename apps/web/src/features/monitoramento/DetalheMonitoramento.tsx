@@ -4,6 +4,7 @@ import type { Perfil } from '@hq-crion/contracts/perfil';
 import { destinoDaLista, lerRecorte } from '@hq-crion/contracts/recorte';
 import { useEffect, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
 import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { CorpoDoTurno } from '../atendimentos/DetalheDaFerramenta';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { lerSessao } from '../auth/sessao';
 import { buscarDetalheDoMonitoramento, lerEventoDaObservacao, urlDaObservacao } from './api';
@@ -342,7 +343,7 @@ export function DetalheMonitoramento() {
                               <div className="transcricao-meta">
                                 {atendimento.agente} · {turno.quando}
                               </div>
-                              <p>{turno.texto}</p>
+                              <CorpoDoTurno turno={turno} />
                             </div>
                           </div>
                         ) : (
@@ -354,7 +355,7 @@ export function DetalheMonitoramento() {
                           <div className="transcricao-celula is-cliente">
                             <div>
                               <div className="transcricao-meta">Cliente · {turno.quando}</div>
-                              <p>{turno.texto}</p>
+                              <CorpoDoTurno turno={turno} />
                             </div>
                             <span className="transcricao-trilho" aria-hidden="true" />
                           </div>

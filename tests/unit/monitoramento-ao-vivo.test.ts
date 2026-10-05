@@ -1417,7 +1417,15 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
       type: 'agent_tool_request',
       agent_tool_request: { tool_name: 'enviar_sms', tool_call_id: 'c1' }
     }),
-    { tipo: 'fala', locutor: 'Agente de Voz', texto: '[Chamada de Ferramenta: enviar_sms]' }
+    {
+      tipo: 'chamada',
+      detalhe: {
+        tipo: 'Ferramenta',
+        nome: 'enviar_sms',
+        nomeDaFerramenta: 'enviar_sms',
+        id: 'c1'
+      }
+    }
   );
   assert.deepEqual(
     eventoDaMensagemDaFonte({
@@ -1433,9 +1441,13 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
       }
     }),
     {
-      tipo: 'fala',
-      locutor: 'Agente de Voz',
-      texto: '[Resultado da Ferramenta: enviar_sms - Sucesso]'
+      tipo: 'resultado',
+      resultado: {
+        id: 'c1',
+        nome: 'enviar_sms',
+        veredito: 'Sucesso',
+        tipoDaFonte: 'webhook'
+      }
     }
   );
   assert.equal(
@@ -1458,7 +1470,16 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
       type: 'client_tool_call',
       client_tool_call: { tool_name: 'transfer_to_number', tool_call_id: 'c3', parameters: {} }
     }),
-    { tipo: 'fala', locutor: 'Agente de Voz', texto: '[Chamada de Ferramenta: transfer_to_number]' }
+    {
+      tipo: 'chamada',
+      detalhe: {
+        tipo: 'Ferramenta',
+        nome: 'transfer_to_number',
+        nomeDaFerramenta: 'transfer_to_number',
+        id: 'c3',
+        parametros: '{}'
+      }
+    }
   );
   assert.equal(sessaoDaMensagem('{"tipo":"sessao","sessao":"abc"}'), 'abc');
   assert.equal(sessaoDaMensagem('{"type":"interrupt"}'), undefined);
@@ -1632,6 +1653,81 @@ test('pulso não duplica a fala do socket quando a fonte acrescenta a ferramenta
     tela.transcricao[0]?.texto,
     'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]'
   );
+});
+
+test('resultado ao vivo completa o detalhe da chamada e não abre outro turno', () => {
+  const comChamada = aplicarEventoDaObservacao(
+    { transcricao: [], observando: true },
+    {
+      tipo: 'chamada',
+      detalhe: {
+        tipo: 'Ferramenta',
+        nome: 'transfer_to_number',
+        nomeDaFerramenta: 'transfer_to_number',
+        id: 'c3',
+        parametros: '{}'
+      }
+    }
+  );
+  const comResultado = aplicarEventoDaObservacao(comChamada, {
+    tipo: 'resultado',
+    resultado: { id: 'c3', nome: 'transfer_to_number', veredito: 'Sucesso', resposta: '{"ok":true}' }
+  });
+  const orfao = aplicarEventoDaObservacao(comResultado, {
+    tipo: 'resultado',
+    resultado: { nome: 'outra', veredito: 'Falha' }
+  });
+
+  assert.equal(orfao.transcricao.length, 1);
+  assert.equal(orfao.transcricao[0]?.texto, '[Chamada de Ferramenta: transfer_to_number]');
+  assert.equal(orfao.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(orfao.transcricao[0]?.detalhes?.[0]?.resposta, '{"ok":true}');
+});
+
+test('pulso atrasado não apaga o veredito que o ao vivo já completou', () => {
+  const tela = observarTranscricao(
+    {
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:08',
+          texto: 'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_plano',
+              nomeDaFerramenta: 'consultar_plano',
+              id: 'c1',
+              veredito: 'Sucesso',
+              resposta: '{"ok":true}'
+            }
+          ]
+        }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:08',
+          texto: 'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_plano',
+              nomeDaFerramenta: 'consultar_plano',
+              id: 'c1'
+            }
+          ]
+        }
+      ]
+    }
+  );
+
+  assert.equal(tela.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(tela.transcricao[0]?.detalhes?.[0]?.resposta, '{"ok":true}');
 });
 
 test('correção da fala não cai num turno que só tem ferramenta', () => {

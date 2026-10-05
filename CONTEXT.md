@@ -53,23 +53,35 @@ A janela de leitura em dias civis (America/Sao_Paulo). Nas listagens, sem data �
 _Avoid_: fim aberto, range
 
 **Atendimento**:
-Uma interação completa entre um Agente de Voz e um cliente, do início ao fim do contato. Pertence a um Agente de Voz, portanto a uma Administradora. O detalhe mostra fatos, transcrição, player e as duas Avaliações — não um thread de inbox. A transcrição inclui fala, Chamada de Ferramenta e Resultado da Ferramenta. Transcrição já gravada permanece como foi salva.
+Uma interação completa entre um Agente de Voz e um cliente, do início ao fim do contato. Pertence a um Agente de Voz, portanto a uma Administradora. O detalhe mostra fatos, transcrição, player e as duas Avaliações — não um thread de inbox. A transcrição inclui fala e Chamada de Ferramenta com seu Detalhe da Ferramenta. Transcrição já gravada permanece como foi salva, sem Detalhe da Ferramenta.
 _Avoid_: Conversa, ligação, chamada
 
 **Chamada de Ferramenta**:
-O registro, na transcrição, de que uma ferramenta foi acionada, identificado pelo nome. Não tem veredito. Chamada que a fonte marca como não executada não entra. Fica na fala do turno da fonte, depois do que foi dito. Turno sem fala entra só com essa linha.
+O registro, na transcrição, de uma execução que a fonte chamou. É **Procedimento** ou **Ferramenta**, e é o lugar do **Detalhe da Ferramenta**. Chamada que a fonte marca como não executada não entra. Fica na fala do turno da chamada, depois do que foi dito. Turno sem fala entra só com essa chamada.
 _Avoid_: tool call, execução, promessa
 
+**Procedimento**:
+A Chamada de Ferramenta que a fonte marca como início ou fim de procedimento, ou cujo conteúdo traz id ou nome de procedimento. O nome é o do procedimento; até ele chegar, vale o identificador que a fonte já mandou. Na linha, o Agente de Voz iniciou ou encerrou o procedimento. Nome e id no detalhe são de procedimento.
+_Avoid_: ferramenta, workflow
+
+**Ferramenta**:
+A Chamada de Ferramenta que não é Procedimento. Na linha, o Agente de Voz iniciou a ferramenta, pelo nome dela. Nome e id no detalhe são de ferramenta.
+_Avoid_: procedimento, tool
+
+**Detalhe da Ferramenta**:
+O que a fonte devolveu sobre uma Chamada de Ferramenta: nome, id, raciocínio, parâmetros, tempo de execução, resposta e o veredito Sucesso ou Falha. Campo que a fonte não enviou está ausente. O resultado completa esse mesmo detalhe. Admin, Gestão e Curador leem o detalhe.
+_Avoid_: payload, log da API
+
 **Resultado da Ferramenta**:
-O desfecho que a fonte devolveu para uma Chamada de Ferramenta: Sucesso ou Falha. Sem o conteúdo enviado e sem o texto do erro. Sem esse retorno, a transcrição não inventa Falha. Fica na fala do turno em que a fonte devolveu o desfecho, no locutor desse turno — inclusive o Cliente.
+O veredito dentro do Detalhe da Ferramenta: Sucesso ou Falha. Sem o retorno da fonte, a transcrição não inventa Falha. Com id da chamada, completa essa chamada. No Procedimento, sem esse id, completa a chamada do mesmo identificador de procedimento: id do procedimento, senão o índice, senão o nome. Na Ferramenta, sem id da chamada, completa a chamada ainda sem veredito e de mesmo nome, a mais antiga. Esgotada a regra, vale essa mais antiga pelo nome de ferramenta. Sem chamada correspondente, não há veredito.
 _Avoid_: promessa cumprida, retorno da API, payload
 
 **Transferência**:
-Fato do Atendimento: a ferramenta de transferência foi executada (contato passado a número ou humano). **Resolvido** neste HQ é o concluído sem Transferência. A ferramenta também aparece na transcrição como Chamada de Ferramenta e, se a fonte devolveu resultado, como Resultado da Ferramenta.
+Fato do Atendimento: a ferramenta de transferência foi executada (contato passado a número ou humano). Chamada que a fonte marca como não executada não é Transferência e não tem detalhe. **Resolvido** neste HQ é o concluído sem Transferência. Na transcrição e no Monitoramento ao Vivo é Ferramenta: a chamada executada tem Detalhe da Ferramenta, e dá para abri-lo, com o mesmo pareamento das outras Ferramentas. Não é Procedimento.
 _Avoid_: encaminhamento, drop
 
 **Tempo de Espera**:
-O intervalo, em segundos, entre a primeira fala do cliente e a segunda fala do Agente de Voz (a primeira fala do agente é a apresentação). Turno que só tem Chamada de Ferramenta ou Resultado da Ferramenta não é fala. Fica ausente quando faltam turnos ou tempos para calcular.
+O intervalo, em segundos, entre a primeira fala do cliente e a segunda fala do Agente de Voz (a primeira fala do agente é a apresentação). Turno que só tem Chamada de Ferramenta não é fala. Fica ausente quando faltam turnos ou tempos para calcular.
 _Avoid_: TME (média), fila, TMA
 
 **TMA**:
@@ -138,7 +150,7 @@ _Avoid_: inatividade, TME como card
 Percentual de Atendimentos concluídos no Recorte e no período **sem** Transferência.
 
 **Taxa de Promessas Cumpridas**:
-Percentual de ferramentas executadas com sucesso no Recorte e no período. O rótulo é o do pulso GEAP; o fato é sucesso de ferramentas, não “promessa verbal ao cliente”.
+Percentual de Chamadas de Ferramenta com Sucesso no Recorte e no período — Procedimento e Ferramenta. O rótulo é o do pulso GEAP; o fato é esse sucesso, não promessa verbal ao cliente.
 
 **Avaliados (IA × Curador)**:
 Quantos Atendimentos concluídos no Recorte e no período têm Avaliação da IA e quantos têm conferência do Curador.
@@ -150,7 +162,7 @@ _Avoid_: pct, o mesmo sentido de Acerto ou Concordância
 ### Operação
 
 **Monitoramento ao Vivo**:
-A observação em tempo real — somente texto, sem áudio — de Atendimentos ainda abertos, no pulso do GEAP. Observação recebida é a lista: as linhas entram e não há frase de falha de carga. Essa frase só existe quando a área não tem lista nenhuma — distinta de Recorte vazio e de fonte não configurada. A lista se atualiza enquanto a área está visível; se uma atualização falha, permanece a última lista boa. O detalhe mostra a transcrição que a fonte já devolveu — fala, Chamada de Ferramenta e Resultado da Ferramenta — sem cortar o início. Fala nova entra só se ainda não está na tela. Chamada ou Resultado que a fonte acrescenta a um turno já visto atualizam a fala desse turno. Correção da fala troca o que foi dito e conserva Chamada e Resultado já naquele turno. Sem transcrição ainda, espera a próxima fala. Quando o contato acaba, a observação encerra e o texto permanece. Na leitura consolidada (Administradora “Todas”) entram os ainda abertos que a fonte lista, tenham ou não **Agente de Voz** no catálogo. Contato com encerramento, desfecho ou duração parada não está aberto, mesmo que a fonte ainda diga em progresso. O **Recorte** é que restringe a uma Administradora ou a um Agente de Voz. Linha da lista exige o id da conversa e o id do agente; sem um dos dois, essa linha não existe e as outras ficam. Se não sobrar nenhuma, é Recorte vazio. O texto da linha é o nome. O início é o instante de começo que a fonte registra, em segundos; na linha aparece como dia/mês e hora, em America/Sao_Paulo. Sem esse instante, a linha é só o nome. Linha sem Agente no catálogo mostra o nome da fonte, ou o id se não houver nome. Se esse nome traz a Administradora, o Recorte dessa Administradora a inclui, e o Recorte de um Agente de Voz a inclui quando o nome da fonte contém o nome daquele agente. A linha continua sem Administradora. Sem esse nome, ela só aparece na leitura consolidada. Sem a fonte configurada, a área não observa: isso não é Recorte vazio. Na casca o rótulo é “Ao vivo”; o nome da área é este.
+A observação em tempo real — somente texto, sem áudio — de Atendimentos ainda abertos, no pulso do GEAP. Observação recebida é a lista: as linhas entram e não há frase de falha de carga. Essa frase só existe quando a área não tem lista nenhuma — distinta de Recorte vazio e de fonte não configurada. A lista se atualiza enquanto a área está visível; se uma atualização falha, permanece a última lista boa. O detalhe mostra a transcrição que a fonte já devolveu — fala e Chamada de Ferramenta com seu Detalhe da Ferramenta — sem cortar o início. Fala nova entra só se ainda não está na tela. Resultado que a fonte devolve completa o Detalhe da Ferramenta da chamada já na tela, mesmo que o evento chegue depois. Correção da fala troca o que foi dito e conserva a Chamada e o Detalhe já naquele turno. Sem transcrição ainda, espera a próxima fala. Quando o contato acaba, a observação encerra e o texto permanece. Na leitura consolidada (Administradora “Todas”) entram os ainda abertos que a fonte lista, tenham ou não **Agente de Voz** no catálogo. Contato com encerramento, desfecho ou duração parada não está aberto, mesmo que a fonte ainda diga em progresso. O **Recorte** é que restringe a uma Administradora ou a um Agente de Voz. Linha da lista exige o id da conversa e o id do agente; sem um dos dois, essa linha não existe e as outras ficam. Se não sobrar nenhuma, é Recorte vazio. O texto da linha é o nome. O início é o instante de começo que a fonte registra, em segundos; na linha aparece como dia/mês e hora, em America/Sao_Paulo. Sem esse instante, a linha é só o nome. Linha sem Agente no catálogo mostra o nome da fonte, ou o id se não houver nome. Se esse nome traz a Administradora, o Recorte dessa Administradora a inclui, e o Recorte de um Agente de Voz a inclui quando o nome da fonte contém o nome daquele agente. A linha continua sem Administradora. Sem esse nome, ela só aparece na leitura consolidada. Sem a fonte configurada, a área não observa: isso não é Recorte vazio. Na casca o rótulo é “Ao vivo”; o nome da área é este.
 _Avoid_: Supervisão (implica intervenção), Ao vivo (fora da casca)
 
 **Filtro de Nota da IA**:
