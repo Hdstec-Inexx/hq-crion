@@ -25,6 +25,17 @@ test('listagem com as duas datas observa o intervalo fechado', () => {
   );
 });
 
+test('um ano a partir de 29 de fevereiro termina em 28 de fevereiro', () => {
+  assert.deepEqual(
+    periodoDaListagem({ inicio: '2024-02-29', fim: '2025-02-28' }, agora),
+    { inicio: '2024-02-29', fim: '2025-02-28' }
+  );
+  assert.equal(
+    periodoDaListagem({ inicio: '2024-02-29', fim: '2025-03-01' }, agora),
+    undefined
+  );
+});
+
 test('listagem recusa só a final, inicial posterior à final, mais de um ano e data inválida', () => {
   assert.equal(periodoDaListagem({ fim: '2026-10-05' }, agora), undefined);
   assert.equal(

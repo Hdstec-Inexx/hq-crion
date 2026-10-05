@@ -261,10 +261,19 @@ function diaCivilValido(valor: string) {
   return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === valor;
 }
 
+function umAnoDepois(inicio: string) {
+  const [ano, mes, dia] = inicio.split('-').map(Number);
+  const limite = new Date(Date.UTC(ano + 1, mes - 1, dia));
+
+  if (limite.getUTCMonth() === mes - 1) {
+    return limite.toISOString().slice(0, 10);
+  }
+
+  return new Date(Date.UTC(ano + 1, mes, 0)).toISOString().slice(0, 10);
+}
+
 function cabeEmUmAno(inicio: string, fim: string) {
-  const limite = new Date(`${inicio}T00:00:00Z`);
-  limite.setUTCFullYear(limite.getUTCFullYear() + 1);
-  return fim <= limite.toISOString().slice(0, 10);
+  return fim <= umAnoDepois(inicio);
 }
 
 function parFechado(inicio: string, fim: string): PeriodoFechado | undefined {
