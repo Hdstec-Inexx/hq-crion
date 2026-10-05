@@ -233,6 +233,98 @@ export function destinoDoDetalheDoDashboard(
   return qs ? `/atendimentos/${id}?${qs}` : `/atendimentos/${id}`;
 }
 
+export type PeriodoFechado = { inicio: string; fim: string };
+
+const diaCivil = /^\d{4}-\d{2}-\d{2}$/;
+
+export function diaCivilEmSaoPaulo(referencia: Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(referencia);
+}
+
+export function periodoAteHoje(referencia: Date): PeriodoFechado {
+  const fim = diaCivilEmSaoPaulo(referencia);
+  return { inicio: `${fim.slice(0, 8)}01`, fim };
+}
+
+function diaCivilValido(valor: string) {
+  if (!diaCivil.test(valor)) {
+    return false;
+  }
+
+  const data = new Date(`${valor}T00:00:00Z`);
+
+  return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === valor;
+}
+
+function umAnoDepois(inicio: string) {
+  const [ano, mes, dia] = inicio.split('-').map(Number);
+  const limite = new Date(Date.UTC(ano + 1, mes - 1, dia));
+
+  if (limite.getUTCMonth() === mes - 1) {
+    return limite.toISOString().slice(0, 10);
+  }
+
+  return new Date(Date.UTC(ano + 1, mes, 0)).toISOString().slice(0, 10);
+}
+
+function cabeEmUmAno(inicio: string, fim: string) {
+  return fim <= umAnoDepois(inicio);
+}
+
+function parFechado(inicio: string, fim: string): PeriodoFechado | undefined {
+  if (!diaCivilValido(inicio) || !diaCivilValido(fim) || inicio > fim || !cabeEmUmAno(inicio, fim)) {
+    return undefined;
+  }
+
+  return { inicio, fim };
+}
+
+function texto(valor: string | null | undefined) {
+  return valor?.trim() ?? '';
+}
+
+export function periodoDaListagem(
+  query: { inicio?: string | null; fim?: string | null },
+  referencia = new Date()
+): PeriodoFechado | undefined {
+  const inicio = texto(query.inicio);
+  const fim = texto(query.fim);
+
+  if (!inicio && !fim) {
+    return periodoMesCivil(referencia);
+  }
+
+  if (inicio && !fim) {
+    return diaCivilValido(inicio) ? { inicio, fim: inicio } : undefined;
+  }
+
+  if (!inicio) {
+    return undefined;
+  }
+
+  return parFechado(inicio, fim);
+}
+
+export function periodoDoDashboard(
+  query: { inicio?: string | null; fim?: string | null },
+  referencia = new Date()
+): PeriodoFechado | undefined {
+  const inicio = texto(query.inicio);
+  const fim = texto(query.fim);
+  const fallback = periodoAteHoje(referencia);
+
+  if (!inicio && !fim) {
+    return fallback;
+  }
+
+  return parFechado(inicio || fallback.inicio, fim || fallback.fim);
+}
+
 export function periodoMesCivil(referencia: Date): { inicio: string; fim: string } {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',

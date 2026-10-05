@@ -13,10 +13,23 @@ import {
 } from '../../packages/contracts/src/dashboard.js';
 import { pulsoDoDashboard } from '../../apps/api/src/modules/dashboard/agregacao.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
-import { destinoDoKpi, destinoDoPainel } from '../../packages/contracts/src/recorte.js';
+import {
+  destinoDoKpi,
+  destinoDoPainel,
+  periodoAteHoje,
+  periodoMesCivil
+} from '../../packages/contracts/src/recorte.js';
 import { reguaDeAvaliacaoSchema } from '../../packages/contracts/src/regua.js';
 
 process.env.NODE_ENV = 'test';
+
+function mesCivilNaQuery(query = '') {
+  const { inicio, fim } = periodoMesCivil(new Date());
+  const params = new URLSearchParams(query);
+  params.set('inicio', inicio);
+  params.set('fim', fim);
+  return params.toString();
+}
 
 async function sessaoDe(
   app: Awaited<ReturnType<typeof buildApp>>,
@@ -172,7 +185,7 @@ test('agregados do Dashboard respeitam Recorte e batem com a lista', async () =>
   try {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const headers = { authorization: `Bearer ${sessao}` };
-    const recorte = 'administradora=Affix&agente=affix-0800';
+    const recorte = mesCivilNaQuery('administradora=Affix&agente=affix-0800');
     const dashboard = await app.inject({
       method: 'GET',
       url: `/dashboard?${recorte}`,
@@ -193,7 +206,7 @@ test('agregados do Dashboard respeitam Recorte e batem com a lista', async () =>
     assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
     assert.equal(kpi(body, 'notaMediaIa').valor, 8.5);
     assert.equal(kpi(body, 'aprovacao').valor, 100);
-    assert.equal(destinoDoKpi(body.recorte), `/atendimentos?${recorte}`);
+    assert.equal(destinoDoKpi(body.recorte, body.periodo), `/atendimentos?${recorte}`);
   } finally {
     await app.close();
   }
@@ -210,18 +223,22 @@ test('sem Recorte o Dashboard soma todas as Claras do período', async () => {
       url: '/dashboard',
       headers
     });
-    const lista = await app.inject({
-      method: 'GET',
-      url: '/atendimentos',
-      headers
-    });
 
     assert.equal(dashboard.statusCode, 200);
     const body = dashboardResponseSchema.parse(dashboard.json());
+    const hoje = periodoAteHoje(new Date());
+    assert.deepEqual(body.periodo, hoje);
     assert.deepEqual(body.recorte, { administradora: null, agente: null });
+    const lista = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?inicio=${hoje.inicio}&fim=${hoje.fim}`,
+      headers
+    });
     assert.equal(kpi(body, 'atendimentos').valor, lista.json().total);
-    assert.ok((kpi(body, 'atendimentos').valor ?? 0) > 1);
-    assert.equal(destinoDoKpi(body.recorte), '/atendimentos');
+    assert.equal(
+      destinoDoKpi(body.recorte, body.periodo),
+      `/atendimentos?inicio=${hoje.inicio}&fim=${hoje.fim}`
+    );
   } finally {
     await app.close();
   }
@@ -293,7 +310,7 @@ test('aprovação do Dashboard usa o limiar da Régua única', async () => {
   try {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const headers = { authorization: `Bearer ${sessao}` };
-    const recorte = 'administradora=Affix';
+    const recorte = mesCivilNaQuery('administradora=Affix');
     const regua = await app.inject({
       method: 'GET',
       url: '/regua',
@@ -330,12 +347,12 @@ test('pulso do Dashboard traz TMA, resolvidas, SLA e nulos sem fato', async () =
     const headers = { authorization: `Bearer ${sessao}` };
     const comFato = await app.inject({
       method: 'GET',
-      url: '/dashboard?administradora=Affix&agente=affix-0800',
+      url: `/dashboard?${mesCivilNaQuery('administradora=Affix&agente=affix-0800')}`,
       headers
     });
     const semConclusao = await app.inject({
       method: 'GET',
-      url: '/dashboard?administradora=Affix&agente=affix-wa',
+      url: `/dashboard?${mesCivilNaQuery('administradora=Affix&agente=affix-wa')}`,
       headers
     });
     const esperaForaDoSla = await app.inject({
@@ -384,7 +401,7 @@ test('painéis do Dashboard descrevem motivos, critérios e piores Atendimentos'
     const headers = { authorization: `Bearer ${sessao}` };
     const response = await app.inject({
       method: 'GET',
-      url: '/dashboard?administradora=Alter',
+      url: `/dashboard?${mesCivilNaQuery('administradora=Alter')}`,
       headers
     });
     const body = dashboardResponseSchema.parse(response.json());
@@ -414,7 +431,7 @@ test('Acerto por Critério expõe atendidos e aplicáveis consistentes com o per
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
-      url: '/dashboard?administradora=Alter',
+      url: `/dashboard?${mesCivilNaQuery('administradora=Alter')}`,
       headers: { authorization: `Bearer ${sessao}` }
     });
     const body = dashboardResponseSchema.parse(response.json());
@@ -458,7 +475,7 @@ test('Concordância por Critério expõe iguais e comparáveis consistentes com 
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
-      url: '/dashboard?administradora=Alter',
+      url: `/dashboard?${mesCivilNaQuery('administradora=Alter')}`,
       headers: { authorization: `Bearer ${sessao}` }
     });
     const body = dashboardResponseSchema.parse(response.json());

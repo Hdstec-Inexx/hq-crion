@@ -43,7 +43,8 @@ export async function buscarDashboard(query: URLSearchParams, signal?: AbortSign
   }
 
   if (response.status === 400) {
-    throw new Error('recorte-invalido');
+    const body = (await response.json().catch(() => null)) as { erro?: string } | null;
+    throw new Error(body?.erro === 'periodo' ? 'periodo-invalido' : 'recorte-invalido');
   }
 
   if (!response.ok) {

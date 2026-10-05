@@ -13,6 +13,11 @@ import { urlDaApi } from '../../urlDaApi';
 
 const apiUrl = urlDaApi();
 
+async function erroDeRecusa(response: Response) {
+  const body = (await response.json().catch(() => null)) as { erro?: string } | null;
+  return body?.erro === 'periodo' ? 'periodo-invalido' : 'recorte-invalido';
+}
+
 function queryDaListagem(query: URLSearchParams) {
   const limpa = new URLSearchParams(query);
   limpa.delete('lista');
@@ -46,7 +51,7 @@ export async function buscarAtendimentos(
   }
 
   if (response.status === 400) {
-    throw new Error('recorte-invalido');
+    throw new Error(await erroDeRecusa(response));
   }
 
   if (!response.ok) {
@@ -141,7 +146,7 @@ export async function buscarFilaDeManutencao(query: URLSearchParams, signal?: Ab
   }
 
   if (response.status === 400) {
-    throw new Error('recorte-invalido');
+    throw new Error(await erroDeRecusa(response));
   }
 
   if (!response.ok) {

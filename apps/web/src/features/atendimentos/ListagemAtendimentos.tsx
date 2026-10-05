@@ -46,7 +46,9 @@ export function ListagemAtendimentos({
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listagem, setListagem] = useState<ListagemResponse | null>(null);
-  const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | null>(null);
+  const [erro, setErro] = useState<'recorte-invalido' | 'periodo-invalido' | 'listagem' | null>(
+    null
+  );
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
@@ -72,7 +74,9 @@ export function ListagemAtendimentos({
         setErro(
           error instanceof Error && error.message === 'recorte-invalido'
             ? 'recorte-invalido'
-            : 'listagem'
+            : error instanceof Error && error.message === 'periodo-invalido'
+              ? 'periodo-invalido'
+              : 'listagem'
         );
       });
 
@@ -108,6 +112,11 @@ export function ListagemAtendimentos({
       {erro === 'recorte-invalido' ? (
         <p className="listagem-erro" role="alert">
           Este Recorte não é um par válido de Administradora e Agente de Voz.
+        </p>
+      ) : null}
+      {erro === 'periodo-invalido' ? (
+        <p className="listagem-erro" role="alert">
+          O período não pôde ser analisado. Confira as datas.
         </p>
       ) : null}
       {erro === 'listagem' ? (

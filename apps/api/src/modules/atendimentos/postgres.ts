@@ -317,16 +317,16 @@ async function lerRegistros(
   }
 ) {
   const query = entrada.query ?? {};
-  const periodo = periodoDaQuery(query);
   const modo = entrada.modo ?? 'todos';
+  const periodo = periodoDaQuery(query, modo === 'dashboard' ? 'dashboard' : 'listagem');
   const aplicarPeriodo = entrada.id ? false : modo !== 'monitoramento';
   const recorte = entrada.recorte ?? { administradora: null, agente: null };
   const resultado = await cliente.query(leituraSql, [
     recorte.administradora,
     recorte.agente,
     aplicarPeriodo,
-    aplicarPeriodo ? periodo.inicio : '1970-01-01',
-    aplicarPeriodo ? periodo.fim : '9999-12-31',
+    aplicarPeriodo ? (periodo?.inicio ?? '9999-12-31') : '1970-01-01',
+    aplicarPeriodo ? (periodo?.fim ?? '1970-01-01') : '9999-12-31',
     modo === 'fila' ? 'conclusao' : 'inicio',
     entrada.id ?? null
   ]);
@@ -444,8 +444,8 @@ async function registrosDeComentario(
       filtro?.recorte.administradora ?? null,
       filtro?.recorte.agente ?? null,
       Boolean(filtro),
-      periodo?.inicio ?? '1970-01-01',
-      periodo?.fim ?? '9999-12-31'
+      filtro ? (periodo?.inicio ?? '9999-12-31') : '1970-01-01',
+      filtro ? (periodo?.fim ?? '1970-01-01') : '9999-12-31'
     ]
   );
 
@@ -493,8 +493,8 @@ async function registrosPendentesDoPercurso(
       atendimentoId,
       recorte.administradora,
       recorte.agente,
-      periodo.inicio,
-      periodo.fim,
+      periodo?.inicio ?? '9999-12-31',
+      periodo?.fim ?? '1970-01-01',
       conversa || null
     ]
   );

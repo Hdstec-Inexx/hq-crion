@@ -17,7 +17,7 @@ import type { Papel } from '@hq-crion/contracts/perfil';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
-import { recorteDaQuery, type ModoDaListagem } from './filtros.js';
+import { periodoDaQuery, recorteDaQuery, type ModoDaListagem } from './filtros.js';
 import { paginaDaLista } from './pagina.js';
 import {
   aprovacaoDaNota,
@@ -169,8 +169,11 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     const query = request.query as Record<string, string | undefined>;
     const recorte = recorteDaQuery(query);
 
-    if (!recorte) {
-      return reply.code(400).send({ statusCode: 400 });
+    if (!recorte || !periodoDaQuery(query)) {
+      return reply.code(400).send({
+        statusCode: 400,
+        ...(recorte ? { erro: 'periodo' } : {})
+      });
     }
 
     const comIndicador = await app.atendimentos.consultarListagem(
@@ -220,8 +223,11 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     const query = request.query as Record<string, string | undefined>;
     const recorte = recorteDaQuery(query);
 
-    if (!recorte) {
-      return reply.code(400).send({ statusCode: 400 });
+    if (!recorte || !periodoDaQuery(query)) {
+      return reply.code(400).send({
+        statusCode: 400,
+        ...(recorte ? { erro: 'periodo' } : {})
+      });
     }
 
     const itens = (await app.atendimentos.consultarManutencao(recorte, query))
@@ -255,8 +261,11 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       typeof query.atendimento === 'string' ? query.atendimento.trim() : '';
     const recorte = recorteDaQuery(query);
 
-    if (!atendimentoId || atendimentoId.length > 200 || !recorte) {
-      return reply.code(400).send({ statusCode: 400 });
+    if (!atendimentoId || atendimentoId.length > 200 || !recorte || !periodoDaQuery(query)) {
+      return reply.code(400).send({
+        statusCode: 400,
+        ...(atendimentoId && atendimentoId.length <= 200 && recorte ? { erro: 'periodo' } : {})
+      });
     }
 
     const percurso = await app.atendimentos.consultarPercursoDaManutencao(

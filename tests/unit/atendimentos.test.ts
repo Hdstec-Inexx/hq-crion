@@ -578,21 +578,46 @@ test('listagem pagina de 50 em 50', async () => {
   }
 });
 
-test('período malformado não substitui o mês civil', async () => {
+test('listagem só com a inicial observa esse único dia', async () => {
   const app = await buildApp();
 
   try {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
-      url: '/atendimentos?inicio=2020-01-01&fim=nao-e-data',
+      url: '/atendimentos?inicio=2020-01-15',
       headers: { authorization: `Bearer ${sessao}` }
     });
 
     assert.equal(response.statusCode, 200);
-    const ids = response.json().itens.map((item: { id: string }) => item.id);
-    assert.ok(ids.includes('a1'));
-    assert.equal(ids.includes('a-fora'), false);
+    assert.deepEqual(
+      response.json().itens.map((item: { id: string }) => item.id),
+      ['a-fora']
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test('período recusado não produz leitura', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const headers = { authorization: `Bearer ${sessao}` };
+    const casos = [
+      '/atendimentos?inicio=2020-01-01&fim=nao-e-data',
+      '/atendimentos?fim=2020-01-15',
+      '/atendimentos?inicio=2020-02-01&fim=2020-01-15',
+      '/atendimentos?inicio=2020-01-01&fim=2021-01-02',
+      '/dashboard?inicio=2020-01-01&fim=2021-01-02'
+    ];
+
+    for (const url of casos) {
+      const response = await app.inject({ method: 'GET', url, headers });
+      assert.equal(response.statusCode, 400, url);
+      assert.equal(response.json().erro, 'periodo', url);
+    }
   } finally {
     await app.close();
   }
