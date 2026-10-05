@@ -36,7 +36,9 @@ export function FilaDeManutencao() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listagem, setListagem] = useState<FilaDeManutencaoResponse | null>(null);
-  const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | 'resolucao' | null>(null);
+  const [erro, setErro] = useState<
+    'recorte-invalido' | 'periodo-invalido' | 'listagem' | 'resolucao' | null
+  >(null);
   const [resolvendo, setResolvendo] = useState<string | null>(null);
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
@@ -63,7 +65,9 @@ export function FilaDeManutencao() {
         setErro(
           error instanceof Error && error.message === 'recorte-invalido'
             ? 'recorte-invalido'
-            : 'listagem'
+            : error instanceof Error && error.message === 'periodo-invalido'
+              ? 'periodo-invalido'
+              : 'listagem'
         );
       });
 
@@ -145,7 +149,15 @@ export function FilaDeManutencao() {
     }
   }
 
-  const periodoSubmetido = Boolean(searchParams.get('inicio') && searchParams.get('fim'));
+  const inicioNaQuery = searchParams.get('inicio') ?? '';
+  const fimNaQuery = searchParams.get('fim') ?? '';
+  const [inicioRascunho, setInicioRascunho] = useState(inicioNaQuery);
+  const [fimRascunho, setFimRascunho] = useState(fimNaQuery);
+
+  useEffect(() => {
+    setInicioRascunho(inicioNaQuery);
+    setFimRascunho(fimNaQuery);
+  }, [inicioNaQuery, fimNaQuery]);
 
   return (
     <div>
@@ -163,17 +175,25 @@ export function FilaDeManutencao() {
           <input
             name="inicio"
             type="date"
-            defaultValue={periodoSubmetido ? (searchParams.get('inicio') ?? '') : ''}
-            key={`inicio-${searchParams.get('inicio') ?? ''}`}
+            value={inicioRascunho}
+            onChange={(event) => {
+              const proximo = event.target.value;
+              setInicioRascunho(proximo);
+              if (!proximo) {
+                setFimRascunho('');
+              }
+            }}
           />
         </label>
         <label>
-          Data final
+          Data final (opcional)
           <input
             name="fim"
             type="date"
-            defaultValue={periodoSubmetido ? (searchParams.get('fim') ?? '') : ''}
-            key={`fim-${searchParams.get('fim') ?? ''}`}
+            min={inicioRascunho || undefined}
+            disabled={!inicioRascunho}
+            value={inicioRascunho ? fimRascunho : ''}
+            onChange={(event) => setFimRascunho(event.target.value)}
           />
         </label>
         <label>
@@ -201,6 +221,11 @@ export function FilaDeManutencao() {
       {erro === 'recorte-invalido' ? (
         <p className="listagem-erro" role="alert">
           Este Recorte não é um par válido de Administradora e Agente de Voz.
+        </p>
+      ) : null}
+      {erro === 'periodo-invalido' ? (
+        <p className="listagem-erro" role="alert">
+          O período não pôde ser analisado. Confira as datas.
         </p>
       ) : null}
       {erro === 'listagem' ? (

@@ -1,6 +1,11 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
-import { destinoDoKpi, escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
+import {
+  destinoDoKpi,
+  escreverRecorteNaQuery,
+  periodoAteHoje,
+  periodoDoDashboard
+} from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { RecorteCascata } from '../recorte/RecorteCascata';
@@ -12,10 +17,24 @@ export function DashboardPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
-  const [erro, setErro] = useState<'recorte-invalido' | 'dashboard' | null>(null);
+  const [erro, setErro] = useState<'recorte-invalido' | 'periodo-invalido' | 'dashboard' | null>(
+    null
+  );
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
+  const inicioInformado = searchParams.get('inicio') ?? '';
+  const fimInformado = searchParams.get('fim') ?? '';
+  const periodoResolvido = periodoDoDashboard({ inicio: inicioInformado, fim: fimInformado });
+  const inicioCampo = periodoResolvido?.inicio ?? inicioInformado;
+  const fimCampo = periodoResolvido?.fim ?? fimInformado;
+  const [inicioRascunho, setInicioRascunho] = useState(inicioCampo);
+  const [fimRascunho, setFimRascunho] = useState(fimCampo);
+
+  useEffect(() => {
+    setInicioRascunho(inicioCampo);
+    setFimRascunho(fimCampo);
+  }, [inicioCampo, fimCampo]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,7 +57,9 @@ export function DashboardPage() {
         setErro(
           error instanceof Error && error.message === 'recorte-invalido'
             ? 'recorte-invalido'
-            : 'dashboard'
+            : error instanceof Error && error.message === 'periodo-invalido'
+              ? 'periodo-invalido'
+              : 'dashboard'
         );
       });
 
@@ -70,6 +91,9 @@ export function DashboardPage() {
   }
 
   function limparPeriodo() {
+    const janela = periodoAteHoje(new Date());
+    setInicioRascunho(janela.inicio);
+    setFimRascunho(janela.fim);
     const proxima = new URLSearchParams(searchParams);
     proxima.delete('inicio');
     proxima.delete('fim');
@@ -92,8 +116,8 @@ export function DashboardPage() {
           <input
             name="inicio"
             type="date"
-            defaultValue={dashboard?.periodo.inicio ?? ''}
-            key={`inicio-${dashboard?.periodo.inicio ?? ''}`}
+            value={inicioRascunho}
+            onChange={(event) => setInicioRascunho(event.target.value)}
           />
         </label>
         <label>
@@ -101,8 +125,8 @@ export function DashboardPage() {
           <input
             name="fim"
             type="date"
-            defaultValue={dashboard?.periodo.fim ?? ''}
-            key={`fim-${dashboard?.periodo.fim ?? ''}`}
+            value={fimRascunho}
+            onChange={(event) => setFimRascunho(event.target.value)}
           />
         </label>
         <button type="submit">Aplicar</button>
@@ -113,6 +137,11 @@ export function DashboardPage() {
       {erro === 'recorte-invalido' ? (
         <p className="listagem-erro" role="alert">
           Este Recorte não é um par válido de Administradora e Agente de Voz.
+        </p>
+      ) : null}
+      {erro === 'periodo-invalido' ? (
+        <p className="listagem-erro" role="alert">
+          O período não pôde ser analisado. Confira as datas.
         </p>
       ) : null}
       {erro === 'dashboard' ? (

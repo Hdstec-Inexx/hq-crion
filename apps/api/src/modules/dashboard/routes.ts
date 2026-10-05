@@ -28,11 +28,15 @@ const dashboardRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ statusCode: 400 });
     }
 
+    const periodo = periodoDaQuery(query, 'dashboard');
+
+    if (!periodo) {
+      return reply.code(400).send({ statusCode: 400, erro: 'periodo' });
+    }
+
     const filtrados = await app.atendimentos.consultarDashboard(recorte, query);
 
-    return dashboardResponseSchema.parse(
-      pulsoDoDashboard(filtrados, recorte, periodoDaQuery(query))
-    );
+    return dashboardResponseSchema.parse(pulsoDoDashboard(filtrados, recorte, periodo));
   });
 };
 

@@ -3,7 +3,12 @@ import {
   notaIaDaQuery,
   statusDaCuradoria
 } from '@hq-crion/contracts/filtros-listagem';
-import { lerRecorte, periodoMesCivil } from '@hq-crion/contracts/recorte';
+import {
+  lerRecorte,
+  periodoDaListagem,
+  periodoDoDashboard,
+  type PeriodoFechado
+} from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
 import { reguaUnica } from '../regua/regua-unica.js';
 import { avaliacaoDaIaTemVeredito, type RegistroDeAtendimento } from './registro.js';
@@ -16,7 +21,6 @@ const formatadorDia = new Intl.DateTimeFormat('en-CA', {
   month: '2-digit',
   day: '2-digit'
 });
-const diaCivil = /^\d{4}-\d{2}-\d{2}$/;
 
 export function diaNoFuso(iso: string) {
   const parts = formatadorDia.formatToParts(new Date(iso));
@@ -40,21 +44,16 @@ export function recorteDaQuery(
   }
 }
 
-export function periodoDaQuery(query: Record<string, string | undefined>) {
-  const inicio = query.inicio;
-  const fim = query.fim;
+export function periodoDaQuery(
+  query: Record<string, string | undefined>,
+  superficie: 'listagem' | 'dashboard' = 'listagem',
+  referencia = new Date()
+): PeriodoFechado | undefined {
+  const pedido = { inicio: query.inicio, fim: query.fim };
 
-  if (
-    inicio &&
-    fim &&
-    diaCivil.test(inicio) &&
-    diaCivil.test(fim) &&
-    inicio <= fim
-  ) {
-    return { inicio, fim };
-  }
-
-  return periodoMesCivil(new Date());
+  return superficie === 'dashboard'
+    ? periodoDoDashboard(pedido, referencia)
+    : periodoDaListagem(pedido, referencia);
 }
 
 export function passaNoRecorte(
@@ -76,12 +75,13 @@ export function passaNoRecorteEPeriodo(
   item: RegistroDeAtendimento,
   recorte: ReturnType<typeof lerRecorte>,
   query: Record<string, string | undefined>,
-  quando: string
+  quando: string,
+  superficie: 'listagem' | 'dashboard' = 'listagem'
 ) {
-  const periodo = periodoDaQuery(query);
+  const periodo = periodoDaQuery(query, superficie);
   const dia = diaNoFuso(quando);
 
-  if (dia < periodo.inicio || dia > periodo.fim) {
+  if (!periodo || dia < periodo.inicio || dia > periodo.fim) {
     return false;
   }
 
@@ -254,5 +254,5 @@ export function passaNoDashboard(
   recorte: ReturnType<typeof lerRecorte>,
   query: Record<string, string | undefined>
 ) {
-  return passaNoRecorteEPeriodo(item, recorte, query, item.iniciadoEm);
+  return passaNoRecorteEPeriodo(item, recorte, query, item.iniciadoEm, 'dashboard');
 }

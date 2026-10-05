@@ -57,6 +57,11 @@ function passaNoFiltroDaFila(
   }
 
   const periodo = periodoDaQuery(query);
+
+  if (!periodo) {
+    return false;
+  }
+
   const dia = diaNoFuso(item.iniciadoEm);
   return dia >= periodo.inicio && dia <= periodo.fim;
 }
