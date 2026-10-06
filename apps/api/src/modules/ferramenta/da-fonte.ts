@@ -1,5 +1,7 @@
 import { maximoDoTextoDaFala } from '@hq-crion/contracts/atendimento';
 import {
+  acaoDoProcedimento,
+  ehFerramentaDeProcedimento,
   type DetalheDaFerramenta,
   type ResultadoDaChamada
 } from '@hq-crion/contracts/ferramenta';
@@ -189,7 +191,7 @@ function camposDoProcedimento(objeto: Record<string, unknown> | undefined) {
 }
 
 function procedimentoDe(nome: string, ...objetos: Array<Record<string, unknown> | undefined>) {
-  if (nome === 'start_procedure' || nome === 'end_procedure') {
+  if (ehFerramentaDeProcedimento(nome)) {
     return true;
   }
 
@@ -215,10 +217,12 @@ export function resultadoFalhou(item: ItemDaFonte) {
   );
 }
 
+export type DetalheDaChamada = DetalheDaFerramenta & { pendente?: boolean };
+
 export function detalheDaChamada(
   item: ItemDaFonte,
   contexto: ContextoDaChamada = {}
-): DetalheDaFerramenta | undefined {
+): DetalheDaChamada | undefined {
   const nomeDaFerramentaBruto = nomeDaFerramenta(item);
 
   if (!nomeDaFerramentaBruto || chamadaRecusada(item)) {
@@ -240,9 +244,7 @@ export function detalheDaChamada(
 
   return {
     tipo: procedimento ? 'Procedimento' : 'Ferramenta',
-    ...(procedimento
-      ? { acao: nomeDaFerramentaBruto === 'end_procedure' ? ('encerrou' as const) : ('iniciou' as const) }
-      : {}),
+    ...(procedimento ? { acao: acaoDoProcedimento(nomeDaFerramentaBruto) } : {}),
     nome,
     nomeDaFerramenta: nomeDaFerramentaBruto,
     ...(id ? { id } : {}),
@@ -252,7 +254,8 @@ export function detalheDaChamada(
     ...(parametros ? { parametros } : {}),
     ...(contexto.tempoNoAtendimento ? { tempoNoAtendimento: contexto.tempoNoAtendimento } : {}),
     ...(contexto.tempoDoLlm ? { tempoDoLlm: contexto.tempoDoLlm } : {}),
-    ...(tipoDaFonteDe(item) ? { tipoDaFonte: tipoDaFonteDe(item) } : {})
+    ...(tipoDaFonteDe(item) ? { tipoDaFonte: tipoDaFonteDe(item) } : {}),
+    ...(item.tool_has_been_called === false ? { pendente: true as const } : {})
   };
 }
 
@@ -265,7 +268,9 @@ function tipoDaFonteDe(item: ItemDaFonte) {
 export function resultadoDaFonte(item: ItemDaFonte): ResultadoDaChamada | undefined {
   const nome = nomeDaFerramenta(item);
 
-  if (!nome || !chamadaExecutada(item)) {
+  const id = (item.tool_call_id ?? item.request_id)?.trim() || undefined;
+
+  if ((!nome && !id) || !chamadaExecutada(item)) {
     return undefined;
   }
 
@@ -276,11 +281,9 @@ export function resultadoDaFonte(item: ItemDaFonte): ResultadoDaChamada | undefi
   const raciocinio = limitarTexto(raciocinioDe(item.reasoning) ?? raciocinioDe(item.thought));
   const tempo =
     typeof item.tool_latency_secs === 'number' ? textoDeDuracao(item.tool_latency_secs) : undefined;
-  const id = (item.tool_call_id ?? item.request_id)?.trim() || undefined;
-
   return {
     ...(id ? { id } : {}),
-    nome,
+    ...(nome ? { nome } : {}),
     ...(procedimento.nome ? { nomeDoProcedimento: procedimento.nome } : {}),
     ...(procedimento.id ? { idDoProcedimento: procedimento.id } : {}),
     ...(procedimento.indice ? { indiceDoProcedimento: procedimento.indice } : {}),

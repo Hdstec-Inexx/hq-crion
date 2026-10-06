@@ -20,7 +20,7 @@ export const detalheDaFerramentaSchema = z.object({
 
 export const resultadoDaChamadaSchema = z.object({
   id: z.string().min(1).optional(),
-  nome: z.string().min(1),
+  nome: z.string().min(1).optional(),
   nomeDoProcedimento: z.string().min(1).optional(),
   idDoProcedimento: z.string().min(1).optional(),
   indiceDoProcedimento: z.string().min(1).optional(),
@@ -29,7 +29,7 @@ export const resultadoDaChamadaSchema = z.object({
   tempoDeExecucao: z.string().min(1).optional(),
   tipoDaFonte: z.string().min(1).optional(),
   raciocinio: z.string().min(1).optional()
-});
+}).refine((resultado) => Boolean(resultado.nome || resultado.id));
 
 export type DetalheDaFerramenta = z.infer<typeof detalheDaFerramentaSchema>;
 export type ResultadoDaChamada = z.infer<typeof resultadoDaChamadaSchema>;
@@ -70,21 +70,27 @@ function nomeDePareamento(detalhe: DetalheDaFerramenta) {
   return detalhe.nomeDaFerramenta || detalhe.nome;
 }
 
+export function ehFerramentaDeProcedimento(nome: string | undefined) {
+  return nome === 'start_procedure' || nome === 'end_procedure';
+}
+
+export function acaoDoProcedimento(nome: string | undefined): 'iniciou' | 'encerrou' {
+  return nome === 'end_procedure' ? 'encerrou' : 'iniciou';
+}
+
 function compativelComOResultado(detalhe: DetalheDaFerramenta, resultado: ResultadoDaChamada) {
-  if (resultado.nome === 'start_procedure' || resultado.nome === 'end_procedure') {
-    return nomeDePareamento(detalhe) === resultado.nome;
+  if (!ehFerramentaDeProcedimento(resultado.nome)) {
+    return true;
   }
 
-  return true;
+  return nomeDePareamento(detalhe) === resultado.nome;
 }
 
 function resultadoDeProcedimento(resultado: ResultadoDaChamada) {
   return (
     Boolean(
       resultado.idDoProcedimento || resultado.indiceDoProcedimento || resultado.nomeDoProcedimento
-    ) ||
-    resultado.nome === 'start_procedure' ||
-    resultado.nome === 'end_procedure'
+    ) || ehFerramentaDeProcedimento(resultado.nome)
   );
 }
 
@@ -94,6 +100,10 @@ function indiceDoResultado(
 ) {
   if (resultado.id) {
     return detalhes.findIndex((detalhe) => detalhe.id === resultado.id);
+  }
+
+  if (!resultado.nome) {
+    return -1;
   }
 
   if (resultadoDeProcedimento(resultado)) {
@@ -144,10 +154,28 @@ function indiceDoResultado(
   );
 }
 
+function identificadorDoProcedimento(
+  detalhe: DetalheDaFerramenta,
+  resultado: ResultadoDaChamada
+) {
+  return (
+    resultado.nomeDoProcedimento ??
+    resultado.idDoProcedimento ??
+    resultado.indiceDoProcedimento ??
+    detalhe.idDoProcedimento ??
+    detalhe.indiceDoProcedimento
+  );
+}
+
 function completar(detalhe: DetalheDaFerramenta, resultado: ResultadoDaChamada): DetalheDaFerramenta {
+  const nome =
+    ehFerramentaDeProcedimento(detalhe.nomeDaFerramenta) && detalhe.nome === detalhe.nomeDaFerramenta
+      ? identificadorDoProcedimento(detalhe, resultado) ?? detalhe.nome
+      : resultado.nomeDoProcedimento ?? detalhe.nome;
+
   return {
     ...detalhe,
-    ...(resultado.nomeDoProcedimento ? { nome: resultado.nomeDoProcedimento } : {}),
+    nome,
     ...(resultado.idDoProcedimento ? { idDoProcedimento: resultado.idDoProcedimento } : {}),
     ...(resultado.indiceDoProcedimento
       ? { indiceDoProcedimento: resultado.indiceDoProcedimento }
@@ -156,7 +184,32 @@ function completar(detalhe: DetalheDaFerramenta, resultado: ResultadoDaChamada):
     ...(resultado.tempoDeExecucao ? { tempoDeExecucao: resultado.tempoDeExecucao } : {}),
     ...(resultado.tipoDaFonte ? { tipoDaFonte: resultado.tipoDaFonte } : {}),
     ...(resultado.raciocinio ? { raciocinio: resultado.raciocinio } : {}),
-    ...(resultado.nome === 'end_procedure' ? { acao: 'encerrou' as const } : {}),
+    ...(ehFerramentaDeProcedimento(resultado.nome) ? { acao: acaoDoProcedimento(resultado.nome) } : {}),
+    veredito: resultado.veredito
+  };
+}
+
+export function detalheDoResultado(resultado: ResultadoDaChamada): DetalheDaFerramenta | undefined {
+  if (!resultado.nome) {
+    return undefined;
+  }
+
+  const procedimento =
+    ehFerramentaDeProcedimento(resultado.nome) ||
+    Boolean(resultado.idDoProcedimento || resultado.nomeDoProcedimento || resultado.indiceDoProcedimento);
+
+  return {
+    tipo: procedimento ? 'Procedimento' : 'Ferramenta',
+    ...(procedimento ? { acao: acaoDoProcedimento(resultado.nome) } : {}),
+    nome: resultado.nomeDoProcedimento ?? resultado.idDoProcedimento ?? resultado.indiceDoProcedimento ?? resultado.nome,
+    nomeDaFerramenta: resultado.nome,
+    ...(resultado.id ? { id: resultado.id } : {}),
+    ...(resultado.idDoProcedimento ? { idDoProcedimento: resultado.idDoProcedimento } : {}),
+    ...(resultado.indiceDoProcedimento ? { indiceDoProcedimento: resultado.indiceDoProcedimento } : {}),
+    ...(resultado.resposta ? { resposta: resultado.resposta } : {}),
+    ...(resultado.tempoDeExecucao ? { tempoDeExecucao: resultado.tempoDeExecucao } : {}),
+    ...(resultado.tipoDaFonte ? { tipoDaFonte: resultado.tipoDaFonte } : {}),
+    ...(resultado.raciocinio ? { raciocinio: resultado.raciocinio } : {}),
     veredito: resultado.veredito
   };
 }

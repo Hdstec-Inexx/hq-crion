@@ -12,7 +12,7 @@ import {
   type ItemDaFonte
 } from '../ferramenta/da-fonte.js';
 
-export const maximoDaMensagemDaFonte = 64_000;
+export const maximoDaMensagemDaFonte = 512_000;
 
 type FerramentaDaMensagem = ItemDaFonte;
 
