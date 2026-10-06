@@ -19,6 +19,7 @@ export const kpiDoDashboardSchema = z.object({
   id: idDoKpiSchema,
   rotulo: z.string().min(1),
   valor: z.number().nullable(),
+  resolvidas: z.number().int().min(0).optional(),
   meta: z.number().optional(),
   limiarEmSegundos: z.number().optional()
 });
@@ -102,6 +103,10 @@ export type PaineisDoDashboard = z.infer<typeof paineisDoDashboardSchema>;
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
 type LinhaDeAcertoPorCriterio = PaineisDoDashboard['acertoPorCriterio'][number];
 type LinhaDeConcordanciaPorCriterio = PaineisDoDashboard['concordancia']['porCriterio'][number];
+
+export function fraseDoHoverDeTaxaDeResolvidas(resolvidas: number) {
+  return `${resolvidas} resolvidas sem transferência`;
+}
 
 export function fraseDoHoverDeAcertoPorCriterio(
   contagem: Pick<LinhaDeAcertoPorCriterio, 'percentual' | 'atendidos' | 'aplicaveis'>

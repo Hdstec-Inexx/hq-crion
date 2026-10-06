@@ -25,6 +25,10 @@ export type RegistroDeAtendimento = AtendimentoDetalhe & {
   ferramentas?: FerramentasDoAtendimento;
 };
 
+export function semTransferencia(item: { transferencia?: boolean }) {
+  return item.transferencia !== true;
+}
+
 export function camposDeMidia(caminho: string | null | undefined) {
   if (!caminho || caminho.trim() === '') {
     return {};

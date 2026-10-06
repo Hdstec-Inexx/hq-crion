@@ -77,7 +77,7 @@ O veredito dentro do Detalhe da Ferramenta: Sucesso ou Falha. Sem o retorno da f
 _Avoid_: promessa cumprida, retorno da API, payload
 
 **Transferência**:
-Fato do Atendimento: a ferramenta de transferência foi executada (contato passado a número ou humano). Chamada que a fonte marca como não executada não é Transferência e não tem detalhe. **Resolvido** neste HQ é o concluído sem Transferência. Na transcrição e no Monitoramento ao Vivo é Ferramenta: a chamada executada tem Detalhe da Ferramenta, e dá para abri-lo, com o mesmo pareamento das outras Ferramentas. Não é Procedimento.
+Fato do Atendimento: a ferramenta de transferência foi executada (contato passado a número ou humano). Chamada que a fonte marca como não executada não é Transferência e não tem detalhe. Fato ausente também não é Transferência. **Resolvido** neste HQ é o concluído em que a Transferência não é verdadeira. Na transcrição e no Monitoramento ao Vivo é Ferramenta: a chamada executada tem Detalhe da Ferramenta, e dá para abri-lo, com o mesmo pareamento das outras Ferramentas. Não é Procedimento.
 _Avoid_: encaminhamento, drop
 
 **Tempo de Espera**:
@@ -89,7 +89,7 @@ A média da duração dos Atendimentos concluídos no Recorte e no período.
 _Avoid_: Tempo de Espera, TME
 
 **Tempo Médio até Resolução**:
-A média da duração só dos Atendimentos concluídos **sem** Transferência, no Recorte e no período.
+A média da duração dos **Resolvidos** no Recorte e no período.
 
 **Custo**:
 O custo do Atendimento na fonte (ElevenLabs), visível só para Admin e Gestão. O Curador não o vê.
@@ -147,7 +147,7 @@ Percentual, no Dashboard e no Recorte/período, dos Atendimentos concluídos no 
 _Avoid_: inatividade, TME como card
 
 **Taxa de Resolvidas**:
-Percentual de Atendimentos concluídos no Recorte e no período **sem** Transferência.
+Percentual de **Resolvidos** sobre os Atendimentos concluídos no Recorte e no período. No card o percentual permanece visível; hover ou foco mostra a quantidade de Resolvidos (“N resolvidas sem transferência”) e some no repouso.
 
 **Taxa de Promessas Cumpridas**:
 Percentual de Chamadas de Ferramenta com Sucesso no Recorte e no período — Procedimento e Ferramenta. O rótulo é o do pulso GEAP; o fato é esse sucesso, não promessa verbal ao cliente.

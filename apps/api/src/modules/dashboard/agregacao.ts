@@ -6,6 +6,7 @@ import type {
 import { reguaUnica } from '../regua/regua-unica.js';
 import {
   avaliacaoDaIaTemVeredito,
+  semTransferencia,
   type RegistroDeAtendimento
 } from '../atendimentos/registro.js';
 import { slaMaximoEmSegundos, slaMeta } from './sla.js';
@@ -84,7 +85,7 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
   const duracoes = fechados
     .map((item) => item.duracaoEmSegundos)
     .filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor));
-  const resolvidos = fechados.filter((item) => item.transferencia === false);
+  const resolvidos = fechados.filter(semTransferencia);
   const duracoesResolvidas = resolvidos
     .map((item) => item.duracaoEmSegundos)
     .filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor));
@@ -129,7 +130,8 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
     {
       id: 'taxaDeResolvidas',
       rotulo: 'Taxa de Resolvidas',
-      valor: taxa(resolvidos.length, fechados.length)
+      valor: taxa(resolvidos.length, fechados.length),
+      resolvidas: resolvidos.length
     },
     {
       id: 'sla',

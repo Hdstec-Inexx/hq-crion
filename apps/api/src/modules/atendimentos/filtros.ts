@@ -11,7 +11,11 @@ import {
 } from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
 import { reguaUnica } from '../regua/regua-unica.js';
-import { avaliacaoDaIaTemVeredito, type RegistroDeAtendimento } from './registro.js';
+import {
+  avaliacaoDaIaTemVeredito,
+  semTransferencia,
+  type RegistroDeAtendimento
+} from './registro.js';
 
 export type ModoDaListagem = 'todos' | 'fila' | 'minhas' | 'realizadas' | 'monitoramento';
 
@@ -206,7 +210,7 @@ export function aplicarIndicador(
     case 'tma':
       return concluidos.filter((item) => item.duracaoEmSegundos !== undefined);
     case 'taxaDeResolvidas':
-      return concluidos.filter((item) => item.transferencia === false);
+      return concluidos.filter(semTransferencia);
     case 'sla':
       return concluidos.filter(
         (item) =>
@@ -224,7 +228,7 @@ export function aplicarIndicador(
       return itens.filter((item) => Boolean(item.ferramentas));
     case 'tempoMedioAteResolucao':
       return concluidos.filter(
-        (item) => item.transferencia === false && item.duracaoEmSegundos !== undefined
+        (item) => semTransferencia(item) && item.duracaoEmSegundos !== undefined
       );
     case 'aprovacao':
       return itens.filter((item) => item.nota >= reguaUnica.limiarDeAprovacao);
