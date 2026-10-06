@@ -161,6 +161,71 @@ function completar(detalhe: DetalheDaFerramenta, resultado: ResultadoDaChamada):
   };
 }
 
+export function conservarVereditoDaTela(
+  daTela: DetalheDaFerramenta | undefined,
+  daFonte: DetalheDaFerramenta
+): DetalheDaFerramenta {
+  if (!daTela?.veredito || daFonte.veredito) {
+    return { ...daFonte };
+  }
+
+  return {
+    ...daFonte,
+    veredito: daTela.veredito,
+    ...(daTela.resposta && !daFonte.resposta ? { resposta: daTela.resposta } : {}),
+    ...(daTela.tempoDeExecucao && !daFonte.tempoDeExecucao
+      ? { tempoDeExecucao: daTela.tempoDeExecucao }
+      : {}),
+    ...(daTela.idDoProcedimento && !daFonte.idDoProcedimento
+      ? { idDoProcedimento: daTela.idDoProcedimento }
+      : {}),
+    ...(daTela.nome !== daTela.nomeDaFerramenta && daFonte.nome === daFonte.nomeDaFerramenta
+      ? { nome: daTela.nome }
+      : {})
+  };
+}
+
+export function detalhesComVereditoDaTela(
+  daTela: readonly DetalheDaFerramenta[] | undefined,
+  daFonte: readonly DetalheDaFerramenta[]
+) {
+  return daFonte.map((fonte, indice) => {
+    const tela =
+      (fonte.id ? daTela?.find((item) => item.id === fonte.id) : undefined) ??
+      (daTela && daTela.length === daFonte.length ? daTela[indice] : undefined);
+
+    return conservarVereditoDaTela(tela, fonte);
+  });
+}
+
+export function aplicarResultados<T extends { detalhes?: DetalheDaFerramenta[] }>(
+  turnos: readonly T[],
+  resultados: readonly ResultadoDaChamada[]
+) {
+  let detalhes = turnos.flatMap((turno) => turno.detalhes ?? []);
+
+  for (const resultado of resultados) {
+    const aplicado = aplicarResultado(detalhes, resultado);
+    if (aplicado.aplicou) {
+      detalhes = aplicado.detalhes;
+    }
+  }
+
+  let cursor = 0;
+
+  return turnos.map((turno) => {
+    const quantidade = turno.detalhes?.length ?? 0;
+
+    if (!quantidade) {
+      return { ...turno };
+    }
+
+    const fatia = detalhes.slice(cursor, cursor + quantidade);
+    cursor += quantidade;
+    return { ...turno, detalhes: fatia };
+  });
+}
+
 export function aplicarResultado(
   detalhes: readonly DetalheDaFerramenta[],
   resultado: ResultadoDaChamada

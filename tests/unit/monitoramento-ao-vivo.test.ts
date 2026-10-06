@@ -1655,6 +1655,33 @@ test('pulso não duplica a fala do socket quando a fonte acrescenta a ferramenta
   );
 });
 
+test('chamada ao vivo fica na fala do agente e a correção conserva o detalhe', () => {
+  const comFala = aplicarEventoDaObservacao(
+    { transcricao: [], observando: true },
+    { tipo: 'fala', locutor: 'Agente de Voz', texto: 'Vou consultar.' }
+  );
+  const comChamada = aplicarEventoDaObservacao(comFala, {
+    tipo: 'chamada',
+    detalhe: {
+      tipo: 'Ferramenta',
+      nome: 'consultar_plano',
+      nomeDaFerramenta: 'consultar_plano',
+      id: 'c1'
+    }
+  });
+  const corrigida = aplicarEventoDaObservacao(comChamada, {
+    tipo: 'correcao',
+    texto: 'Vou verificar seu plano.'
+  });
+
+  assert.equal(comChamada.transcricao.length, 1);
+  assert.equal(
+    corrigida.transcricao[0]?.texto,
+    'Vou verificar seu plano.\n[Chamada de Ferramenta: consultar_plano]'
+  );
+  assert.equal(corrigida.transcricao[0]?.detalhes?.[0]?.id, 'c1');
+});
+
 test('resultado ao vivo completa o detalhe da chamada e não abre outro turno', () => {
   const comChamada = aplicarEventoDaObservacao(
     { transcricao: [], observando: true },

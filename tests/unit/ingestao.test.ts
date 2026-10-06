@@ -267,6 +267,27 @@ test('ingestão não inventa Custo e só marca Transferência quando a ferrament
   assert.equal(comFato?.transcricao[0]?.detalhes?.[0]?.nome, 'transfer_to_number');
 });
 
+test('parâmetros e resposta da ferramenta não passam do tamanho da fala', () => {
+  const longo = 'x'.repeat(5_000);
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-detalhe-longo',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Consulto.',
+        tool_calls: [{ tool_name: 'consultar_plano', tool_call_id: 'c1', params_as_json: longo }],
+        tool_results: [{ tool_name: 'consultar_plano', tool_call_id: 'c1', result_value: longo }]
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.parametros?.length, 4_096);
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.resposta?.length, 4_096);
+});
+
 test('transferência não executada não vira fato nem detalhe', () => {
   const atendimento = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-transfer-parada',

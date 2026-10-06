@@ -2,7 +2,7 @@ import {
   textoDaChamadaDeFerramenta,
   type TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
-import { aplicarResultado, type DetalheDaFerramenta } from '@hq-crion/contracts/ferramenta';
+import { aplicarResultados, type DetalheDaFerramenta } from '@hq-crion/contracts/ferramenta';
 import {
   chamadaExecutada,
   detalheDaChamada,
@@ -161,7 +161,7 @@ function contextoDoTurno(turno: TurnoDaFonteElevenLabs) {
   };
 }
 
-function comNomeDoResultado(resultado: ItemDaFonte, nomes: Map<string, string>) {
+function resultadoComNomeDaChamada(resultado: ItemDaFonte, nomes: Map<string, string>) {
   if (nomeDaFerramenta(resultado)) {
     return resultado;
   }
@@ -184,7 +184,7 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
     }
   }
 
-  const brutos = (payload.transcript ?? []).map((turno) => {
+  const turnosComChamadas = (payload.transcript ?? []).map((turno) => {
     const contexto = contextoDoTurno(turno);
     const detalhes = (turno.tool_calls ?? [])
       .map((chamada) => detalheDaChamada(chamada, contexto))
@@ -205,28 +205,18 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
       comTempo: typeof turno.time_in_call_secs === 'number',
       detalhes,
       resultados: (turno.tool_results ?? [])
-        .map((resultado) => resultadoDaFonte(comNomeDoResultado(resultado, nomesPorId)))
+        .map((resultado) => resultadoDaFonte(resultadoComNomeDaChamada(resultado, nomesPorId)))
         .filter((resultado): resultado is NonNullable<typeof resultado> => Boolean(resultado))
     };
   });
 
-  const lista = brutos.flatMap((turno) => turno.detalhes);
+  const comResultados = aplicarResultados(
+    turnosComChamadas,
+    turnosComChamadas.flatMap((turno) => turno.resultados)
+  );
 
-  for (const turno of brutos) {
-    for (const resultado of turno.resultados) {
-      const aplicado = aplicarResultado(lista, resultado);
-      if (!aplicado.aplicou) {
-        continue;
-      }
-      lista.splice(0, lista.length, ...aplicado.detalhes);
-    }
-  }
-
-  let cursor = 0;
-
-  return brutos.flatMap((turno) => {
-    const detalhes = lista.slice(cursor, cursor + turno.detalhes.length);
-    cursor += turno.detalhes.length;
+  return comResultados.flatMap((turno) => {
+    const detalhes = turno.detalhes ?? [];
     const texto = [
       turno.fala,
       ...detalhes.map((detalhe) => textoDaChamadaDeFerramenta(detalhe.nomeDaFerramenta))

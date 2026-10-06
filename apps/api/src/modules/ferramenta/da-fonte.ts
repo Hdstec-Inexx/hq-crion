@@ -1,3 +1,4 @@
+import { maximoDoTextoDaFala } from '@hq-crion/contracts/atendimento';
 import {
   type DetalheDaFerramenta,
   type ResultadoDaChamada
@@ -91,15 +92,27 @@ function textoDeCampo(objeto: Record<string, unknown> | undefined, chave: string
   return undefined;
 }
 
+function limitarTexto(texto: string | undefined) {
+  if (!texto) {
+    return undefined;
+  }
+
+  return texto.length > maximoDoTextoDaFala ? texto.slice(0, maximoDoTextoDaFala) : texto;
+}
+
 export function textoJson(valor: unknown) {
   if (valor === undefined || valor === null) {
     return undefined;
   }
 
   if (typeof valor === 'string') {
+    if (valor.length > maximoDoTextoDaFala) {
+      return valor.slice(0, maximoDoTextoDaFala);
+    }
+
     const objeto = comoObjeto(valor);
     if (objeto) {
-      return JSON.stringify(objeto, null, 2);
+      return limitarTexto(JSON.stringify(objeto, null, 2));
     }
 
     const texto = valor.trim();
@@ -107,10 +120,10 @@ export function textoJson(valor: unknown) {
   }
 
   if (typeof valor === 'object') {
-    return JSON.stringify(valor, null, 2);
+    return limitarTexto(JSON.stringify(valor, null, 2));
   }
 
-  return String(valor);
+  return limitarTexto(String(valor));
 }
 
 function raciocinioDe(valor: unknown) {
@@ -158,6 +171,14 @@ function corpoDoResultado(item: ItemDaFonte) {
   return undefined;
 }
 
+function camposDoProcedimento(objeto: Record<string, unknown> | undefined) {
+  return {
+    nome: textoDeCampo(objeto, 'procedure_name'),
+    id: textoDeCampo(objeto, 'procedure_id'),
+    indice: textoDeCampo(objeto, 'procedure_index')
+  };
+}
+
 function procedimentoDe(nome: string, ...objetos: Array<Record<string, unknown> | undefined>) {
   if (nome === 'start_procedure' || nome === 'end_procedure') {
     return true;
@@ -199,12 +220,13 @@ export function detalheDaChamada(
   const params = comoObjeto(parametros);
   const procedimento = procedimentoDe(nomeDaFerramentaBruto, params);
   const id = (item.tool_call_id ?? item.request_id)?.trim() || undefined;
-  const raciocinio = raciocinioDe(item.reasoning) ?? raciocinioDe(item.thought) ?? contexto.raciocinio;
+  const raciocinio = limitarTexto(
+    raciocinioDe(item.reasoning) ?? raciocinioDe(item.thought) ?? contexto.raciocinio
+  );
+  const procedimentoCampos = camposDoProcedimento(params);
   const nome =
     (procedimento
-      ? textoDeCampo(params, 'procedure_name') ??
-        textoDeCampo(params, 'procedure_index') ??
-        textoDeCampo(params, 'procedure_id')
+      ? procedimentoCampos.nome ?? procedimentoCampos.indice ?? procedimentoCampos.id
       : undefined) ?? nomeDaFerramentaBruto;
 
   return {
@@ -215,12 +237,8 @@ export function detalheDaChamada(
     nome,
     nomeDaFerramenta: nomeDaFerramentaBruto,
     ...(id ? { id } : {}),
-    ...(textoDeCampo(params, 'procedure_id')
-      ? { idDoProcedimento: textoDeCampo(params, 'procedure_id') }
-      : {}),
-    ...(textoDeCampo(params, 'procedure_index')
-      ? { indiceDoProcedimento: textoDeCampo(params, 'procedure_index') }
-      : {}),
+    ...(procedimentoCampos.id ? { idDoProcedimento: procedimentoCampos.id } : {}),
+    ...(procedimentoCampos.indice ? { indiceDoProcedimento: procedimentoCampos.indice } : {}),
     ...(raciocinio ? { raciocinio } : {}),
     ...(parametros ? { parametros } : {}),
     ...(contexto.tempoNoAtendimento ? { tempoNoAtendimento: contexto.tempoNoAtendimento } : {}),
@@ -231,7 +249,8 @@ export function detalheDaChamada(
 
 function tipoDaFonteDe(item: ItemDaFonte) {
   const tipo = item.type ?? item.tool_type;
-  return typeof tipo === 'string' && tipo.trim() ? tipo.trim() : undefined;
+  const texto = typeof tipo === 'string' ? tipo.trim() : '';
+  return texto ? texto.slice(0, 64) : undefined;
 }
 
 export function resultadoDaFonte(item: ItemDaFonte): ResultadoDaChamada | undefined {
@@ -243,8 +262,9 @@ export function resultadoDaFonte(item: ItemDaFonte): ResultadoDaChamada | undefi
 
   const corpo = corpoDoResultado(item) ?? (item.error === undefined ? undefined : item.error);
   const objeto = comoObjeto(typeof corpo === 'string' ? corpo : corpo);
+  const procedimento = camposDoProcedimento(objeto);
   const resposta = textoJson(corpo);
-  const raciocinio = raciocinioDe(item.reasoning) ?? raciocinioDe(item.thought);
+  const raciocinio = limitarTexto(raciocinioDe(item.reasoning) ?? raciocinioDe(item.thought));
   const tempo =
     typeof item.tool_latency_secs === 'number' ? textoDeDuracao(item.tool_latency_secs) : undefined;
   const id = (item.tool_call_id ?? item.request_id)?.trim() || undefined;
@@ -252,15 +272,9 @@ export function resultadoDaFonte(item: ItemDaFonte): ResultadoDaChamada | undefi
   return {
     ...(id ? { id } : {}),
     nome,
-    ...(textoDeCampo(objeto, 'procedure_name')
-      ? { nomeDoProcedimento: textoDeCampo(objeto, 'procedure_name') }
-      : {}),
-    ...(textoDeCampo(objeto, 'procedure_id')
-      ? { idDoProcedimento: textoDeCampo(objeto, 'procedure_id') }
-      : {}),
-    ...(textoDeCampo(objeto, 'procedure_index')
-      ? { indiceDoProcedimento: textoDeCampo(objeto, 'procedure_index') }
-      : {}),
+    ...(procedimento.nome ? { nomeDoProcedimento: procedimento.nome } : {}),
+    ...(procedimento.id ? { idDoProcedimento: procedimento.id } : {}),
+    ...(procedimento.indice ? { indiceDoProcedimento: procedimento.indice } : {}),
     veredito: resultadoFalhou(item) ? 'Falha' : 'Sucesso',
     ...(resposta ? { resposta } : {}),
     ...(tempo ? { tempoDeExecucao: tempo } : {}),

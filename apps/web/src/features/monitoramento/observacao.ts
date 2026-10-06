@@ -6,53 +6,24 @@ import {
   type EventoDaObservacao,
   type TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
-import { aplicarResultado, type DetalheDaFerramenta, type ResultadoDaChamada } from '@hq-crion/contracts/ferramenta';
+import {
+  aplicarResultados,
+  detalhesComVereditoDaTela,
+  type DetalheDaFerramenta,
+  type ResultadoDaChamada
+} from '@hq-crion/contracts/ferramenta';
 
 export type ObservacaoDaTranscricao = {
   transcricao: TurnoDaTranscricao[];
   observando: boolean;
 };
 
-function copiarDetalhe(detalhe: DetalheDaFerramenta): DetalheDaFerramenta {
-  return { ...detalhe };
-}
-
-function mesclarDetalhes(
-  daTela: readonly DetalheDaFerramenta[] | undefined,
-  daFonte: readonly DetalheDaFerramenta[]
-) {
-  return daFonte.map((fonte, indice) => {
-    const tela =
-      (fonte.id ? daTela?.find((item) => item.id === fonte.id) : undefined) ??
-      (daTela && daTela.length === daFonte.length ? daTela[indice] : undefined);
-
-    if (!tela?.veredito || fonte.veredito) {
-      return copiarDetalhe(fonte);
-    }
-
-    return {
-      ...copiarDetalhe(fonte),
-      veredito: tela.veredito,
-      ...(tela.resposta && !fonte.resposta ? { resposta: tela.resposta } : {}),
-      ...(tela.tempoDeExecucao && !fonte.tempoDeExecucao
-        ? { tempoDeExecucao: tela.tempoDeExecucao }
-        : {}),
-      ...(tela.idDoProcedimento && !fonte.idDoProcedimento
-        ? { idDoProcedimento: tela.idDoProcedimento }
-        : {}),
-      ...(tela.nome !== tela.nomeDaFerramenta && fonte.nome === fonte.nomeDaFerramenta
-        ? { nome: tela.nome }
-        : {})
-    };
-  });
-}
-
 function copiar(turno: TurnoDaTranscricao): TurnoDaTranscricao {
   return {
     locutor: turno.locutor,
     quando: turno.quando,
     texto: turno.texto,
-    ...(turno.detalhes?.length ? { detalhes: turno.detalhes.map(copiarDetalhe) } : {})
+    ...(turno.detalhes?.length ? { detalhes: turno.detalhes.map((detalhe) => ({ ...detalhe })) } : {})
   };
 }
 
@@ -111,7 +82,7 @@ function incorporarFerramentas(
       texto: daFonte.texto,
       quando: turno.quando === '—' ? daFonte.quando : turno.quando,
       ...(daFonte.detalhes?.length
-        ? { detalhes: mesclarDetalhes(turno.detalhes, daFonte.detalhes) }
+        ? { detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes) }
         : {})
     };
   });
@@ -163,6 +134,21 @@ function falaCoberta(base: readonly TurnoDaTranscricao[], turno: TurnoDaTranscri
   });
 }
 
+function turnoComDetalheDaTela(
+  copiado: TurnoDaTranscricao,
+  daTela: TurnoDaTranscricao | undefined
+) {
+  if (!daTela?.detalhes?.length) {
+    return copiado;
+  }
+
+  if (!copiado.detalhes?.length) {
+    return { ...copiado, detalhes: daTela.detalhes.map((detalhe) => ({ ...detalhe })) };
+  }
+
+  return { ...copiado, detalhes: detalhesComVereditoDaTela(daTela.detalhes, copiado.detalhes) };
+}
+
 function adotarFonte(
   tela: readonly TurnoDaTranscricao[],
   fonte: readonly TurnoDaTranscricao[]
@@ -171,17 +157,7 @@ function adotarFonte(
     const daTela = tela.find(
       (item) => item.locutor === turno.locutor && falaDoTexto(item.texto) === falaDoTexto(turno.texto)
     );
-    const copiado = copiar(turno);
-
-    if (daTela?.detalhes?.length && turno.detalhes?.length) {
-      return { ...copiado, detalhes: mesclarDetalhes(daTela.detalhes, turno.detalhes) };
-    }
-
-    if (daTela?.detalhes?.length && !turno.detalhes?.length) {
-      return { ...copiado, detalhes: daTela.detalhes.map(copiarDetalhe) };
-    }
-
-    return copiado;
+    return turnoComDetalheDaTela(copiar(turno), daTela);
   });
 
   for (const turno of tela) {
@@ -276,13 +252,16 @@ function mesclarFragmento(
           ...copiar(turno),
           texto: daFonte?.texto ?? turno.texto,
           ...(daFonte?.detalhes?.length
-            ? { detalhes: mesclarDetalhes(turno.detalhes, daFonte.detalhes) }
+            ? { detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes) }
             : {})
         };
       }
 
       if (daFonte?.detalhes?.length) {
-        return { ...copiar(turno), detalhes: mesclarDetalhes(turno.detalhes, daFonte.detalhes) };
+        return {
+          ...copiar(turno),
+          detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes)
+        };
       }
 
       return copiar(turno);
@@ -310,20 +289,7 @@ export function mesclarTranscricao(
   const comFerramentas = incorporarFerramentas(tela, fonte);
 
   if (comFerramentas.length === 0 || transcricaoInteiraDaFonte(comFerramentas, fonte)) {
-    return fonte.map((turno, indice) => {
-      const daTela = comFerramentas[indice];
-      const copiado = copiar(turno);
-
-      if (daTela?.detalhes?.length && turno.detalhes?.length) {
-        return { ...copiado, detalhes: mesclarDetalhes(daTela.detalhes, turno.detalhes) };
-      }
-
-      if (daTela?.detalhes?.length && !turno.detalhes?.length) {
-        return { ...copiado, detalhes: daTela.detalhes.map(copiarDetalhe) };
-      }
-
-      return copiado;
-    });
+    return fonte.map((turno, indice) => turnoComDetalheDaTela(copiar(turno), comFerramentas[indice]));
   }
 
   if (abreAMesmaFala(comFerramentas, fonte)) {
@@ -358,38 +324,36 @@ function corrigirUltimaFalaDoAgente(
 }
 
 function completarResultado(turnos: readonly TurnoDaTranscricao[], resultado: ResultadoDaChamada) {
-  const lista = turnos.flatMap((turno) => turno.detalhes ?? []);
-  const aplicado = aplicarResultado(lista, resultado);
-
-  if (!aplicado.aplicou) {
-    return turnos.map(copiar);
-  }
-
-  let cursor = 0;
-
-  return turnos.map((turno) => {
-    const quantidade = turno.detalhes?.length ?? 0;
-
-    if (!quantidade) {
-      return copiar(turno);
-    }
-
-    const detalhes = aplicado.detalhes.slice(cursor, cursor + quantidade);
-    cursor += quantidade;
-    return { ...copiar(turno), detalhes };
-  });
+  return aplicarResultados(turnos, [resultado]).map(copiar);
 }
 
 function acrescentarChamada(turnos: readonly TurnoDaTranscricao[], detalhe: DetalheDaFerramenta) {
-  return [
-    ...turnos.map(copiar),
-    {
-      locutor: 'Agente de Voz' as const,
-      quando: '—',
-      texto: textoDaChamadaDeFerramenta(detalhe.nomeDaFerramenta),
-      detalhes: [copiarDetalhe(detalhe)]
+  const linha = textoDaChamadaDeFerramenta(detalhe.nomeDaFerramenta);
+  const ultimo = turnos.at(-1);
+
+  if (ultimo?.locutor !== 'Agente de Voz') {
+    return [
+      ...turnos.map(copiar),
+      {
+        locutor: 'Agente de Voz' as const,
+        quando: '—',
+        texto: linha,
+        detalhes: [{ ...detalhe }]
+      }
+    ];
+  }
+
+  return turnos.map((turno, indice) => {
+    if (indice !== turnos.length - 1) {
+      return copiar(turno);
     }
-  ];
+
+    return {
+      ...copiar(turno),
+      texto: [turno.texto, linha].filter(Boolean).join('\n'),
+      detalhes: [...(turno.detalhes ?? []).map((item) => ({ ...item })), { ...detalhe }]
+    };
+  });
 }
 
 function acrescentarFala(
