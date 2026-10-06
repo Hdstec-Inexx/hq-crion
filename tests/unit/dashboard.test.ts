@@ -599,10 +599,16 @@ test('card da Taxa de Resolvidas revela a quantidade no ponteiro e no foco, sem 
     'utf8'
   );
 
+  const revelacao = readFileSync(
+    join(raiz, 'apps/web/src/features/dashboard/useFraseVisivel.ts'),
+    'utf8'
+  );
+
   assert.match(pagina, /fraseDoHoverDeTaxaDeResolvidas/);
-  assert.match(pagina, /pointerType === 'touch'/);
-  assert.match(pagina, /onFocus=/);
+  assert.match(pagina, /useFraseVisivel/);
   assert.match(pagina, /dashboard-kpi-frase/);
+  assert.match(revelacao, /pointerType === 'touch'/);
+  assert.match(revelacao, /document\.activeElement/);
   assert.doesNotMatch(pagina, /dashboard-kpi[\s\S]*\btitle=/);
 });
 
@@ -617,8 +623,14 @@ test('barra revela a frase no ponteiro e no foco, sem title que atrase o toque',
     'utf8'
   );
 
-  assert.match(barras, /onFocus=\{\(\) => setFraseVisivel\(true\)\}/);
-  assert.match(barras, /pointerType === 'touch'/);
+  const revelacao = readFileSync(
+    join(raiz, 'apps/web/src/features/dashboard/useFraseVisivel.ts'),
+    'utf8'
+  );
+
+  assert.match(barras, /useFraseVisivel/);
+  assert.match(revelacao, /pointerType === 'touch'/);
+  assert.match(revelacao, /document\.activeElement/);
   assert.doesNotMatch(barras, /\btitle=/);
   assert.match(barras, /dashboard-barra-frase/);
   assert.match(barras, /fraseDoHover/);
@@ -681,7 +693,7 @@ test('Taxa de Resolvidas conta concluído sem Transferência e o hover nomeia es
   const tempo = parsed.kpis.find((item) => item.id === 'tempoMedioAteResolucao');
 
   assert.equal(taxa?.valor, (2 / 3) * 100);
-  assert.equal(taxa?.quantidade, 2);
+  assert.equal(taxa?.resolvidas, 2);
   assert.equal(fraseDoHoverDeTaxaDeResolvidas(2), '2 resolvidas sem transferência');
   assert.equal(tempo?.valor, 75);
   assert.deepEqual(

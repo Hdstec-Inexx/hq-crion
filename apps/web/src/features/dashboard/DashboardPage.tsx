@@ -12,35 +12,22 @@ import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-ro
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { buscarDashboard, type DashboardResponse } from './api';
 import { formatarValorDoKpi, PaineisDoDashboard } from './PaineisDoDashboard';
+import { useFraseVisivel } from './useFraseVisivel';
 
 function CartaoDoKpi({ item, destino }: { item: KpiDoDashboard; destino: string }) {
-  const [fraseVisivel, setFraseVisivel] = useState(false);
   const frase =
-    item.id === 'taxaDeResolvidas' && item.quantidade !== undefined
-      ? fraseDoHoverDeTaxaDeResolvidas(item.quantidade)
+    item.id === 'taxaDeResolvidas' && item.resolvidas !== undefined
+      ? fraseDoHoverDeTaxaDeResolvidas(item.resolvidas)
       : null;
+  const revelacao = useFraseVisivel(frase !== null);
 
   return (
     <Link
       className="dashboard-kpi"
-      onBlur={() => setFraseVisivel(false)}
-      onFocus={() => {
-        if (frase) {
-          setFraseVisivel(true);
-        }
-      }}
-      onPointerEnter={(evento) => {
-        if (!frase || evento.pointerType === 'touch') {
-          return;
-        }
-        setFraseVisivel(true);
-      }}
-      onPointerLeave={(evento) => {
-        if (evento.currentTarget === document.activeElement) {
-          return;
-        }
-        setFraseVisivel(false);
-      }}
+      onBlur={revelacao.aoPerderFoco}
+      onFocus={revelacao.aoFocar}
+      onPointerEnter={revelacao.aoEntrarComPonteiro}
+      onPointerLeave={revelacao.aoSairComPonteiro}
       to={destino}
     >
       <small>{item.rotulo}</small>
@@ -52,7 +39,7 @@ function CartaoDoKpi({ item, destino }: { item: KpiDoDashboard; destino: string 
       ) : item.meta !== undefined ? (
         <em>meta {item.meta}%</em>
       ) : null}
-      {frase && fraseVisivel ? (
+      {frase && revelacao.fraseVisivel ? (
         <span className="dashboard-kpi-frase" role="tooltip">
           {frase}
         </span>

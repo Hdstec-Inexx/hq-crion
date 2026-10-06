@@ -131,7 +131,7 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
       id: 'taxaDeResolvidas',
       rotulo: 'Taxa de Resolvidas',
       valor: taxa(resolvidos.length, fechados.length),
-      quantidade: resolvidos.length
+      resolvidas: resolvidos.length
     },
     {
       id: 'sla',
