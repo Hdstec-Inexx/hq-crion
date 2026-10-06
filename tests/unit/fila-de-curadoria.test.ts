@@ -660,4 +660,13 @@ test('o formulário da Conferência humana é a lista e esconde a Avaliação da
   assert.equal(detalhe.includes('notaDaRegua'), false);
   assert.equal(detalhe.includes('<select'), false);
   assert.match(detalhe, /!conferenciaAberta\(perfil\.papel, atendimento\) \? \(/);
+  const formulario = detalhe.slice(detalhe.indexOf('function FormularioConferencia'));
+  const lista = formulario.indexOf('conferencia-lista');
+  const selo = formulario.indexOf('avaliacao-score');
+  const notaDaIa = formulario.indexOf('Nota da Avaliação da IA');
+  const falhas = formulario.indexOf('Falhas Identificadas');
+  const resumo = formulario.indexOf('Resumo do Atendimento');
+
+  assert.ok(lista >= 0 && lista < selo, 'o selo fica depois das linhas');
+  assert.ok(selo < notaDaIa && notaDaIa < falhas && falhas < resumo);
 });

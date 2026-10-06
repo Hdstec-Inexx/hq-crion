@@ -135,7 +135,7 @@ _Avoid_: válido, preenchido
 A taxa de **Atendido** na Avaliação da IA, naquele Critério, só entre os **aplicáveis** do Recorte e do período. Não é participação no anel.
 
 **Aprovação**:
-O percentual de Atendimentos no Recorte e no período cuja nota da IA atinge o limiar da Régua única. Indicador do Dashboard próprio deste HQ; o GEAP não o tem.
+O percentual de Atendimentos no Recorte e no período cujo selo da IA é Aprovado: a nota gravada atinge o limiar da Régua única e nenhum Critério crítico está Não atendido. Indicador do Dashboard próprio deste HQ; o GEAP não o tem.
 
 ### Dashboard
 

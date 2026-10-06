@@ -161,9 +161,13 @@ function criterioNaRegua(
   regua: ReguaDeAvaliacao,
   criterio: { chave?: string; nome: string }
 ) {
-  return regua.criterios.find(
-    (item) => item.chave === criterio.chave || item.nome === criterio.nome
-  );
+  const porNome = regua.criterios.find((item) => item.nome === criterio.nome);
+
+  if (!porNome || (criterio.chave && criterio.chave !== porNome.chave)) {
+    return undefined;
+  }
+
+  return porNome;
 }
 
 function FormularioConferencia({
@@ -228,10 +232,12 @@ function FormularioConferencia({
         ];
       })
     : [];
+  const checklistCompleto =
+    regua !== null && linhas.length === atendimento.avaliacaoDaIa.criterios.length;
   const nota = notaDerivada(
     linhas.map((linha) => ({ estado: linha.estado, pontos: linha.daRegua.valor }))
   );
-  const selo = regua
+  const selo = checklistCompleto
     ? seloDaAvaliacao(
         nota,
         regua.limiarDeAprovacao,
@@ -276,12 +282,6 @@ function FormularioConferencia({
       <h2>Conferência humana</h2>
       <p className="panel-label">Checklist do Curador</p>
       <p>Os estados começam iguais aos da IA. Confirme ou corrija cada Critério.</p>
-      {selo ? (
-        <div className={`avaliacao-score${selo === 'Aprovado' ? '' : ' is-fail'}`}>
-          <strong>{formatarNota(nota)}</strong>
-          <span>{selo}</span>
-        </div>
-      ) : null}
       <div className="conferencia-lista">
         {linhas.map(({ criterio, daRegua, estado }) => (
           <div className="conferencia-linha" key={criterio.nome}>
@@ -309,14 +309,14 @@ function FormularioConferencia({
           </div>
         ))}
       </div>
+      {selo ? (
+        <div className={`avaliacao-score${selo === 'Aprovado' ? '' : ' is-fail'}`}>
+          <strong>{formatarNota(nota)}</strong>
+          <span>{selo}</span>
+        </div>
+      ) : null}
       <p>Nota da Avaliação da IA: {formatarNota(atendimento.avaliacaoDaIa.nota)}</p>
       <div className="avaliacao-notes">
-        <div className="avaliacao-note-col">
-          <p className="panel-label">Resumo do Atendimento</p>
-          <div className="avaliacao-resumo-scroll">
-            <p>{resumo || 'Resumo não informado.'}</p>
-          </div>
-        </div>
         <div className="avaliacao-note-col">
           <p className="panel-label">Falhas Identificadas</p>
           <div className="avaliacao-falhas-scroll">
@@ -331,6 +331,12 @@ function FormularioConferencia({
             )}
           </div>
         </div>
+        <div className="avaliacao-note-col">
+          <p className="panel-label">Resumo do Atendimento</p>
+          <div className="avaliacao-resumo-scroll">
+            <p>{resumo || 'Resumo não informado.'}</p>
+          </div>
+        </div>
       </div>
       <label className="conferencia-comentario">
         Comentário da revisão (opcional)
@@ -341,7 +347,7 @@ function FormularioConferencia({
           {erro}
         </p>
       ) : null}
-      <button type="submit" disabled={enviando || !regua}>
+      <button type="submit" disabled={enviando || !checklistCompleto}>
         Salvar conferência
       </button>
     </form>
