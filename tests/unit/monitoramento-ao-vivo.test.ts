@@ -1450,6 +1450,28 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
       }
     }
   );
+  assert.deepEqual(
+    eventoDaMensagemDaFonte({
+      type: 'agent_tool_response_full_payload',
+      agent_tool_response_full_payload: {
+        tool_name: 'enviar_sms',
+        tool_call_id: 'sms-1',
+        tool_type: 'webhook',
+        is_error: false,
+        full_tool_result: '{"protocolo":"123"}'
+      }
+    }),
+    {
+      tipo: 'resultado',
+      resultado: {
+        id: 'sms-1',
+        nome: 'enviar_sms',
+        veredito: 'Sucesso',
+        resposta: '{\n  "protocolo": "123"\n}',
+        tipoDaFonte: 'webhook'
+      }
+    }
+  );
   assert.equal(
     eventoDaMensagemDaFonte({
       type: 'agent_tool_response',
@@ -1682,6 +1704,35 @@ test('chamada ao vivo fica na fala do agente e a correção conserva o detalhe',
   assert.equal(corrigida.transcricao[0]?.detalhes?.[0]?.id, 'c1');
 });
 
+test('resultado ao vivo sem chamada anterior entra na fala do agente', () => {
+  const comFala = aplicarEventoDaObservacao(
+    { transcricao: [], observando: true },
+    {
+      tipo: 'fala',
+      locutor: 'Agente de Voz',
+      texto: 'Aguarde um instante enquanto consulto aqui.'
+    }
+  );
+  const comResultado = aplicarEventoDaObservacao(comFala, {
+    tipo: 'resultado',
+    resultado: {
+      id: 'sms-1',
+      nome: 'enviar_sms',
+      veredito: 'Sucesso',
+      resposta: '{"protocolo":"123"}',
+      tipoDaFonte: 'webhook'
+    }
+  });
+
+  assert.equal(comResultado.transcricao.length, 1);
+  assert.equal(
+    comResultado.transcricao[0]?.texto,
+    'Aguarde um instante enquanto consulto aqui.\n[Chamada de Ferramenta: enviar_sms]'
+  );
+  assert.equal(comResultado.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(comResultado.transcricao[0]?.detalhes?.[0]?.resposta, '{"protocolo":"123"}');
+});
+
 test('resultado ao vivo completa o detalhe da chamada e não abre outro turno', () => {
   const comChamada = aplicarEventoDaObservacao(
     { transcricao: [], observando: true },
@@ -1706,9 +1757,14 @@ test('resultado ao vivo completa o detalhe da chamada e não abre outro turno', 
   });
 
   assert.equal(orfao.transcricao.length, 1);
-  assert.equal(orfao.transcricao[0]?.texto, '[Chamada de Ferramenta: transfer_to_number]');
+  assert.equal(
+    orfao.transcricao[0]?.texto,
+    '[Chamada de Ferramenta: transfer_to_number]\n[Chamada de Ferramenta: outra]'
+  );
   assert.equal(orfao.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
   assert.equal(orfao.transcricao[0]?.detalhes?.[0]?.resposta, '{"ok":true}');
+  assert.equal(orfao.transcricao[0]?.detalhes?.[1]?.nome, 'outra');
+  assert.equal(orfao.transcricao[0]?.detalhes?.[1]?.veredito, 'Falha');
 });
 
 test('pulso atrasado não apaga o veredito que o ao vivo já completou', () => {

@@ -20,6 +20,7 @@ export type ItemDaFonte = {
   parameters?: unknown;
   result_value?: unknown;
   result?: unknown;
+  full_tool_result?: unknown;
   reasoning?: unknown;
   thought?: unknown;
   tool_latency_secs?: number;
@@ -170,6 +171,10 @@ function corpoDoResultado(item: ItemDaFonte) {
 
   if (item.result !== undefined) {
     return item.result;
+  }
+
+  if (item.full_tool_result !== undefined) {
+    return item.full_tool_result;
   }
 
   return undefined;

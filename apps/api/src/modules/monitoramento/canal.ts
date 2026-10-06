@@ -24,6 +24,8 @@ type MensagemDaFonte = {
   agent_tool_request?: FerramentaDaMensagem;
   client_tool_call?: FerramentaDaMensagem;
   agent_tool_response?: FerramentaDaMensagem;
+  agent_tool_response_full_payload?: FerramentaDaMensagem;
+  mcp_tool_call?: FerramentaDaMensagem & { state?: string };
 };
 
 type SocketDeEvento = {
@@ -74,8 +76,14 @@ function eventoDeFerramenta(mensagem: MensagemDaFonte): EventoDaObservacao | und
     return { tipo: 'chamada', detalhe };
   }
 
-  if (mensagem.type === 'agent_tool_response') {
-    const ferramenta = mensagem.agent_tool_response;
+  if (
+    mensagem.type === 'agent_tool_response' ||
+    mensagem.type === 'agent_tool_response_full_payload'
+  ) {
+    const ferramenta =
+      mensagem.type === 'agent_tool_response'
+        ? mensagem.agent_tool_response
+        : mensagem.agent_tool_response_full_payload;
     const resultado = ferramenta ? resultadoDaFonte(ferramenta) : undefined;
 
     if (!resultado) {
@@ -83,6 +91,27 @@ function eventoDeFerramenta(mensagem: MensagemDaFonte): EventoDaObservacao | und
     }
 
     return { tipo: 'resultado', resultado };
+  }
+
+  if (mensagem.type === 'mcp_tool_call') {
+    const ferramenta = mensagem.mcp_tool_call;
+
+    if (!ferramenta || !nomeDaFerramenta(ferramenta)) {
+      return undefined;
+    }
+
+    if (ferramenta.state === 'loading' || ferramenta.state === 'awaiting_approval') {
+      const detalhe = detalheDaChamada(ferramenta);
+      return detalhe ? { tipo: 'chamada', detalhe } : undefined;
+    }
+
+    const resultado = resultadoDaFonte({
+      ...ferramenta,
+      is_error: ferramenta.state === 'failure',
+      tool_has_been_called: true
+    });
+
+    return resultado ? { tipo: 'resultado', resultado } : undefined;
   }
 
   return undefined;
