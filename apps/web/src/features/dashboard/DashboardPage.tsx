@@ -1,4 +1,5 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
+import { fraseDoHoverDeTaxaDeResolvidas, type KpiDoDashboard } from '@hq-crion/contracts/dashboard';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import {
   destinoDoKpi,
@@ -11,6 +12,54 @@ import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-ro
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { buscarDashboard, type DashboardResponse } from './api';
 import { formatarValorDoKpi, PaineisDoDashboard } from './PaineisDoDashboard';
+
+function CartaoDoKpi({ item, destino }: { item: KpiDoDashboard; destino: string }) {
+  const [fraseVisivel, setFraseVisivel] = useState(false);
+  const frase =
+    item.id === 'taxaDeResolvidas' && item.quantidade !== undefined
+      ? fraseDoHoverDeTaxaDeResolvidas(item.quantidade)
+      : null;
+
+  return (
+    <Link
+      className="dashboard-kpi"
+      onBlur={() => setFraseVisivel(false)}
+      onFocus={() => {
+        if (frase) {
+          setFraseVisivel(true);
+        }
+      }}
+      onPointerEnter={(evento) => {
+        if (!frase || evento.pointerType === 'touch') {
+          return;
+        }
+        setFraseVisivel(true);
+      }}
+      onPointerLeave={(evento) => {
+        if (evento.currentTarget === document.activeElement) {
+          return;
+        }
+        setFraseVisivel(false);
+      }}
+      to={destino}
+    >
+      <small>{item.rotulo}</small>
+      <strong>{formatarValorDoKpi(item.id, item.valor)}</strong>
+      {item.id === 'sla' && item.limiarEmSegundos !== undefined && item.meta !== undefined ? (
+        <em>
+          Tempo de Espera ≤ {item.limiarEmSegundos}s · meta {item.meta}%
+        </em>
+      ) : item.meta !== undefined ? (
+        <em>meta {item.meta}%</em>
+      ) : null}
+      {frase && fraseVisivel ? (
+        <span className="dashboard-kpi-frase" role="tooltip">
+          {frase}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
 
 export function DashboardPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
@@ -153,21 +202,11 @@ export function DashboardPage() {
         <>
           <div className="dashboard-kpis">
             {dashboard.kpis.map((item) => (
-              <Link
-                className="dashboard-kpi"
+              <CartaoDoKpi
+                destino={destinoDoKpi(dashboard.recorte, dashboard.periodo, item.id)}
+                item={item}
                 key={item.id}
-                to={destinoDoKpi(dashboard.recorte, dashboard.periodo, item.id)}
-              >
-                <small>{item.rotulo}</small>
-                <strong>{formatarValorDoKpi(item.id, item.valor)}</strong>
-                {item.id === 'sla' && item.limiarEmSegundos !== undefined && item.meta !== undefined ? (
-                  <em>
-                    Tempo de Espera ≤ {item.limiarEmSegundos}s · meta {item.meta}%
-                  </em>
-                ) : item.meta !== undefined ? (
-                  <em>meta {item.meta}%</em>
-                ) : null}
-              </Link>
+              />
             ))}
           </div>
           <PaineisDoDashboard dashboard={dashboard} />

@@ -39,6 +39,7 @@
 }
 
 .dashboard-kpi {
+  position: relative;
   min-height: 132px;
   padding: 22px;
   background: #fff;
@@ -47,6 +48,18 @@
   text-align: left;
   text-decoration: none;
   color: inherit;
+}
+
+.dashboard-kpi-frase {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 14px;
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
 }
 
 .dashboard-kpi small {

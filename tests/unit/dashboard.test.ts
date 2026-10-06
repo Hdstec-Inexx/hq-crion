@@ -9,8 +9,10 @@ import {
   dashboardResponseSchema,
   fraseDoHoverDeAcertoPorCriterio,
   fraseDoHoverDeConcordanciaPorCriterio,
+  fraseDoHoverDeTaxaDeResolvidas,
   paineisDoDashboardSchema
 } from '../../packages/contracts/src/dashboard.js';
+import { aplicarIndicador } from '../../apps/api/src/modules/atendimentos/filtros.js';
 import { pulsoDoDashboard } from '../../apps/api/src/modules/dashboard/agregacao.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import {
@@ -590,6 +592,20 @@ test('frases de hover das barras nomeiam a base e nunca dizem 0 sem aplicáveis 
   );
 });
 
+test('card da Taxa de Resolvidas revela a quantidade no ponteiro e no foco, sem title', () => {
+  const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
+  const pagina = readFileSync(
+    join(raiz, 'apps/web/src/features/dashboard/DashboardPage.tsx'),
+    'utf8'
+  );
+
+  assert.match(pagina, /fraseDoHoverDeTaxaDeResolvidas/);
+  assert.match(pagina, /pointerType === 'touch'/);
+  assert.match(pagina, /onFocus=/);
+  assert.match(pagina, /dashboard-kpi-frase/);
+  assert.doesNotMatch(pagina, /dashboard-kpi[\s\S]*\btitle=/);
+});
+
 test('barra revela a frase no ponteiro e no foco, sem title que atrase o toque', () => {
   const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
   const barras = readFileSync(
@@ -609,6 +625,73 @@ test('barra revela a frase no ponteiro e no foco, sem title que atrase o toque',
   assert.match(paineis, /criteriosAtendidos: criterio/);
   assert.match(paineis, /destinoDaBarra=\{\(\) => destino\('concordancia'\)\}/);
   assert.doesNotMatch(paineis, /dashboard-concordancia-resumo[\s\S]*title=/);
+});
+
+test('Taxa de Resolvidas conta concluído sem Transferência e o hover nomeia essa quantidade', () => {
+  const base = {
+    administradora: 'Affix' as const,
+    agente: 'Clara Affix 0800',
+    agenteId: 'affix-0800',
+    iniciadoEm: '2026-09-01T10:00:00Z',
+    motivo: 'Boleto',
+    nota: 8,
+    curadoria: false,
+    transcricao: []
+  };
+  const itens = [
+    {
+      ...base,
+      id: 'sem-transferencia',
+      status: 'Concluído' as const,
+      conversa: 'sem-transferencia',
+      duracaoEmSegundos: 100,
+      transferencia: false
+    },
+    {
+      ...base,
+      id: 'transferido',
+      status: 'Concluído' as const,
+      conversa: 'transferido',
+      duracaoEmSegundos: 200,
+      transferencia: true
+    },
+    {
+      ...base,
+      id: 'fato-ausente',
+      status: 'Concluído' as const,
+      conversa: 'fato-ausente',
+      duracaoEmSegundos: 50
+    },
+    {
+      ...base,
+      id: 'em-andamento',
+      status: 'Em andamento' as const,
+      conversa: 'em-andamento',
+      duracaoEmSegundos: 999
+    }
+  ];
+
+  const resultado = pulsoDoDashboard(
+    itens as any,
+    { administradora: null, agente: null },
+    { inicio: '2026-09-01', fim: '2026-09-30' }
+  );
+  const parsed = dashboardResponseSchema.parse(resultado);
+  const taxa = parsed.kpis.find((item) => item.id === 'taxaDeResolvidas');
+  const tempo = parsed.kpis.find((item) => item.id === 'tempoMedioAteResolucao');
+
+  assert.equal(taxa?.valor, (2 / 3) * 100);
+  assert.equal(taxa?.quantidade, 2);
+  assert.equal(fraseDoHoverDeTaxaDeResolvidas(2), '2 resolvidas sem transferência');
+  assert.equal(tempo?.valor, 75);
+  assert.deepEqual(
+    aplicarIndicador(itens as any, 'taxaDeResolvidas').map((item) => item.id),
+    ['sem-transferencia', 'fato-ausente']
+  );
+  assert.deepEqual(
+    aplicarIndicador(itens as any, 'tempoMedioAteResolucao').map((item) => item.id),
+    ['sem-transferencia', 'fato-ausente']
+  );
 });
 
 test('pulso do Dashboard com ferramentas indefinidas ou parciais não gera NaN e valida o contrato', () => {
