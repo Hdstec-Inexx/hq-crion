@@ -220,7 +220,7 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
   const comResultados = aplicarResultados(
     turnosComChamadas,
     turnosComChamadas.flatMap((turno) => turno.resultados)
-  );
+  ).turnos;
 
   return comResultados.flatMap((turno) => {
     const detalhes = turno.detalhes ?? [];

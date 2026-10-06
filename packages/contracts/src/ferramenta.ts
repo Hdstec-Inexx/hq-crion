@@ -203,27 +203,32 @@ export function aplicarResultados<T extends { detalhes?: DetalheDaFerramenta[] }
   resultados: readonly ResultadoDaChamada[]
 ) {
   let detalhes = turnos.flatMap((turno) => turno.detalhes ?? []);
+  let aplicou = false;
 
   for (const resultado of resultados) {
     const aplicado = aplicarResultado(detalhes, resultado);
     if (aplicado.aplicou) {
       detalhes = aplicado.detalhes;
+      aplicou = true;
     }
   }
 
   let cursor = 0;
 
-  return turnos.map((turno) => {
-    const quantidade = turno.detalhes?.length ?? 0;
+  return {
+    aplicou,
+    turnos: turnos.map((turno) => {
+      const quantidade = turno.detalhes?.length ?? 0;
 
-    if (!quantidade) {
-      return { ...turno };
-    }
+      if (!quantidade) {
+        return { ...turno };
+      }
 
-    const fatia = detalhes.slice(cursor, cursor + quantidade);
-    cursor += quantidade;
-    return { ...turno, detalhes: fatia };
-  });
+      const fatia = detalhes.slice(cursor, cursor + quantidade);
+      cursor += quantidade;
+      return { ...turno, detalhes: fatia };
+    })
+  };
 }
 
 export function aplicarResultado(

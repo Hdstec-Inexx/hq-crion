@@ -323,8 +323,38 @@ function corrigirUltimaFalaDoAgente(
   });
 }
 
+function detalheDoResultado(resultado: ResultadoDaChamada): DetalheDaFerramenta {
+  const procedimento =
+    resultado.nome === 'start_procedure' ||
+    resultado.nome === 'end_procedure' ||
+    Boolean(resultado.idDoProcedimento || resultado.nomeDoProcedimento || resultado.indiceDoProcedimento);
+
+  return {
+    tipo: procedimento ? 'Procedimento' : 'Ferramenta',
+    ...(procedimento
+      ? { acao: resultado.nome === 'end_procedure' ? ('encerrou' as const) : ('iniciou' as const) }
+      : {}),
+    nome: resultado.nomeDoProcedimento ?? resultado.nome,
+    nomeDaFerramenta: resultado.nome,
+    ...(resultado.id ? { id: resultado.id } : {}),
+    ...(resultado.idDoProcedimento ? { idDoProcedimento: resultado.idDoProcedimento } : {}),
+    ...(resultado.indiceDoProcedimento ? { indiceDoProcedimento: resultado.indiceDoProcedimento } : {}),
+    ...(resultado.resposta ? { resposta: resultado.resposta } : {}),
+    ...(resultado.tempoDeExecucao ? { tempoDeExecucao: resultado.tempoDeExecucao } : {}),
+    ...(resultado.tipoDaFonte ? { tipoDaFonte: resultado.tipoDaFonte } : {}),
+    ...(resultado.raciocinio ? { raciocinio: resultado.raciocinio } : {}),
+    veredito: resultado.veredito
+  };
+}
+
 function completarResultado(turnos: readonly TurnoDaTranscricao[], resultado: ResultadoDaChamada) {
-  return aplicarResultados(turnos, [resultado]).map(copiar);
+  const aplicado = aplicarResultados(turnos, [resultado]);
+
+  if (aplicado.aplicou) {
+    return aplicado.turnos.map(copiar);
+  }
+
+  return acrescentarChamada(turnos, detalheDoResultado(resultado));
 }
 
 function acrescentarChamada(turnos: readonly TurnoDaTranscricao[], detalhe: DetalheDaFerramenta) {
