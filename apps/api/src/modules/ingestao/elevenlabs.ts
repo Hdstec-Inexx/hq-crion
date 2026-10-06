@@ -132,19 +132,16 @@ function nomesDeFerramenta(payload: PayloadElevenLabs) {
           nomes.push(nome);
         }
       }
-      continue;
-    }
-
-    if (turno.tool_name) {
-      nomes.push(turno.tool_name);
     }
   }
 
   return nomes;
 }
 
+const ferramentaDeTransferencia = 'transfer_to_number';
+
 export function transferenciaDaFonte(payload: PayloadElevenLabs) {
-  return nomesDeFerramenta(payload).some((nome) => /transfer/i.test(nome));
+  return nomesDeFerramenta(payload).some((nome) => nome === ferramentaDeTransferencia);
 }
 
 export function custoDaFonte(payload: PayloadElevenLabs) {

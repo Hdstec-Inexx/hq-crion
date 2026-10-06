@@ -31,5 +31,9 @@ ON CONFLICT (id) DO UPDATE SET
     EXCLUDED.tempo_de_espera_em_segundos,
     hq_atendimento.tempo_de_espera_em_segundos
   ),
-  audio = COALESCE(EXCLUDED.audio, hq_atendimento.audio)
+  audio = COALESCE(EXCLUDED.audio, hq_atendimento.audio),
+  transferencia = CASE
+    WHEN EXCLUDED.transcricao = '[]'::jsonb THEN hq_atendimento.transferencia
+    ELSE EXCLUDED.transferencia
+  END
 `;

@@ -77,7 +77,7 @@ O veredito dentro do Detalhe da Ferramenta: Sucesso ou Falha. Sem o retorno da f
 _Avoid_: promessa cumprida, retorno da API, payload
 
 **Transferência**:
-Fato do Atendimento: a ferramenta de transferência foi executada (contato passado a número ou humano). Chamada que a fonte marca como não executada não é Transferência e não tem detalhe. Fato ausente também não é Transferência. **Resolvido** neste HQ é o concluído em que a Transferência não é verdadeira. Na transcrição e no Monitoramento ao Vivo é Ferramenta: a chamada executada tem Detalhe da Ferramenta, e dá para abri-lo, com o mesmo pareamento das outras Ferramentas. Não é Procedimento.
+Fato do Atendimento: a ferramenta `transfer_to_number` foi executada (contato passado a número ou humano). Outro nome não é Transferência. Chamada que a fonte marca como não executada não é Transferência e não tem detalhe. Fato ausente também não é Transferência. **Resolvido** neste HQ é o concluído em que a Transferência não é verdadeira. Na transcrição e no Monitoramento ao Vivo é Ferramenta: a chamada executada tem Detalhe da Ferramenta, e dá para abri-lo, com o mesmo pareamento das outras Ferramentas. Não é Procedimento.
 _Avoid_: encaminhamento, drop
 
 **Tempo de Espera**:

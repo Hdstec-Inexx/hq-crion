@@ -121,7 +121,8 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia e o boot', 
       '004_tipo_da_midia.sql',
       '005_boot_e_custo_ausente.sql',
       '006_resumo_e_falhas_da_ia.sql',
-      '07_funcao_persistir_avaliacao_da_ia.sql'
+      '07_funcao_persistir_avaliacao_da_ia.sql',
+      '08_transferencia_transfer_to_number.sql'
     ]
   );
 });
@@ -182,6 +183,7 @@ test('nós n8n regravam atendimento e avaliação com parâmetros, sem interpola
   assert.match(atendimento, /transcricao = EXCLUDED\.transcricao/);
   assert.match(atendimento, /audio = EXCLUDED\.audio/);
   assert.match(atendimento, /tempo_de_espera_em_segundos = EXCLUDED\.tempo_de_espera_em_segundos/);
+  assert.match(atendimento, /ELSE EXCLUDED\.transferencia/);
   assert.equal(atendimento.includes('{{'), false);
   assert.match(
     avaliacao,
