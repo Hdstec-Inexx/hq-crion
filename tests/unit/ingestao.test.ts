@@ -298,7 +298,7 @@ test('transferência não executada não vira fato nem detalhe', () => {
       {
         role: 'agent',
         message: 'Vou transferir.',
-        tool_calls: [{ tool_name: 'transfer_to_number', tool_has_been_called: false }]
+        tool_calls: [{ tool_name: 'transfer_to_number', tool_has_been_called: false, status: 'skipped' }]
       }
     ]
   });
@@ -306,6 +306,53 @@ test('transferência não executada não vira fato nem detalhe', () => {
   assert.equal(atendimento?.transferencia, false);
   assert.equal(atendimento?.transcricao[0]?.texto, 'Vou transferir.');
   assert.equal(atendimento?.transcricao[0]?.detalhes, undefined);
+});
+
+test('chamada ainda não marcada como executada aparece e o resultado cola depois', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-chamada-pendente',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Aguarde um instante enquanto verifico.',
+        tool_calls: [
+          {
+            type: 'webhook',
+            request_id: 'c1',
+            tool_name: 'consultar_beneficiario',
+            params_as_json: '{"telefone":"11999999999"}',
+            tool_has_been_called: false
+          }
+        ]
+      },
+      {
+        role: 'agent',
+        message: 'Obrigada. Agora me confirme o nome.',
+        tool_results: [
+          {
+            request_id: 'c1',
+            tool_name: 'consultar_beneficiario',
+            tool_has_been_called: true,
+            is_error: false,
+            result_value: '{"nome":"Maria"}'
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(
+    atendimento?.transcricao[0]?.texto,
+    'Aguarde um instante enquanto verifico.\n[Chamada de Ferramenta: consultar_beneficiario]'
+  );
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.parametros, '{\n  "telefone": "11999999999"\n}');
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.resposta, '{\n  "nome": "Maria"\n}');
+  assert.equal(atendimento?.transcricao[1]?.texto, 'Obrigada. Agora me confirme o nome.');
+  assert.equal(atendimento?.transcricao[1]?.detalhes, undefined);
 });
 
 test('procedimento mostra o nome da fonte e o resultado cola pelo índice', () => {

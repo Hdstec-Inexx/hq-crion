@@ -5,7 +5,7 @@ import {
   type EventoDaObservacao
 } from '@hq-crion/contracts/atendimento';
 import {
-  chamadaExecutada,
+  chamadaRecusada,
   detalheDaChamada,
   nomeDaFerramenta,
   resultadoDaFonte,
@@ -67,7 +67,7 @@ function eventoDeFerramenta(mensagem: MensagemDaFonte): EventoDaObservacao | und
       mensagem.type === 'agent_tool_request' ? mensagem.agent_tool_request : mensagem.client_tool_call;
     const detalhe = ferramenta ? detalheDaChamada(ferramenta) : undefined;
 
-    if (!detalhe || !nomeDaFerramenta(ferramenta ?? {}) || !chamadaExecutada(ferramenta ?? {})) {
+    if (!detalhe || !nomeDaFerramenta(ferramenta ?? {}) || chamadaRecusada(ferramenta ?? {})) {
       return undefined;
     }
 
