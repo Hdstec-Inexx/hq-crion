@@ -16,9 +16,7 @@ import { useFraseVisivel } from './useFraseVisivel';
 
 function CartaoDoKpi({ item, destino }: { item: KpiDoDashboard; destino: string }) {
   const frase =
-    item.id === 'taxaDeResolvidas' && item.resolvidas !== undefined
-      ? fraseDoHoverDeTaxaDeResolvidas(item.resolvidas)
-      : null;
+    item.id === 'taxaDeResolvidas' ? fraseDoHoverDeTaxaDeResolvidas(item.resolvidas) : null;
   const revelacao = useFraseVisivel(frase !== null);
 
   return (
@@ -32,12 +30,10 @@ function CartaoDoKpi({ item, destino }: { item: KpiDoDashboard; destino: string 
     >
       <small>{item.rotulo}</small>
       <strong>{formatarValorDoKpi(item.id, item.valor)}</strong>
-      {item.id === 'sla' && item.limiarEmSegundos !== undefined && item.meta !== undefined ? (
+      {item.id === 'sla' ? (
         <em>
           Tempo de Espera ≤ {item.limiarEmSegundos}s · meta {item.meta}%
         </em>
-      ) : item.meta !== undefined ? (
-        <em>meta {item.meta}%</em>
       ) : null}
       {frase && revelacao.fraseVisivel ? (
         <span className="dashboard-kpi-frase" role="tooltip">

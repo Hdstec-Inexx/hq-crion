@@ -369,9 +369,14 @@ test('pulso do Dashboard traz TMA, resolvidas, SLA e nulos sem fato', async () =
 
     assert.equal(kpi(comFatoBody, 'tma').valor, 312);
     assert.equal(kpi(comFatoBody, 'taxaDeResolvidas').valor, 100);
-    assert.equal(kpi(comFatoBody, 'sla').valor, 100);
-    assert.equal(kpi(comFatoBody, 'sla').meta, 80);
-    assert.equal(kpi(comFatoBody, 'sla').limiarEmSegundos, 150);
+    const sla = kpi(comFatoBody, 'sla');
+    assert.equal(sla.valor, 100);
+    assert.equal(sla.id, 'sla');
+    if (sla.id !== 'sla') {
+      return;
+    }
+    assert.equal(sla.meta, 80);
+    assert.equal(sla.limiarEmSegundos, 150);
     assert.equal(kpi(comFatoBody, 'notaMediaIa').rotulo, 'Nota média IA Avaliadora');
     assert.equal(kpi(comFatoBody, 'avaliadosIa').rotulo, 'Avaliados IA Avaliadora');
     assert.equal(kpi(comFatoBody, 'promessasCumpridas').rotulo, 'Taxa de Promessas Cumpridas');
@@ -607,6 +612,7 @@ test('card da Taxa de Resolvidas revela a quantidade no ponteiro e no foco, sem 
   assert.match(pagina, /fraseDoHoverDeTaxaDeResolvidas/);
   assert.match(pagina, /useFraseVisivel/);
   assert.match(pagina, /dashboard-kpi-frase/);
+  assert.match(revelacao, /temFrase/);
   assert.match(revelacao, /pointerType === 'touch'/);
   assert.match(revelacao, /document\.activeElement/);
   assert.doesNotMatch(pagina, /dashboard-kpi[\s\S]*\btitle=/);
@@ -623,14 +629,10 @@ test('barra revela a frase no ponteiro e no foco, sem title que atrase o toque',
     'utf8'
   );
 
-  const revelacao = readFileSync(
-    join(raiz, 'apps/web/src/features/dashboard/useFraseVisivel.ts'),
-    'utf8'
-  );
-
-  assert.match(barras, /useFraseVisivel/);
-  assert.match(revelacao, /pointerType === 'touch'/);
-  assert.match(revelacao, /document\.activeElement/);
+  assert.match(barras, /onFocus=\{\(\) => setFraseVisivel\(true\)\}/);
+  assert.match(barras, /onPointerLeave=\{\(\) => setFraseVisivel\(false\)\}/);
+  assert.match(barras, /pointerType === 'touch'/);
+  assert.doesNotMatch(barras, /document\.activeElement/);
   assert.doesNotMatch(barras, /\btitle=/);
   assert.match(barras, /dashboard-barra-frase/);
   assert.match(barras, /fraseDoHover/);

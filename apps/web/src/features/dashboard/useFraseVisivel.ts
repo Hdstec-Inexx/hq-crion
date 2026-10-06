@@ -1,20 +1,20 @@
 import { useState, type PointerEvent } from 'react';
 
-export function useFraseVisivel(ativa = true) {
+export function useFraseVisivel(temFrase = true) {
   const [visivel, setVisivel] = useState(false);
 
   return {
-    fraseVisivel: ativa && visivel,
+    fraseVisivel: temFrase && visivel,
     aoPerderFoco() {
       setVisivel(false);
     },
     aoFocar() {
-      if (ativa) {
+      if (temFrase) {
         setVisivel(true);
       }
     },
     aoEntrarComPonteiro(evento: PointerEvent<HTMLElement>) {
-      if (!ativa || evento.pointerType === 'touch') {
+      if (!temFrase || evento.pointerType === 'touch') {
         return;
       }
       setVisivel(true);

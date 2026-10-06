@@ -1,5 +1,5 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useFraseVisivel } from './useFraseVisivel';
 
 function BarraDoPainel({
   item,
@@ -8,7 +8,7 @@ function BarraDoPainel({
   item: { nome: string; valor: number | null; fraseDoHover: string };
   destino: string;
 }) {
-  const revelacao = useFraseVisivel();
+  const [fraseVisivel, setFraseVisivel] = useState(false);
   const preenchimento =
     item.valor === null ? 0 : Math.min(100, Math.max(0, item.valor));
   const rotulo =
@@ -20,10 +20,15 @@ function BarraDoPainel({
     <li>
       <Link
         aria-label={`${item.nome} ${rotulo} ${item.fraseDoHover}`}
-        onBlur={revelacao.aoPerderFoco}
-        onFocus={revelacao.aoFocar}
-        onPointerEnter={revelacao.aoEntrarComPonteiro}
-        onPointerLeave={revelacao.aoSairComPonteiro}
+        onBlur={() => setFraseVisivel(false)}
+        onFocus={() => setFraseVisivel(true)}
+        onPointerEnter={(evento) => {
+          if (evento.pointerType === 'touch') {
+            return;
+          }
+          setFraseVisivel(true);
+        }}
+        onPointerLeave={() => setFraseVisivel(false)}
         to={destino}
       >
         <span className="dashboard-barra-rotulo">
@@ -33,7 +38,7 @@ function BarraDoPainel({
         <span className="dashboard-barra-trilho">
           <span style={{ width: `${preenchimento}%` }} />
         </span>
-        {revelacao.fraseVisivel ? (
+        {fraseVisivel ? (
           <span className="dashboard-barra-frase" role="tooltip">
             {item.fraseDoHover}
           </span>

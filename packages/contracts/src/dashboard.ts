@@ -15,14 +15,27 @@ export const idDoKpiSchema = z.enum([
   'aprovacao'
 ]);
 
-export const kpiDoDashboardSchema = z.object({
-  id: idDoKpiSchema,
+const kpiBaseSchema = z.object({
   rotulo: z.string().min(1),
-  valor: z.number().nullable(),
-  resolvidas: z.number().int().min(0).optional(),
-  meta: z.number().optional(),
-  limiarEmSegundos: z.number().optional()
+  valor: z.number().nullable()
 });
+
+const idDoKpiSimplesSchema = idDoKpiSchema.exclude(['taxaDeResolvidas', 'sla']);
+
+export const kpiDoDashboardSchema = z.discriminatedUnion('id', [
+  kpiBaseSchema.extend({
+    id: z.literal('taxaDeResolvidas'),
+    resolvidas: z.number().int().min(0)
+  }),
+  kpiBaseSchema.extend({
+    id: z.literal('sla'),
+    meta: z.number(),
+    limiarEmSegundos: z.number()
+  }),
+  kpiBaseSchema.extend({
+    id: idDoKpiSimplesSchema
+  })
+]);
 
 export const idDoPainelSchema = z.enum([
   'motivos',
