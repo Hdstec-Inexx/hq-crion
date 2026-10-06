@@ -1586,6 +1586,21 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
   });
   fonte.emitir('message', 'x'.repeat(70_000));
   assert.equal(enviadosAoCliente.length, 2);
+  fonte.emitir(
+    'message',
+    JSON.stringify({
+      type: 'agent_tool_response',
+      agent_tool_response: {
+        tool_call_id: 'sms-1',
+        tool_name: 'enviar_sms',
+        is_error: false,
+        tool_has_been_called: true,
+        result_value: 'y'.repeat(70_000)
+      }
+    })
+  );
+  assert.equal(JSON.parse(enviadosAoCliente.at(-1) ?? '').tipo, 'resultado');
+  assert.equal(JSON.parse(enviadosAoCliente.at(-1) ?? '').resultado.resposta.length, 4_096);
   for (const ouvinte of ouvintes.get('cliente:message') ?? []) {
     ouvinte(JSON.stringify({ type: 'interrupt' }));
   }
@@ -1702,6 +1717,30 @@ test('chamada ao vivo fica na fala do agente e a correção conserva o detalhe',
     'Vou verificar seu plano.\n[Chamada de Ferramenta: consultar_plano]'
   );
   assert.equal(corrigida.transcricao[0]?.detalhes?.[0]?.id, 'c1');
+});
+
+test('resultado ao vivo sem nome completa a chamada pelo id', () => {
+  const comChamada = aplicarEventoDaObservacao(
+    { transcricao: [], observando: true },
+    {
+      tipo: 'chamada',
+      detalhe: {
+        tipo: 'Ferramenta',
+        nome: 'enviar_sms',
+        nomeDaFerramenta: 'enviar_sms',
+        id: 'sms-1'
+      }
+    }
+  );
+  const comResultado = aplicarEventoDaObservacao(comChamada, {
+    tipo: 'resultado',
+    resultado: { id: 'sms-1', veredito: 'Sucesso', resposta: '{"protocolo":"123"}' }
+  });
+
+  assert.equal(comResultado.transcricao.length, 1);
+  assert.equal(comResultado.transcricao[0]?.detalhes?.length, 1);
+  assert.equal(comResultado.transcricao[0]?.detalhes?.[0]?.nome, 'enviar_sms');
+  assert.equal(comResultado.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
 });
 
 test('resultado ao vivo sem chamada anterior entra na fala do agente', () => {

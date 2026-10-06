@@ -9,6 +9,7 @@ import {
   nomeDaFerramenta,
   resultadoDaFonte,
   tempoDoLlm,
+  type DetalheDaChamada,
   type ItemDaFonte
 } from '../ferramenta/da-fonte.js';
 import {
@@ -195,10 +196,12 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
     const contexto = contextoDoTurno(turno);
     const detalhes = (turno.tool_calls ?? [])
       .map((chamada) => detalheDaChamada(chamada, contexto))
-      .filter((detalhe): detalhe is DetalheDaFerramenta => Boolean(detalhe));
+      .filter((detalhe): detalhe is DetalheDaChamada => Boolean(detalhe));
 
     if (!detalhes.length && turno.tool_name?.trim()) {
-      const avulso = detalheDaChamada({ tool_name: turno.tool_name }, contexto);
+      const avulso = detalheDaChamada({ tool_name: turno.tool_name }, contexto) as
+        | DetalheDaChamada
+        | undefined;
       if (avulso) {
         detalhes.push(avulso);
       }
@@ -223,7 +226,14 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
   ).turnos;
 
   return comResultados.flatMap((turno) => {
-    const detalhes = turno.detalhes ?? [];
+    const detalhes = (turno.detalhes ?? []).flatMap((detalhe) => {
+      if (detalhe.pendente && !detalhe.veredito) {
+        return [];
+      }
+
+      const { pendente: _pendente, ...publico } = detalhe;
+      return [publico];
+    });
     const texto = [
       turno.fala,
       ...detalhes.map((detalhe) => textoDaChamadaDeFerramenta(detalhe.nomeDaFerramenta))

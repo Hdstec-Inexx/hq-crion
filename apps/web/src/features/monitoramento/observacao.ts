@@ -8,6 +8,7 @@ import {
 } from '@hq-crion/contracts/atendimento';
 import {
   aplicarResultados,
+  detalheDoResultado,
   detalhesComVereditoDaTela,
   type DetalheDaFerramenta,
   type ResultadoDaChamada
@@ -323,30 +324,6 @@ function corrigirUltimaFalaDoAgente(
   });
 }
 
-function detalheDoResultado(resultado: ResultadoDaChamada): DetalheDaFerramenta {
-  const procedimento =
-    resultado.nome === 'start_procedure' ||
-    resultado.nome === 'end_procedure' ||
-    Boolean(resultado.idDoProcedimento || resultado.nomeDoProcedimento || resultado.indiceDoProcedimento);
-
-  return {
-    tipo: procedimento ? 'Procedimento' : 'Ferramenta',
-    ...(procedimento
-      ? { acao: resultado.nome === 'end_procedure' ? ('encerrou' as const) : ('iniciou' as const) }
-      : {}),
-    nome: resultado.nomeDoProcedimento ?? resultado.nome,
-    nomeDaFerramenta: resultado.nome,
-    ...(resultado.id ? { id: resultado.id } : {}),
-    ...(resultado.idDoProcedimento ? { idDoProcedimento: resultado.idDoProcedimento } : {}),
-    ...(resultado.indiceDoProcedimento ? { indiceDoProcedimento: resultado.indiceDoProcedimento } : {}),
-    ...(resultado.resposta ? { resposta: resultado.resposta } : {}),
-    ...(resultado.tempoDeExecucao ? { tempoDeExecucao: resultado.tempoDeExecucao } : {}),
-    ...(resultado.tipoDaFonte ? { tipoDaFonte: resultado.tipoDaFonte } : {}),
-    ...(resultado.raciocinio ? { raciocinio: resultado.raciocinio } : {}),
-    veredito: resultado.veredito
-  };
-}
-
 function completarResultado(turnos: readonly TurnoDaTranscricao[], resultado: ResultadoDaChamada) {
   const aplicado = aplicarResultados(turnos, [resultado]);
 
@@ -354,7 +331,13 @@ function completarResultado(turnos: readonly TurnoDaTranscricao[], resultado: Re
     return aplicado.turnos.map(copiar);
   }
 
-  return acrescentarChamada(turnos, detalheDoResultado(resultado));
+  const detalhe = detalheDoResultado(resultado);
+
+  if (!detalhe) {
+    return turnos.map(copiar);
+  }
+
+  return acrescentarChamada(turnos, detalhe);
 }
 
 function acrescentarChamada(turnos: readonly TurnoDaTranscricao[], detalhe: DetalheDaFerramenta) {

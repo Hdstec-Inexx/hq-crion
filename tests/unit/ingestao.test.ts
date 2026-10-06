@@ -308,6 +308,26 @@ test('transferência não executada não vira fato nem detalhe', () => {
   assert.equal(atendimento?.transcricao[0]?.detalhes, undefined);
 });
 
+test('chamada marcada como não executada e sem resultado não entra', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-nao-executada',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Vou consultar.',
+        tool_calls: [{ tool_name: 'consultar_plano', tool_has_been_called: false }]
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transcricao[0]?.texto, 'Vou consultar.');
+  assert.equal(atendimento?.transcricao[0]?.detalhes, undefined);
+  assert.equal(atendimento?.transferencia, false);
+});
+
 test('chamada ainda não marcada como executada aparece e o resultado cola depois', () => {
   const atendimento = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-chamada-pendente',
