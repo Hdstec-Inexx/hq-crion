@@ -35,9 +35,7 @@ async function sessaoDe(
 function checklistDaConferencia() {
   return reguaUnica.criterios.map((criterio) => ({
     nome: criterio.nome,
-    estado: criterio.nome === 'Validação de e-mail' ? 'Não se aplica' : 'Atendido',
-    pontos: criterio.valor,
-    critico: criterio.critico
+    estado: criterio.nome === 'Validação de e-mail' ? 'Não se aplica' : 'Atendido'
   }));
 }
 
@@ -505,8 +503,6 @@ test('comentário da conferência entra na fila como Pendente', async () => {
       headers: { authorization: `Bearer ${sessaoCurador}` },
       payload: {
         checklist: checklistDaConferencia(),
-        notaDaRegua: 8.5,
-        notaDaAvaliacaoDaIa: 8.5,
         comentario: 'Ajustar o tom da Clara Affix no 0800.'
       }
     });
@@ -570,8 +566,6 @@ test('com Comentário pendente no Atendimento, o percurso não abre o seguinte',
       headers: { authorization: `Bearer ${sessaoCurador}` },
       payload: {
         checklist: checklistDaConferencia(),
-        notaDaRegua: 9,
-        notaDaAvaliacaoDaIa: 9,
         comentario: 'Rever a Clara Conectaplan.'
       }
     });
@@ -604,8 +598,6 @@ test('resolver o último pendente consulta o próximo no mesmo filtro', async ()
       headers: { authorization: `Bearer ${sessaoCurador}` },
       payload: {
         checklist: checklistDaConferencia(),
-        notaDaRegua: 9,
-        notaDaAvaliacaoDaIa: 9,
         comentario: 'Rever a Clara Conectaplan.'
       }
     });
@@ -654,8 +646,6 @@ test('sem posterior, o percurso volta à fila e deixa o pendente anterior na lis
       headers: { authorization: `Bearer ${sessaoCurador}` },
       payload: {
         checklist: checklistDaConferencia(),
-        notaDaRegua: 8.5,
-        notaDaAvaliacaoDaIa: 8.5,
         comentario: 'Ajustar o tom da Clara Affix no 0800.'
       }
     });
@@ -699,8 +689,6 @@ test('sem próximo no período, a consulta volta à fila com Recorte e filtros',
       headers: { authorization: `Bearer ${sessaoCurador}` },
       payload: {
         checklist: checklistDaConferencia(),
-        notaDaRegua: 5,
-        notaDaAvaliacaoDaIa: 5,
         comentario: 'Comentário fora do mês civil.'
       }
     });

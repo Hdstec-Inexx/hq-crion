@@ -10,7 +10,7 @@ import {
 import { periodoDaQuery, type ModoDaListagem } from './filtros.js';
 import type { PortaDeAtendimentos } from './porta.js';
 import {
-  aprovacaoDaNota,
+  aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
   criteriosComChave,
@@ -149,6 +149,15 @@ function criterioDe(linha: {
   };
 }
 
+function violacaoUnica(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === '23505'
+  );
+}
+
 async function emTransacao<T>(pool: PoolSql, trabalho: (cliente: ExecutorSql) => Promise<T>) {
   const conexao = await pool.connect();
 
@@ -241,7 +250,7 @@ function montarRegistro(
       ? undefined
       : {
           nota: notaIa,
-          aprovacao: aprovacaoDaNota(notaIa),
+          aprovacao: aprovacaoDaAvaliacao(notaIa, criteriosIa.get(linha.id) ?? []),
           criterios: criteriosIa.get(linha.id) ?? [],
           resumo: linha.ia_resumo_atendimento ?? undefined,
           falhasIdentificadas: falhasIdentificadasDe(linha.ia_falhas_identificadas)
@@ -254,7 +263,10 @@ function montarRegistro(
     linha.avaliacao_curador_id && notaCurador !== undefined && linha.curador_nome
       ? {
           nota: notaCurador,
-          aprovacao: aprovacaoDaNota(notaCurador),
+          aprovacao: aprovacaoDaAvaliacao(
+            notaCurador,
+            criteriosCurador.get(linha.avaliacao_curador_id) ?? []
+          ),
           criterios: criteriosCurador.get(linha.avaliacao_curador_id) ?? [],
           notaDaAvaliacaoDaIa: numero(linha.nota_da_avaliacao_da_ia),
           curador: linha.curador_nome,
@@ -706,19 +718,28 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         }
 
         const avaliacaoId = randomUUID();
-        await cliente.query(
-          `INSERT INTO hq_avaliacao_do_curador
-             (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            avaliacaoId,
-            id,
-            entrada.nota,
-            encontrado.avaliacaoDaIa.nota,
-            entrada.curador.id,
-            entrada.curador.nome
-          ]
-        );
+
+        try {
+          await cliente.query(
+            `INSERT INTO hq_avaliacao_do_curador
+               (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              avaliacaoId,
+              id,
+              entrada.nota,
+              encontrado.avaliacaoDaIa.nota,
+              entrada.curador.id,
+              entrada.curador.nome
+            ]
+          );
+        } catch (error) {
+          if (violacaoUnica(error)) {
+            return 'indisponivel' as const;
+          }
+
+          throw error;
+        }
         await inserirCriterios(
           cliente,
           `INSERT INTO hq_criterio_da_avaliacao_do_curador

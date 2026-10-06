@@ -1,4 +1,10 @@
-import type { AtendimentoDetalhe, CriterioAvaliado } from '@hq-crion/contracts/atendimento';
+import {
+  notaDerivada,
+  seloDaAvaliacao,
+  type AtendimentoDetalhe,
+  type CriterioAvaliado,
+  type CriterioDaConferencia
+} from '@hq-crion/contracts/atendimento';
 import { reguaUnica } from '../regua/regua-unica.js';
 
 export type FerramentasDoAtendimento = {
@@ -42,8 +48,72 @@ export function camposDeMidia(caminho: string | null | undefined) {
   return { audio: normalizado, downloadDeAudio: normalizado };
 }
 
-export function aprovacaoDaNota(nota: number): 'Aprovado' | 'Reprovado' {
-  return nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado';
+export function aprovacaoDaAvaliacao(
+  nota: number,
+  criterios: readonly { estado: string; critico: boolean }[]
+) {
+  return seloDaAvaliacao(nota, reguaUnica.limiarDeAprovacao, criterios);
+}
+
+export function iaEstaAprovada(item: RegistroDeAtendimento) {
+  if (!avaliacaoDaIaTemVeredito(item)) {
+    return false;
+  }
+
+  const nota =
+    typeof item.avaliacaoDaIa.nota === 'number' ? item.avaliacaoDaIa.nota : item.nota;
+
+  return aprovacaoDaAvaliacao(nota, item.avaliacaoDaIa.criterios) === 'Aprovado';
+}
+
+export function montarConferencia(
+  criteriosDaIa: readonly CriterioAvaliado[],
+  enviados: readonly CriterioDaConferencia[]
+): { nota: number; criterios: CriterioAvaliado[] } | undefined {
+  if (enviados.length !== criteriosDaIa.length) {
+    return undefined;
+  }
+
+  const usados = new Set<string>();
+  const criterios: CriterioAvaliado[] = [];
+
+  for (const enviado of enviados) {
+    const daIa = criteriosDaIa.find((criterio) => criterio.nome === enviado.nome);
+
+    if (!daIa || usados.has(daIa.nome)) {
+      return undefined;
+    }
+
+    const daRegua = criterioDaRegua({
+      nome: enviado.nome,
+      ...(enviado.chave ? { chave: enviado.chave } : {}),
+      estado: enviado.estado,
+      pontos: 0,
+      critico: false
+    });
+
+    if (!daRegua || daRegua.nome !== daIa.nome) {
+      return undefined;
+    }
+
+    if (enviado.estado === 'Não se aplica' && !daRegua.admiteNaoSeAplica) {
+      return undefined;
+    }
+
+    usados.add(daIa.nome);
+    criterios.push({
+      chave: daRegua.chave,
+      nome: daRegua.nome,
+      estado: enviado.estado,
+      pontos: daRegua.valor,
+      critico: daRegua.critico
+    });
+  }
+
+  return {
+    nota: notaDerivada(criterios),
+    criterios
+  };
 }
 
 export function recusaNaoSeAplica(criterios: readonly CriterioAvaliado[]) {
@@ -95,7 +165,11 @@ export function recusaDaConferencia(item: RegistroDeAtendimento | undefined) {
     return 'ausente' as const;
   }
 
-  if (item.status !== 'Concluído' || !avaliacaoDaIaTemVeredito(item)) {
+  if (
+    item.status !== 'Concluído' ||
+    !avaliacaoDaIaTemVeredito(item) ||
+    item.avaliacaoDoCurador
+  ) {
     return 'indisponivel' as const;
   }
 

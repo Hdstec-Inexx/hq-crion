@@ -122,7 +122,8 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia e o boot', 
       '005_boot_e_custo_ausente.sql',
       '006_resumo_e_falhas_da_ia.sql',
       '07_funcao_persistir_avaliacao_da_ia.sql',
-      '08_transferencia_transfer_to_number.sql'
+      '08_transferencia_transfer_to_number.sql',
+      '09_uma_avaliacao_do_curador.sql'
     ]
   );
 });

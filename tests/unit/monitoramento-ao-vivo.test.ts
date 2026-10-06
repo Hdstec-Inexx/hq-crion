@@ -375,7 +375,7 @@ test('detalhe ao vivo é texto da fonte e não altera o Atendimento', async () =
       method: 'POST',
       url: '/monitoramento/conv-aberta/conferencia',
       headers,
-      payload: { checklist: [], notaDaRegua: 8, notaDaAvaliacaoDaIa: 8 }
+      payload: { checklist: [] }
     });
     const depois = await app.inject({
       method: 'GET',

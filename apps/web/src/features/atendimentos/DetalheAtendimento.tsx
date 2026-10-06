@@ -4,6 +4,8 @@ import {
   custoVisivelPara,
   downloadVisivelPara,
   falhasIdentificadasDe,
+  notaDerivada,
+  seloDaAvaliacao,
   type AtendimentoDetalhe,
   type Avaliacao,
   type AvaliacaoDoCurador,
@@ -11,6 +13,7 @@ import {
   type PercursoDaFilaDeManutencao
 } from '@hq-crion/contracts/atendimento';
 import type { Perfil } from '@hq-crion/contracts/perfil';
+import type { CriterioDaRegua, ReguaDeAvaliacao } from '@hq-crion/contracts/regua';
 import {
   destinoDaFilaDeManutencao,
   destinoDaLista,
@@ -19,7 +22,9 @@ import {
 } from '@hq-crion/contracts/recorte';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { lerSessao } from '../auth/sessao';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
+import { buscarRegua } from '../regua/api';
 import { buscarAtendimento, buscarObjetoDaMidia, buscarPercursoDaFila, gravarConferencia, marcarComentarioResolvido } from './api';
 import { ReproducaoDoAtendimento } from './TranscricaoDoAtendimento';
 
@@ -134,13 +139,31 @@ function PainelAvaliacao({
   );
 }
 
-function estadosDoCriterioNaConferencia(criterio: { chave?: string; nome: string }): EstadoDoCriterio[] {
-  const admite =
-    criterio.chave === 'validacao-de-e-mail' || criterio.nome === 'Validação de e-mail';
+function conferenciaAberta(
+  papel: Perfil['papel'],
+  atendimento: AtendimentoDetalhe
+) {
+  return (
+    papel === 'Curador' &&
+    atendimento.status === 'Concluído' &&
+    Boolean(atendimento.avaliacaoDaIa) &&
+    !atendimento.avaliacaoDoCurador
+  );
+}
 
-  return admite
+function estadosDoCriterioNaConferencia(criterio: Pick<CriterioDaRegua, 'admiteNaoSeAplica'>): EstadoDoCriterio[] {
+  return criterio.admiteNaoSeAplica
     ? ['Atendido', 'Não atendido', 'Não se aplica']
     : ['Atendido', 'Não atendido'];
+}
+
+function criterioNaRegua(
+  regua: ReguaDeAvaliacao,
+  criterio: { chave?: string; nome: string }
+) {
+  return regua.criterios.find(
+    (item) => item.chave === criterio.chave || item.nome === criterio.nome
+  );
 }
 
 function FormularioConferencia({
@@ -152,18 +175,79 @@ function FormularioConferencia({
 }) {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [regua, setRegua] = useState<ReguaDeAvaliacao | null>(null);
+  const [estados, setEstados] = useState<Record<string, EstadoDoCriterio>>(() =>
+    Object.fromEntries(
+      atendimento.avaliacaoDaIa.criterios.map((criterio) => [criterio.nome, criterio.estado])
+    )
+  );
+  const resumo =
+    typeof atendimento.avaliacaoDaIa.resumo === 'string'
+      ? atendimento.avaliacaoDaIa.resumo.trim()
+      : '';
+  const falhas = falhasIdentificadasDe(atendimento.avaliacaoDaIa.falhasIdentificadas);
+
+  useEffect(() => {
+    const sessao = lerSessao();
+
+    if (!sessao) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    buscarRegua(sessao, controller.signal)
+      .then((resultado) => {
+        if (!controller.signal.aborted) {
+          setRegua(resultado);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setErro('Não foi possível carregar a Régua.');
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  const linhas = regua
+    ? atendimento.avaliacaoDaIa.criterios.flatMap((criterio) => {
+        const daRegua = criterioNaRegua(regua, criterio);
+
+        if (!daRegua) {
+          return [];
+        }
+
+        return [
+          {
+            criterio,
+            daRegua,
+            estado: estados[criterio.nome] ?? criterio.estado
+          }
+        ];
+      })
+    : [];
+  const nota = notaDerivada(
+    linhas.map((linha) => ({ estado: linha.estado, pontos: linha.daRegua.valor }))
+  );
+  const selo = regua
+    ? seloDaAvaliacao(
+        nota,
+        regua.limiarDeAprovacao,
+        linhas.map((linha) => ({ estado: linha.estado, critico: linha.daRegua.critico }))
+      )
+    : null;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const comentario = String(data.get('comentario') ?? '').trim();
     const checklist = atendimento.avaliacaoDaIa.criterios.map((criterio) => ({
       ...(criterio.chave ? { chave: criterio.chave } : {}),
       nome: criterio.nome,
-      estado: String(data.get(`estado-${criterio.nome}`) ?? '') as EstadoDoCriterio,
-      pontos: criterio.pontos,
-      critico: criterio.critico
+      estado: estados[criterio.nome] ?? criterio.estado
     }));
-    const comentario = String(data.get('comentario') ?? '').trim();
 
     setErro(null);
     setEnviando(true);
@@ -171,8 +255,6 @@ function FormularioConferencia({
     try {
       const gravado = await gravarConferencia(atendimento.id, {
         checklist,
-        notaDaRegua: Number(data.get('notaDaRegua')),
-        notaDaAvaliacaoDaIa: atendimento.avaliacaoDaIa.nota,
         ...(comentario ? { comentario } : {})
       });
 
@@ -190,49 +272,68 @@ function FormularioConferencia({
   }
 
   return (
-    <form className="conferencia-form" onSubmit={onSubmit} aria-label="Conferência">
-      <h2>Conferência da Avaliação da IA</h2>
-      <p>
-        Checklist da Régua, nota da Régua e snapshot da Nota da Avaliação da IA.
-        Comentário é opcional.
-      </p>
-      <div className="criterio-grid">
-        {atendimento.avaliacaoDaIa.criterios.map((criterio) => (
-          <label className="criterio-card" key={criterio.nome}>
-            <span className="criterio-top">
+    <form className="conferencia-form" onSubmit={onSubmit} aria-label="Conferência humana">
+      <h2>Conferência humana</h2>
+      <p className="panel-label">Checklist do Curador</p>
+      <p>Os estados começam iguais aos da IA. Confirme ou corrija cada Critério.</p>
+      {selo ? (
+        <div className={`avaliacao-score${selo === 'Aprovado' ? '' : ' is-fail'}`}>
+          <strong>{formatarNota(nota)}</strong>
+          <span>{selo}</span>
+        </div>
+      ) : null}
+      <div className="conferencia-lista">
+        {linhas.map(({ criterio, daRegua, estado }) => (
+          <div className="conferencia-linha" key={criterio.nome}>
+            <div className="criterio-top">
               <strong>{criterio.nome}</strong>
-              <span className="criterio-pontos">{formatarPontos(criterio.pontos)}</span>
-            </span>
-            {criterio.critico ? <span className="criterio-critico">Crítico</span> : null}
-            <select name={`estado-${criterio.nome}`} defaultValue={criterio.estado} required>
-              {estadosDoCriterioNaConferencia(criterio).map((estado) => (
-                <option key={estado} value={estado}>
-                  {estado}
-                </option>
+              <span className="criterio-pontos">{formatarPontos(daRegua.valor)}</span>
+            </div>
+            {daRegua.critico ? <span className="criterio-critico">Crítico</span> : null}
+            <div className="conferencia-estados">
+              {estadosDoCriterioNaConferencia(daRegua).map((opcao) => (
+                <label key={opcao}>
+                  <input
+                    type="radio"
+                    name={`estado-${criterio.nome}`}
+                    value={opcao}
+                    checked={estado === opcao}
+                    onChange={() =>
+                      setEstados((atual) => ({ ...atual, [criterio.nome]: opcao }))
+                    }
+                  />
+                  {opcao}
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
         ))}
       </div>
-      <div className="conferencia-notas">
-        <label>
-          Nota da Régua
-          <input
-            name="notaDaRegua"
-            type="number"
-            step="0.1"
-            min="0"
-            max="10"
-            defaultValue={atendimento.avaliacaoDaIa.nota}
-            required
-          />
-        </label>
-        <p>
-          Nota da Avaliação da IA: {formatarNota(atendimento.avaliacaoDaIa.nota)}
-        </p>
+      <p>Nota da Avaliação da IA: {formatarNota(atendimento.avaliacaoDaIa.nota)}</p>
+      <div className="avaliacao-notes">
+        <div className="avaliacao-note-col">
+          <p className="panel-label">Resumo do Atendimento</p>
+          <div className="avaliacao-resumo-scroll">
+            <p>{resumo || 'Resumo não informado.'}</p>
+          </div>
+        </div>
+        <div className="avaliacao-note-col">
+          <p className="panel-label">Falhas Identificadas</p>
+          <div className="avaliacao-falhas-scroll">
+            {falhas.length > 0 ? (
+              <ul>
+                {falhas.map((falha, index) => (
+                  <li key={`${index}:${falha}`}>{falha}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>Nenhuma falha identificada.</p>
+            )}
+          </div>
+        </div>
       </div>
       <label className="conferencia-comentario">
-        Comentário (opcional)
+        Comentário da revisão (opcional)
         <textarea name="comentario" rows={3} />
       </label>
       {erro ? (
@@ -240,8 +341,8 @@ function FormularioConferencia({
           {erro}
         </p>
       ) : null}
-      <button type="submit" disabled={enviando}>
-        Gravar conferência
+      <button type="submit" disabled={enviando || !regua}>
+        Salvar conferência
       </button>
     </form>
   );
@@ -468,15 +569,13 @@ export function DetalheAtendimento() {
               ) : null
             }
           >
-          {perfil.papel === 'Curador' &&
-          atendimento.status === 'Concluído' &&
-          atendimento.avaliacaoDaIa &&
-          !atendimento.avaliacaoDoCurador ? (
+          {conferenciaAberta(perfil.papel, atendimento) && atendimento.avaliacaoDaIa ? (
             <FormularioConferencia
               atendimento={{ ...atendimento, avaliacaoDaIa: atendimento.avaliacaoDaIa }}
               onGravada={setAtendimento}
             />
           ) : null}
+          {!conferenciaAberta(perfil.papel, atendimento) ? (
           <div
             className={`avaliacao-paineis${atendimento.avaliacaoDoCurador ? '' : ' ia-only'}`}
           >
@@ -490,6 +589,7 @@ export function DetalheAtendimento() {
               />
             ) : null}
           </div>
+          ) : null}
           {operaPercurso && percurso?.comentarioPendenteId ? (
             <div className="percurso-da-fila">
               {percurso.textoPendente &&
