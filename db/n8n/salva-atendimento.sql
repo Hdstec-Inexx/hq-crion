@@ -15,4 +15,8 @@ ON CONFLICT (id) DO UPDATE SET
   duracao_em_segundos = EXCLUDED.duracao_em_segundos,
   transcricao = EXCLUDED.transcricao,
   audio = EXCLUDED.audio,
-  tempo_de_espera_em_segundos = EXCLUDED.tempo_de_espera_em_segundos;
+  tempo_de_espera_em_segundos = EXCLUDED.tempo_de_espera_em_segundos,
+  transferencia = CASE
+    WHEN EXCLUDED.transcricao = '[]'::jsonb THEN hq_atendimento.transferencia
+    ELSE EXCLUDED.transferencia
+  END;

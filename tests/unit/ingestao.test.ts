@@ -288,6 +288,43 @@ test('parâmetros e resposta da ferramenta não passam do tamanho da fala', () =
   assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.resposta?.length, 4_096);
 });
 
+test('Transferência só existe na ferramenta executada transfer_to_number', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-outro-transfer',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Sigo no fluxo.',
+        tool_calls: [{ tool_name: 'transfer_to_agent' }]
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transferencia, false);
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.nome, 'transfer_to_agent');
+});
+
+test('turno só com tool_name transfer_to_number não é Transferência', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-tool-name-solto',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Vou transferir.',
+        tool_name: 'transfer_to_number'
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transferencia, false);
+});
+
 test('transferência não executada não vira fato nem detalhe', () => {
   const atendimento = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-transfer-parada',
