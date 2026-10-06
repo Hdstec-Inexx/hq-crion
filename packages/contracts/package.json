@@ -29,6 +29,10 @@
       "types": "./src/atendimento.ts",
       "default": "./dist/atendimento.js"
     },
+    "./ferramenta": {
+      "types": "./src/ferramenta.ts",
+      "default": "./dist/ferramenta.js"
+    },
     "./filtros-listagem": {
       "types": "./src/filtros-listagem.ts",
       "default": "./dist/filtros-listagem.js"

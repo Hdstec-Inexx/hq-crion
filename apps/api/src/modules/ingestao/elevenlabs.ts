@@ -1,8 +1,16 @@
 import {
   textoDaChamadaDeFerramenta,
-  textoDoResultadoDaFerramenta,
   type TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
+import { aplicarResultados, type DetalheDaFerramenta } from '@hq-crion/contracts/ferramenta';
+import {
+  chamadaExecutada,
+  detalheDaChamada,
+  nomeDaFerramenta,
+  resultadoDaFonte,
+  tempoDoLlm,
+  type ItemDaFonte
+} from '../ferramenta/da-fonte.js';
 import {
   administradoras,
   agentesDeVoz,
@@ -29,24 +37,15 @@ export type PayloadElevenLabs = {
   transcript?: TurnoDaFonteElevenLabs[];
 };
 
-type FerramentaDaFonte = {
-  tool_name?: string;
-  name?: string;
-  toolName?: string;
-  tool_call_id?: string;
-  tool_has_been_called?: boolean;
-  is_error?: boolean;
-  error?: unknown;
-  status?: string;
-};
-
 type TurnoDaFonteElevenLabs = {
   role: string;
   message?: string;
   time_in_call_secs?: number;
   tool_name?: string;
-  tool_calls?: FerramentaDaFonte[];
-  tool_results?: FerramentaDaFonte[];
+  reasoning?: unknown;
+  conversation_turn_metrics?: unknown;
+  tool_calls?: ItemDaFonte[];
+  tool_results?: ItemDaFonte[];
 };
 
 export type AtendimentoColetado = RegistroDeAtendimento & {
@@ -118,14 +117,18 @@ function nomesDeFerramenta(payload: PayloadElevenLabs) {
   const nomes: string[] = [];
 
   for (const turno of payload.transcript ?? []) {
-    if (turno.tool_name) {
-      nomes.push(turno.tool_name);
+    if (turno.tool_calls?.length) {
+      for (const chamada of turno.tool_calls) {
+        const nome = nomeDaFerramenta(chamada);
+        if (nome && chamadaExecutada(chamada)) {
+          nomes.push(nome);
+        }
+      }
+      continue;
     }
 
-    for (const chamada of turno.tool_calls ?? []) {
-      if (chamada.tool_name) {
-        nomes.push(chamada.tool_name);
-      }
+    if (turno.tool_name) {
+      nomes.push(turno.tool_name);
     }
   }
 
@@ -146,91 +149,109 @@ export function custoDaFonte(payload: PayloadElevenLabs) {
   return `R$ ${bruto.toFixed(2).replace('.', ',')}`;
 }
 
-function nomeDaFerramenta(item: FerramentaDaFonte) {
-  const nome = item.tool_name ?? item.name ?? item.toolName;
-  return typeof nome === 'string' && nome.trim() ? nome.trim() : undefined;
+function contextoDoTurno(turno: TurnoDaFonteElevenLabs) {
+  const comTempo = typeof turno.time_in_call_secs === 'number';
+  const llm = tempoDoLlm(turno.conversation_turn_metrics);
+  const raciocinio = typeof turno.reasoning === 'string' ? turno.reasoning.trim() : '';
+
+  return {
+    ...(comTempo ? { tempoNoAtendimento: quandoDaFonte(turno.time_in_call_secs as number) } : {}),
+    ...(llm ? { tempoDoLlm: llm } : {}),
+    ...(raciocinio ? { raciocinio } : {})
+  };
 }
 
-function nomesPorChamada(payload: PayloadElevenLabs) {
-  const nomes = new Map<string, string>();
+function resultadoComNomeDaChamada(resultado: ItemDaFonte, nomes: Map<string, string>) {
+  if (nomeDaFerramenta(resultado)) {
+    return resultado;
+  }
+
+  const id = resultado.tool_call_id ?? resultado.request_id;
+  const nome = id ? nomes.get(id) : undefined;
+  return nome ? { ...resultado, tool_name: nome } : resultado;
+}
+
+function turnosDaFonte(payload: PayloadElevenLabs) {
+  const nomesPorId = new Map<string, string>();
 
   for (const turno of payload.transcript ?? []) {
     for (const chamada of turno.tool_calls ?? []) {
       const nome = nomeDaFerramenta(chamada);
-      if (chamada.tool_call_id && nome) {
-        nomes.set(chamada.tool_call_id, nome);
+      const id = chamada.tool_call_id ?? chamada.request_id;
+      if (nome && id) {
+        nomesPorId.set(id, nome);
       }
     }
   }
 
-  return nomes;
-}
+  const turnosComChamadas = (payload.transcript ?? []).map((turno) => {
+    const contexto = contextoDoTurno(turno);
+    const detalhes = (turno.tool_calls ?? [])
+      .map((chamada) => detalheDaChamada(chamada, contexto))
+      .filter((detalhe): detalhe is DetalheDaFerramenta => Boolean(detalhe));
 
-function resultadoFalhou(resultado: FerramentaDaFonte) {
-  return (
-    resultado.is_error === true ||
-    Boolean(resultado.error) ||
-    resultado.status === 'error' ||
-    resultado.status === 'failure' ||
-    resultado.status === 'Falha'
+    if (!detalhes.length && turno.tool_name?.trim()) {
+      const avulso = detalheDaChamada({ tool_name: turno.tool_name }, contexto);
+      if (avulso) {
+        detalhes.push(avulso);
+      }
+    }
+
+    return {
+      locutor: locutorDe(turno.role),
+      fala: turno.message?.trim() ?? '',
+      quando:
+        typeof turno.time_in_call_secs === 'number' ? quandoDaFonte(turno.time_in_call_secs) : '—',
+      comTempo: typeof turno.time_in_call_secs === 'number',
+      detalhes,
+      resultados: (turno.tool_results ?? [])
+        .map((resultado) => resultadoDaFonte(resultadoComNomeDaChamada(resultado, nomesPorId)))
+        .filter((resultado): resultado is NonNullable<typeof resultado> => Boolean(resultado))
+    };
+  });
+
+  const comResultados = aplicarResultados(
+    turnosComChamadas,
+    turnosComChamadas.flatMap((turno) => turno.resultados)
   );
-}
 
-function linhasDeFerramenta(
-  turno: TurnoDaFonteElevenLabs,
-  nomes: Map<string, string>
-) {
-  const chamadas: string[] = [];
-
-  for (const chamada of turno.tool_calls ?? []) {
-    if (chamada.tool_has_been_called === false) {
-      continue;
-    }
-
-    const nome = nomeDaFerramenta(chamada);
-    if (nome) {
-      chamadas.push(textoDaChamadaDeFerramenta(nome));
-    }
-  }
-
-  const resultados: string[] = [];
-
-  for (const resultado of turno.tool_results ?? []) {
-    const peloId = resultado.tool_call_id ? nomes.get(resultado.tool_call_id) : undefined;
-    const nome = nomeDaFerramenta(resultado) ?? peloId;
-
-    if (!nome) {
-      continue;
-    }
-
-    resultados.push(textoDoResultadoDaFerramenta(nome, resultadoFalhou(resultado)));
-  }
-
-  return [...chamadas, ...resultados];
-}
-
-function turnosDaFonte(payload: PayloadElevenLabs) {
-  const nomes = nomesPorChamada(payload);
-
-  return (payload.transcript ?? []).flatMap((turno) => {
-    const fala = turno.message?.trim() ?? '';
-    const texto = [fala, ...linhasDeFerramenta(turno, nomes)].filter(Boolean).join('\n');
+  return comResultados.flatMap((turno) => {
+    const detalhes = turno.detalhes ?? [];
+    const texto = [
+      turno.fala,
+      ...detalhes.map((detalhe) => textoDaChamadaDeFerramenta(detalhe.nomeDaFerramenta))
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     if (!texto) {
       return [];
     }
 
-    const comTempo = typeof turno.time_in_call_secs === 'number';
-
     return [
       {
-        locutor: locutorDe(turno.role),
-        quando: comTempo ? quandoDaFonte(turno.time_in_call_secs as number) : '—',
+        locutor: turno.locutor,
+        quando: turno.quando,
         texto,
-        comTempo
+        comTempo: turno.comTempo,
+        ...(detalhes.length ? { detalhes } : {})
       }
     ];
   });
+}
+
+function turnoPublico(turno: {
+  locutor: TurnoDaTranscricao['locutor'];
+  quando: string;
+  texto: string;
+  detalhes?: DetalheDaFerramenta[];
+}): TurnoDaTranscricao {
+  return {
+    locutor: turno.locutor,
+    quando: turno.quando,
+    texto: turno.texto,
+    ...(turno.detalhes?.length ? { detalhes: turno.detalhes } : {})
+  };
 }
 
 function segundosDeInicio(valor: unknown) {
@@ -322,7 +343,7 @@ export function leituraAoVivoDaFonte(payload: PayloadElevenLabs): LeituraAoVivo 
     agenteId: payload.agent_id,
     iniciadoEm: instanteDeInicioDaFonte(payload),
     motivo: 'Não informado',
-    transcricao: turnos.map(({ locutor, quando, texto }) => ({ locutor, quando, texto }))
+    transcricao: turnos.map(turnoPublico)
   };
 }
 
@@ -363,7 +384,7 @@ export function atendimentoDaFonteElevenLabs(
     status: concluido ? 'Concluído' : 'Em andamento',
     curadoria: false,
     conversa: payload.conversation_id,
-    transcricao: transcricao.map(({ locutor, quando, texto }) => ({ locutor, quando, texto })),
+    transcricao: transcricao.map(turnoPublico),
     transferencia: transferenciaDaFonte(payload),
     ...(custo ? { custo } : {}),
     ...(tempoDeEsperaEmSegundos !== undefined ? { tempoDeEsperaEmSegundos } : {}),

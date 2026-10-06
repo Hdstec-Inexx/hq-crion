@@ -9,6 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode
 } from 'react';
+import { CorpoDoTurno } from './DetalheDaFerramenta';
 import { PlayerDeAudio, type SaltoDoPlayer } from './PlayerDeAudio';
 import {
   criarRelogioDoAudio,
@@ -27,18 +28,18 @@ import {
 function ConteudoDoBalao({
   rotulo,
   tempo,
-  texto
+  turno
 }: {
   rotulo: string;
   tempo: TempoRelativoDaFala;
-  texto: string;
+  turno: TurnoDaTranscricao;
 }) {
   return (
     <>
       <div className="transcricao-meta" title={tempo.titulo}>
         {rotulo} · {tempo.texto}
       </div>
-      <p>{texto}</p>
+      <CorpoDoTurno turno={turno} />
     </>
   );
 }
@@ -230,7 +231,7 @@ export function TranscricaoDoAtendimento({
               const tempo = falas[index]?.tempo ?? { texto: turno.quando };
               const ativa = index === indiceAtivo;
               const rotulo = doAgente ? agente : 'Cliente';
-              const conteudo = <ConteudoDoBalao rotulo={rotulo} tempo={tempo} texto={turno.texto} />;
+              const conteudo = <ConteudoDoBalao rotulo={rotulo} tempo={tempo} turno={turno} />;
 
               return (
                 <article

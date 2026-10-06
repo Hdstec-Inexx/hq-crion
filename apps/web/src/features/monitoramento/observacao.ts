@@ -1,10 +1,17 @@
 import {
   falaDoTexto,
   linhasDeFerramentaNoTexto,
+  textoDaChamadaDeFerramenta,
   textoSoDeFerramenta,
   type EventoDaObservacao,
   type TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
+import {
+  aplicarResultados,
+  detalhesComVereditoDaTela,
+  type DetalheDaFerramenta,
+  type ResultadoDaChamada
+} from '@hq-crion/contracts/ferramenta';
 
 export type ObservacaoDaTranscricao = {
   transcricao: TurnoDaTranscricao[];
@@ -12,7 +19,12 @@ export type ObservacaoDaTranscricao = {
 };
 
 function copiar(turno: TurnoDaTranscricao): TurnoDaTranscricao {
-  return { locutor: turno.locutor, quando: turno.quando, texto: turno.texto };
+  return {
+    locutor: turno.locutor,
+    quando: turno.quando,
+    texto: turno.texto,
+    ...(turno.detalhes?.length ? { detalhes: turno.detalhes.map((detalhe) => ({ ...detalhe })) } : {})
+  };
 }
 
 function turnoSoDeFerramenta(turno: TurnoDaTranscricao) {
@@ -68,7 +80,10 @@ function incorporarFerramentas(
     return {
       ...copiar(turno),
       texto: daFonte.texto,
-      quando: turno.quando === '—' ? daFonte.quando : turno.quando
+      quando: turno.quando === '—' ? daFonte.quando : turno.quando,
+      ...(daFonte.detalhes?.length
+        ? { detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes) }
+        : {})
     };
   });
 }
@@ -119,11 +134,31 @@ function falaCoberta(base: readonly TurnoDaTranscricao[], turno: TurnoDaTranscri
   });
 }
 
+function turnoComDetalheDaTela(
+  copiado: TurnoDaTranscricao,
+  daTela: TurnoDaTranscricao | undefined
+) {
+  if (!daTela?.detalhes?.length) {
+    return copiado;
+  }
+
+  if (!copiado.detalhes?.length) {
+    return { ...copiado, detalhes: daTela.detalhes.map((detalhe) => ({ ...detalhe })) };
+  }
+
+  return { ...copiado, detalhes: detalhesComVereditoDaTela(daTela.detalhes, copiado.detalhes) };
+}
+
 function adotarFonte(
   tela: readonly TurnoDaTranscricao[],
   fonte: readonly TurnoDaTranscricao[]
 ) {
-  const base = fonte.map(copiar);
+  const base = fonte.map((turno) => {
+    const daTela = tela.find(
+      (item) => item.locutor === turno.locutor && falaDoTexto(item.texto) === falaDoTexto(turno.texto)
+    );
+    return turnoComDetalheDaTela(copiar(turno), daTela);
+  });
 
   for (const turno of tela) {
     if (falaCoberta(base, turno) || jaEstaNaTela(base, turno)) {
@@ -210,8 +245,23 @@ function mesclarFragmento(
 
     const prefixo = tela.slice(0, inicioNaTela).map(copiar);
     const meio = tela.slice(inicioNaTela, inicioNaTela + tamanho).map((turno, indice) => {
+      const daFonte = fonte[indice];
+
       if (inicioNaTela + indice === correcao) {
-        return { ...copiar(turno), texto: fonte[indice]?.texto ?? turno.texto };
+        return {
+          ...copiar(turno),
+          texto: daFonte?.texto ?? turno.texto,
+          ...(daFonte?.detalhes?.length
+            ? { detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes) }
+            : {})
+        };
+      }
+
+      if (daFonte?.detalhes?.length) {
+        return {
+          ...copiar(turno),
+          detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes)
+        };
       }
 
       return copiar(turno);
@@ -239,7 +289,7 @@ export function mesclarTranscricao(
   const comFerramentas = incorporarFerramentas(tela, fonte);
 
   if (comFerramentas.length === 0 || transcricaoInteiraDaFonte(comFerramentas, fonte)) {
-    return fonte.map(copiar);
+    return fonte.map((turno, indice) => turnoComDetalheDaTela(copiar(turno), comFerramentas[indice]));
   }
 
   if (abreAMesmaFala(comFerramentas, fonte)) {
@@ -266,7 +316,43 @@ function corrigirUltimaFalaDoAgente(
 
     const linhas = linhasDeFerramentaNoTexto(turno.texto);
 
-    return { ...copiar(turno), texto: [texto, ...linhas].filter(Boolean).join('\n') };
+    return {
+      ...copiar(turno),
+      texto: [texto, ...linhas].filter(Boolean).join('\n')
+    };
+  });
+}
+
+function completarResultado(turnos: readonly TurnoDaTranscricao[], resultado: ResultadoDaChamada) {
+  return aplicarResultados(turnos, [resultado]).map(copiar);
+}
+
+function acrescentarChamada(turnos: readonly TurnoDaTranscricao[], detalhe: DetalheDaFerramenta) {
+  const linha = textoDaChamadaDeFerramenta(detalhe.nomeDaFerramenta);
+  const ultimo = turnos.at(-1);
+
+  if (ultimo?.locutor !== 'Agente de Voz') {
+    return [
+      ...turnos.map(copiar),
+      {
+        locutor: 'Agente de Voz' as const,
+        quando: '—',
+        texto: linha,
+        detalhes: [{ ...detalhe }]
+      }
+    ];
+  }
+
+  return turnos.map((turno, indice) => {
+    if (indice !== turnos.length - 1) {
+      return copiar(turno);
+    }
+
+    return {
+      ...copiar(turno),
+      texto: [turno.texto, linha].filter(Boolean).join('\n'),
+      detalhes: [...(turno.detalhes ?? []).map((item) => ({ ...item })), { ...detalhe }]
+    };
   });
 }
 
@@ -309,6 +395,20 @@ export function aplicarEventoDaObservacao(
   if (evento.tipo === 'correcao') {
     return {
       transcricao: corrigirUltimaFalaDoAgente(atual.transcricao, evento.texto),
+      observando: true
+    };
+  }
+
+  if (evento.tipo === 'chamada') {
+    return {
+      transcricao: acrescentarChamada(atual.transcricao, evento.detalhe),
+      observando: true
+    };
+  }
+
+  if (evento.tipo === 'resultado') {
+    return {
+      transcricao: completarResultado(atual.transcricao, evento.resultado),
       observando: true
     };
   }
