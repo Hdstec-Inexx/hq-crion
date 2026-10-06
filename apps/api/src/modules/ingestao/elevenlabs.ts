@@ -117,10 +117,17 @@ function nomesDeFerramenta(payload: PayloadElevenLabs) {
   const nomes: string[] = [];
 
   for (const turno of payload.transcript ?? []) {
-    if (turno.tool_calls?.length) {
-      for (const chamada of turno.tool_calls) {
+    if (turno.tool_calls?.length || turno.tool_results?.length) {
+      for (const chamada of turno.tool_calls ?? []) {
         const nome = nomeDaFerramenta(chamada);
         if (nome && chamadaExecutada(chamada)) {
+          nomes.push(nome);
+        }
+      }
+
+      for (const resultado of turno.tool_results ?? []) {
+        const nome = nomeDaFerramenta(resultado);
+        if (nome && chamadaExecutada(resultado)) {
           nomes.push(nome);
         }
       }

@@ -37,8 +37,12 @@ export function nomeDaFerramenta(item: ItemDaFonte) {
   return typeof nome === 'string' && nome.trim() ? nome.trim() : undefined;
 }
 
+export function chamadaRecusada(item: ItemDaFonte) {
+  return item.is_called === false || item.status === 'skipped';
+}
+
 export function chamadaExecutada(item: ItemDaFonte) {
-  return item.tool_has_been_called !== false && item.is_called !== false && item.status !== 'skipped';
+  return !chamadaRecusada(item) && item.tool_has_been_called !== false;
 }
 
 export function textoDeDuracao(segundos: number) {
@@ -212,7 +216,7 @@ export function detalheDaChamada(
 ): DetalheDaFerramenta | undefined {
   const nomeDaFerramentaBruto = nomeDaFerramenta(item);
 
-  if (!nomeDaFerramentaBruto || !chamadaExecutada(item)) {
+  if (!nomeDaFerramentaBruto || chamadaRecusada(item)) {
     return undefined;
   }
 
