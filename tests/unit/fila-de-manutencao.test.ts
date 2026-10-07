@@ -39,6 +39,16 @@ function checklistDaConferencia() {
   }));
 }
 
+function assertConferenciaDerivada(response: {
+  statusCode: number;
+  body: string;
+  json: () => { avaliacaoDoCurador: { nota: number; aprovacao: string } };
+}) {
+  assert.equal(response.statusCode, 200, response.body);
+  assert.equal(response.json().avaliacaoDoCurador.nota, 10);
+  assert.equal(response.json().avaliacaoDoCurador.aprovacao, 'Aprovado');
+}
+
 const buscaDoPercurso = new URLSearchParams(
   'lista=/manutencao&administradora=Alter&agente=alter-1&inicio=2026-09-01&fim=2026-09-30&status=Resolvido&conversa=conv-a2&pagina=2'
 );
@@ -512,7 +522,7 @@ test('comentário da conferência entra na fila como Pendente', async () => {
       headers: { authorization: `Bearer ${sessaoAdmin}` }
     });
 
-    assert.equal(gravacao.statusCode, 200);
+    assertConferenciaDerivada(gravacao);
     const item = fila
       .json()
       .itens.find((comentario: { atendimentoId: string }) => comentario.atendimentoId === 'a1');
@@ -575,7 +585,7 @@ test('com Comentário pendente no Atendimento, o percurso não abre o seguinte',
       headers: { authorization: `Bearer ${sessaoAdmin}` }
     });
 
-    assert.equal(conferencia.statusCode, 200);
+    assertConferenciaDerivada(conferencia);
     assert.equal(percurso.statusCode, 200);
     assert.equal(percurso.json().pendentesNoAtendimento, 1);
     assert.equal(percurso.json().comentarioPendenteId, 'a2');
@@ -592,7 +602,7 @@ test('resolver o último pendente consulta o próximo no mesmo filtro', async ()
   try {
     const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
     const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
-    await app.inject({
+    const conferencia = await app.inject({
       method: 'POST',
       url: '/atendimentos/a3/conferencia',
       headers: { authorization: `Bearer ${sessaoCurador}` },
@@ -601,6 +611,7 @@ test('resolver o último pendente consulta o próximo no mesmo filtro', async ()
         comentario: 'Rever a Clara Conectaplan.'
       }
     });
+    assertConferenciaDerivada(conferencia);
     const resolucao = await app.inject({
       method: 'POST',
       url: '/manutencao/a2/resolver',
@@ -640,7 +651,7 @@ test('sem posterior, o percurso volta à fila e deixa o pendente anterior na lis
   try {
     const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
     const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
-    await app.inject({
+    const conferencia = await app.inject({
       method: 'POST',
       url: '/atendimentos/a1/conferencia',
       headers: { authorization: `Bearer ${sessaoCurador}` },
@@ -649,6 +660,7 @@ test('sem posterior, o percurso volta à fila e deixa o pendente anterior na lis
         comentario: 'Ajustar o tom da Clara Affix no 0800.'
       }
     });
+    assertConferenciaDerivada(conferencia);
     await app.inject({
       method: 'POST',
       url: '/manutencao/a2/resolver',
@@ -683,7 +695,7 @@ test('sem próximo no período, a consulta volta à fila com Recorte e filtros',
   try {
     const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
     const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
-    await app.inject({
+    const conferencia = await app.inject({
       method: 'POST',
       url: '/atendimentos/a-fora/conferencia',
       headers: { authorization: `Bearer ${sessaoCurador}` },
@@ -692,6 +704,7 @@ test('sem próximo no período, a consulta volta à fila com Recorte e filtros',
         comentario: 'Comentário fora do mês civil.'
       }
     });
+    assertConferenciaDerivada(conferencia);
     await app.inject({
       method: 'POST',
       url: '/manutencao/a-fora/resolver',

@@ -6,6 +6,7 @@ import {
   filaDeManutencaoResponseSchema,
   percursoDaFilaDeManutencaoSchema,
   falhasIdentificadasDe,
+  type EstadoDoCriterio,
   gravacaoDaAvaliacaoDaIaSchema,
   listagemResponseSchema,
   comentarioDaFilaSchema,
@@ -137,7 +138,7 @@ function corpoEnviaNota(body: unknown) {
 }
 
 function comAprovacao<
-  T extends { nota: number; criterios: { estado: string; critico: boolean }[] }
+  T extends { nota: number; criterios: { estado: EstadoDoCriterio; critico: boolean }[] }
 >(avaliacao: T): T & Pick<Avaliacao, 'aprovacao'> {
   return {
     ...avaliacao,

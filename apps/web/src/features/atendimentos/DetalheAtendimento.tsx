@@ -4,6 +4,7 @@ import {
   custoVisivelPara,
   downloadVisivelPara,
   falhasIdentificadasDe,
+  linhaDaRegua,
   notaDerivada,
   seloDaAvaliacao,
   type AtendimentoDetalhe,
@@ -157,19 +158,6 @@ function estadosDoCriterioNaConferencia(criterio: Pick<CriterioDaRegua, 'admiteN
     : ['Atendido', 'Não atendido'];
 }
 
-function criterioNaRegua(
-  regua: ReguaDeAvaliacao,
-  criterio: { chave?: string; nome: string }
-) {
-  const porNome = regua.criterios.find((item) => item.nome === criterio.nome);
-
-  if (!porNome || (criterio.chave && criterio.chave !== porNome.chave)) {
-    return undefined;
-  }
-
-  return porNome;
-}
-
 function FormularioConferencia({
   atendimento,
   onGravada
@@ -217,7 +205,7 @@ function FormularioConferencia({
 
   const linhas = regua
     ? atendimento.avaliacaoDaIa.criterios.flatMap((criterio) => {
-        const daRegua = criterioNaRegua(regua, criterio);
+        const daRegua = linhaDaRegua(regua.criterios, criterio);
 
         if (!daRegua) {
           return [];
@@ -577,6 +565,7 @@ export function DetalheAtendimento() {
           >
           {conferenciaAberta(perfil.papel, atendimento) && atendimento.avaliacaoDaIa ? (
             <FormularioConferencia
+              key={atendimento.id}
               atendimento={{ ...atendimento, avaliacaoDaIa: atendimento.avaliacaoDaIa }}
               onGravada={setAtendimento}
             />

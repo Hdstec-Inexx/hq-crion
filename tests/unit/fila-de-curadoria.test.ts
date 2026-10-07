@@ -564,6 +564,29 @@ test('conferência recusa nota digitada, critério ausente e critério desconhec
   }
 });
 
+test('conferência recusa checklist acima do teto da gravação da IA', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: Array.from({ length: 31 }, (_, indice) => ({
+          nome: `Critério ${indice}`,
+          estado: 'Atendido'
+        }))
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
 test('segunda conferência do mesmo Atendimento é recusada', async () => {
   const app = await buildApp();
 
@@ -660,6 +683,7 @@ test('o formulário da Conferência humana é a lista e esconde a Avaliação da
   assert.equal(detalhe.includes('notaDaRegua'), false);
   assert.equal(detalhe.includes('<select'), false);
   assert.match(detalhe, /!conferenciaAberta\(perfil\.papel, atendimento\) \? \(/);
+  assert.match(detalhe, /<FormularioConferencia\s+key=\{atendimento\.id\}/);
   const formulario = detalhe.slice(detalhe.indexOf('function FormularioConferencia'));
   const lista = formulario.indexOf('conferencia-lista');
   const selo = formulario.indexOf('avaliacao-score');

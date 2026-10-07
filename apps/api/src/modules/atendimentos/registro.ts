@@ -1,9 +1,11 @@
 import {
+  linhaDaRegua,
   notaDerivada,
   seloDaAvaliacao,
   type AtendimentoDetalhe,
   type CriterioAvaliado,
-  type CriterioDaConferencia
+  type CriterioDaConferencia,
+  type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
 import { reguaUnica } from '../regua/regua-unica.js';
 
@@ -50,7 +52,7 @@ export function camposDeMidia(caminho: string | null | undefined) {
 
 export function aprovacaoDaAvaliacao(
   nota: number,
-  criterios: readonly { estado: string; critico: boolean }[]
+  criterios: readonly { estado: EstadoDoCriterio; critico: boolean }[]
 ) {
   return seloDaAvaliacao(nota, reguaUnica.limiarDeAprovacao, criterios);
 }
@@ -84,12 +86,9 @@ export function montarConferencia(
       return undefined;
     }
 
-    const daRegua = criterioDaRegua({
+    const daRegua = linhaDaRegua(reguaUnica.criterios, {
       nome: enviado.nome,
-      ...(enviado.chave ? { chave: enviado.chave } : {}),
-      estado: enviado.estado,
-      pontos: 0,
-      critico: false
+      ...(enviado.chave ? { chave: enviado.chave } : {})
     });
 
     if (!daRegua || daRegua.nome !== daIa.nome) {
@@ -127,18 +126,8 @@ export function recusaNaoSeAplica(criterios: readonly CriterioAvaliado[]) {
   });
 }
 
-function criterioDaRegua(criterio: CriterioAvaliado) {
-  if (criterio.chave) {
-    const porChave = reguaUnica.criterios.find((item) => item.chave === criterio.chave);
-
-    if (!porChave || (criterio.nome && criterio.nome !== porChave.nome)) {
-      return undefined;
-    }
-
-    return porChave;
-  }
-
-  return reguaUnica.criterios.find((item) => item.nome === criterio.nome);
+function criterioDaRegua(criterio: { chave?: string; nome: string }) {
+  return linhaDaRegua(reguaUnica.criterios, criterio);
 }
 
 export function criteriosComChave(criterios: readonly CriterioAvaliado[]): CriterioAvaliado[] {
