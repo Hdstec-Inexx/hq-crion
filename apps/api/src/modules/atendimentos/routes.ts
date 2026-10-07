@@ -331,7 +331,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     return responderDetalhe(item, perfil.papel);
   });
 
-  app.post('/atendimentos/:id/conferencia', async (request, reply) => {
+  app.post('/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, async (request, reply) => {
     semCache(reply);
     const registro = exigirPapel(request, reply, 'Curador');
 

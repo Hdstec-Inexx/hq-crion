@@ -708,7 +708,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       });
     },
     async conferir(id, entrada) {
-      return emTransacao(pool, async (cliente) => {
+      try {
+        return await emTransacao(pool, async (cliente) => {
         const registros = await lerRegistros(cliente, { id });
         const encontrado = registros[0];
         const recusa = recusaDaConferencia(encontrado);
@@ -718,28 +719,19 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         }
 
         const avaliacaoId = randomUUID();
-
-        try {
-          await cliente.query(
-            `INSERT INTO hq_avaliacao_do_curador
-               (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [
-              avaliacaoId,
-              id,
-              entrada.nota,
-              encontrado.avaliacaoDaIa.nota,
-              entrada.curador.id,
-              entrada.curador.nome
-            ]
-          );
-        } catch (error) {
-          if (violacaoUnica(error)) {
-            return 'indisponivel' as const;
-          }
-
-          throw error;
-        }
+        await cliente.query(
+          `INSERT INTO hq_avaliacao_do_curador
+             (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            avaliacaoId,
+            id,
+            entrada.nota,
+            encontrado.avaliacaoDaIa.nota,
+            entrada.curador.id,
+            entrada.curador.nome
+          ]
+        );
         await inserirCriterios(
           cliente,
           `INSERT INTO hq_criterio_da_avaliacao_do_curador
@@ -758,7 +750,14 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         }
 
         return 'ok' as const;
-      });
+        });
+      } catch (error) {
+        if (violacaoUnica(error)) {
+          return 'indisponivel' as const;
+        }
+
+        throw error;
+      }
     },
     async resolverComentario(id, adminId) {
       return emTransacao(pool, async (cliente) => {
