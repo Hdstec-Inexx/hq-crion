@@ -709,6 +709,205 @@ test('Curador não recebe Custo na listagem', async () => {
   }
 });
 
+test('GET /atendimentos/:id relê a chamada estruturada e grava o Detalhe', async () => {
+  const fetchOriginal = globalThis.fetch;
+  process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
+  process.env.ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes('/v1/convai/conversations/conv-a1')) {
+      return new Response(
+        JSON.stringify({
+          conversation_id: 'conv-a1',
+          agent_id: 'affix-0800',
+          status: 'done',
+          start_time_unix_secs: 1_715_000_000,
+          transcript: [
+            {
+              role: 'agent',
+              message: 'Vou consultar.',
+              time_in_call_secs: 20,
+              tool_calls: [
+                {
+                  type: 'webhook',
+                  tool_name: 'consultar_cpf',
+                  tool_call_id: 'fc-1',
+                  params_as_json: '{"cpf":"123"}'
+                }
+              ],
+              tool_results: [
+                {
+                  type: 'webhook',
+                  tool_name: 'consultar_cpf',
+                  tool_call_id: 'fc-1',
+                  is_error: false,
+                  result_value: '{"situacao":"ativo"}'
+                }
+              ]
+            }
+          ]
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    }
+
+    return fetchOriginal(input);
+  }) as typeof fetch;
+
+  const app = await buildApp();
+
+  try {
+    await app.atendimentos.gravarTranscricao('a1', [
+      {
+        locutor: 'Agente de Voz',
+        quando: '0:20',
+        texto:
+          'Vou consultar.\n[Chamada de Ferramenta: consultar_cpf]\n[Resultado da Ferramenta: consultar_cpf - Sucesso]'
+      }
+    ]);
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const body = response.json() as {
+      transcricao: Array<{ detalhes?: Array<{ parametros?: string; resposta?: string; veredito?: string }> }>;
+    };
+    const guardado = await app.atendimentos.buscarPorId('a1');
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(body.transcricao[0]?.detalhes?.[0]?.parametros, '{\n  "cpf": "123"\n}');
+    assert.equal(body.transcricao[0]?.detalhes?.[0]?.resposta, '{\n  "situacao": "ativo"\n}');
+    assert.equal(body.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+    assert.equal(guardado?.transcricao[0]?.detalhes?.[0]?.parametros, '{\n  "cpf": "123"\n}');
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    delete process.env.ELEVENLABS_API_KEY;
+    await app.close();
+  }
+});
+
+test('GET /atendimentos/:id mantém os colchetes quando a fonte não tem a chamada estruturada', async () => {
+  const fetchOriginal = globalThis.fetch;
+  let chamadasFetch = 0;
+  process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
+  process.env.ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.includes('/v1/convai/conversations/conv-a1')) {
+      chamadasFetch += 1;
+      return new Response(
+        JSON.stringify({
+          conversation_id: 'conv-a1',
+          agent_id: 'affix-0800',
+          status: 'done',
+          transcript: [
+            {
+              role: 'agent',
+              message: '[Chamada de Ferramenta: consultar_cpf]\n[Resultado da Ferramenta: consultar_cpf - Sucesso]'
+            }
+          ]
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    }
+
+    if (url.includes('/v1/convai/conversations/conv-a2')) {
+      chamadasFetch += 1;
+      return new Response('ausente', { status: 404 });
+    }
+
+    return fetchOriginal(input);
+  }) as typeof fetch;
+
+  const app = await buildApp();
+
+  try {
+    const colchetes = [
+      {
+        locutor: 'Agente de Voz' as const,
+        quando: '0:20',
+        texto: '[Chamada de Ferramenta: consultar_cpf]\n[Resultado da Ferramenta: consultar_cpf - Sucesso]'
+      }
+    ];
+    await app.atendimentos.gravarTranscricao('a1', colchetes);
+    await app.atendimentos.gravarTranscricao('a2', colchetes);
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const semChamada = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const semConversa = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a2',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(semChamada.statusCode, 200);
+    assert.equal(semChamada.json().transcricao[0].texto, colchetes[0]?.texto);
+    assert.equal(semChamada.json().transcricao[0].detalhes, undefined);
+    assert.equal(semConversa.statusCode, 200);
+    assert.equal(semConversa.json().transcricao[0].texto, colchetes[0]?.texto);
+    assert.equal(chamadasFetch, 2);
+
+    // Nova consulta não deve bater na ElevenLabs novamente para as mesmas conversas
+    await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a2',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    assert.equal(chamadasFetch, 2);
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    delete process.env.ELEVENLABS_API_KEY;
+    await app.close();
+  }
+});
+
+test('GET /atendimentos/:id mantém a transcrição quando a releitura falha', async () => {
+  const fetchOriginal = globalThis.fetch;
+  process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
+  process.env.ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+  globalThis.fetch = (async () => {
+    throw new Error('fonte fora');
+  }) as typeof fetch;
+
+  const app = await buildApp();
+
+  try {
+    const colchetes = [
+      {
+        locutor: 'Agente de Voz' as const,
+        quando: '0:20',
+        texto: '[Chamada de Ferramenta: consultar_cpf]'
+      }
+    ];
+    await app.atendimentos.gravarTranscricao('a1', colchetes);
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().transcricao[0].texto, colchetes[0]?.texto);
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    delete process.env.ELEVENLABS_API_KEY;
+    await app.close();
+  }
+});
+
 test('GET /atendimentos/:id carrega o Atendimento certo', async () => {
   const app = await buildApp();
 

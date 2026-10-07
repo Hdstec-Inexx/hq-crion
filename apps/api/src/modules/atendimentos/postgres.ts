@@ -659,6 +659,12 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       const registros = await lerRegistros(pool, { id });
       return registros[0];
     },
+    async gravarTranscricao(id, transcricao) {
+      await pool.query(`UPDATE hq_atendimento SET transcricao = $2::jsonb WHERE id = $1`, [
+        id,
+        JSON.stringify(transcricao)
+      ]);
+    },
     async idsConcluidos(ids) {
       if (ids.length === 0) {
         return new Set<string>();
