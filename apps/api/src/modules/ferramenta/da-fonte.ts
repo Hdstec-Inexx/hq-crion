@@ -191,6 +191,10 @@ function camposDoProcedimento(objeto: Record<string, unknown> | undefined) {
 }
 
 function procedimentoDe(nome: string, ...objetos: Array<Record<string, unknown> | undefined>) {
+  if (nome === 'transfer_to_number') {
+    return false;
+  }
+
   if (ehFerramentaDeProcedimento(nome)) {
     return true;
   }
@@ -248,8 +252,8 @@ export function detalheDaChamada(
     nome,
     nomeDaFerramenta: nomeDaFerramentaBruto,
     ...(id ? { id } : {}),
-    ...(procedimentoCampos.id ? { idDoProcedimento: procedimentoCampos.id } : {}),
-    ...(procedimentoCampos.indice ? { indiceDoProcedimento: procedimentoCampos.indice } : {}),
+    ...(procedimento && procedimentoCampos.id ? { idDoProcedimento: procedimentoCampos.id } : {}),
+    ...(procedimento && procedimentoCampos.indice ? { indiceDoProcedimento: procedimentoCampos.indice } : {}),
     ...(raciocinio ? { raciocinio } : {}),
     ...(parametros ? { parametros } : {}),
     ...(contexto.tempoNoAtendimento ? { tempoNoAtendimento: contexto.tempoNoAtendimento } : {}),
@@ -276,7 +280,10 @@ export function resultadoDaFonte(item: ItemDaFonte): ResultadoDaChamada | undefi
 
   const corpo = corpoDoResultado(item) ?? (item.error === undefined ? undefined : item.error);
   const objeto = comoObjeto(typeof corpo === 'string' ? corpo : corpo);
-  const procedimento = camposDoProcedimento(objeto);
+  const procedimento =
+    nome === 'transfer_to_number'
+      ? { nome: undefined, id: undefined, indice: undefined }
+      : camposDoProcedimento(objeto);
   const resposta = textoJson(corpo);
   const raciocinio = limitarTexto(raciocinioDe(item.reasoning) ?? raciocinioDe(item.thought));
   const tempo =

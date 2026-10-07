@@ -11,6 +11,8 @@ function copiarTexto(texto: string) {
 }
 
 function CampoJson({ rotulo, valor }: { rotulo: string; valor: string }) {
+  const exibido = valor.trim() === '{}' ? '' : valor;
+
   return (
     <div className="ferramenta-bloco">
       <div className="ferramenta-bloco-topo">
@@ -19,13 +21,13 @@ function CampoJson({ rotulo, valor }: { rotulo: string; valor: string }) {
           type="button"
           onClick={(evento) => {
             evento.stopPropagation();
-            copiarTexto(valor);
+            copiarTexto(exibido);
           }}
         >
           Copiar
         </button>
       </div>
-      <pre>{valor}</pre>
+      <pre>{exibido}</pre>
     </div>
   );
 }
@@ -89,11 +91,15 @@ export function CartaoDaFerramenta({ detalhe }: { detalhe: DetalheDaFerramenta }
               <p>{detalhe.raciocinio}</p>
             </div>
           ) : null}
-          {detalhe.parametros ? <CampoJson rotulo="Parâmetros extraídos pelo LLM" valor={detalhe.parametros} /> : null}
+          {detalhe.parametros !== undefined ? (
+            <CampoJson rotulo="Parâmetros extraídos pelo LLM" valor={detalhe.parametros} />
+          ) : null}
           {detalhe.tempoDeExecucao ? (
             <p className="ferramenta-tempo">Tempo de execução da ferramenta: {detalhe.tempoDeExecucao}</p>
           ) : null}
-          {detalhe.resposta ? <CampoJson rotulo="Resposta" valor={detalhe.resposta} /> : null}
+          {detalhe.resposta !== undefined ? (
+            <CampoJson rotulo="Resposta" valor={detalhe.resposta} />
+          ) : null}
         </div>
       ) : null}
     </div>

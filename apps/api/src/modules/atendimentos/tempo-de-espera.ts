@@ -1,4 +1,4 @@
-import { textoSoDeFerramenta } from '@hq-crion/contracts/atendimento';
+import { falaDoTexto, textoSoDeFerramenta } from '@hq-crion/contracts/atendimento';
 
 export function quandoDaFonte(segundos: number) {
   const total = Math.max(0, Math.floor(segundos));
@@ -65,6 +65,10 @@ function segundosDoTurno(turno: any): number | undefined {
 }
 
 function turnoSoDeFerramenta(turno: any) {
+  if (turno && typeof turno === 'object' && Array.isArray(turno.detalhes) && turno.detalhes.length > 0) {
+    const texto = typeof turno.texto === 'string' ? turno.texto : '';
+    return falaDoTexto(texto).length === 0;
+  }
   return typeof turno?.texto === 'string' && textoSoDeFerramenta(turno.texto);
 }
 

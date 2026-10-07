@@ -6,7 +6,9 @@ import {
   atendimentoDaFonteElevenLabs,
   coletarAtendimentosElevenLabs,
   leituraAoVivoDaFonte,
-  listarConversasElevenLabs
+  listarConversasElevenLabs,
+  transcricaoPrecisaDeReleitura,
+  transcricaoRelida
 } from '../../apps/api/src/modules/ingestao/elevenlabs.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 
@@ -850,4 +852,206 @@ test('listagem da fonte segue a próxima página mesmo só com concluídos', asy
   assert.equal(conversas[0]?.conversation_id, 'conv-feita');
   assert.equal(conversas[1]?.conversation_id, 'conv-tarde');
   assert.equal(chamadas.length, 2);
+});
+
+test('releitura troca colchetes pelo Detalhe quando a fonte tem a chamada estruturada', () => {
+  const gravada = [
+    {
+      locutor: 'Agente de Voz' as const,
+      quando: '0:20',
+      texto:
+        'Vou iniciar.\n[Chamada de Ferramenta: start_procedure]\n[Resultado da Ferramenta: start_procedure - Sucesso]'
+    }
+  ];
+  const relida = transcricaoRelida(gravada, {
+    conversation_id: 'conv-colchetes',
+    agent_id: 'affix-0800',
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Vou iniciar.',
+        time_in_call_secs: 20,
+        tool_calls: [
+          {
+            type: 'system',
+            tool_name: 'start_procedure',
+            tool_call_id: 'p1',
+            params_as_json: '{"procedure_index":"9"}'
+          }
+        ],
+        tool_results: [
+          {
+            type: 'system',
+            tool_name: 'start_procedure',
+            tool_call_id: 'p1',
+            is_error: false,
+            result_value:
+              '{"procedure_name":"Consulta de Rede","procedure_id":"agtprc_1"}'
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(relida[0]?.detalhes?.[0]?.nome, 'Consulta de Rede');
+  assert.equal(relida[0]?.detalhes?.[0]?.parametros, '{\n  "procedure_index": "9"\n}');
+  assert.equal(
+    relida[0]?.detalhes?.[0]?.resposta,
+    '{\n  "procedure_name": "Consulta de Rede",\n  "procedure_id": "agtprc_1"\n}'
+  );
+  assert.equal(relida[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+});
+
+test('releitura não inventa Detalhe a partir dos colchetes', () => {
+  const gravada = [
+    {
+      locutor: 'Agente de Voz' as const,
+      quando: '0:20',
+      texto: '[Chamada de Ferramenta: start_procedure]\n[Resultado da Ferramenta: start_procedure - Sucesso]'
+    }
+  ];
+  const relida = transcricaoRelida(gravada, {
+    conversation_id: 'conv-so-texto',
+    agent_id: 'affix-0800',
+    transcript: [
+      {
+        role: 'agent',
+        message:
+          '[Chamada de Ferramenta: start_procedure]\n[Resultado da Ferramenta: start_procedure - Sucesso]',
+        time_in_call_secs: 20
+      }
+    ]
+  });
+
+  assert.equal(relida, gravada);
+});
+
+test('releitura completa Detalhe que só tem o veredito', () => {
+  const gravada = [
+    {
+      locutor: 'Agente de Voz' as const,
+      quando: '0:12',
+      texto: 'Aguarde.\n[Chamada de Ferramenta: consultar_cpf]',
+      detalhes: [
+        {
+          tipo: 'Ferramenta' as const,
+          nome: 'consultar_cpf',
+          nomeDaFerramenta: 'consultar_cpf',
+          id: 'fc-1',
+          veredito: 'Sucesso' as const,
+          tipoDaFonte: 'webhook'
+        }
+      ]
+    }
+  ];
+  const relida = transcricaoRelida(gravada, {
+    conversation_id: 'conv-veredito',
+    agent_id: 'affix-0800',
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Aguarde.',
+        time_in_call_secs: 12,
+        tool_calls: [
+          {
+            type: 'webhook',
+            tool_name: 'consultar_cpf',
+            tool_call_id: 'fc-1',
+            params_as_json: '{"cpf":"123"}'
+          }
+        ],
+        tool_results: [
+          {
+            type: 'webhook',
+            tool_name: 'consultar_cpf',
+            tool_call_id: 'fc-1',
+            is_error: false,
+            result_value: '{"situacao":"ativo"}'
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(relida[0]?.detalhes?.[0]?.parametros, '{\n  "cpf": "123"\n}');
+  assert.equal(relida[0]?.detalhes?.[0]?.resposta, '{\n  "situacao": "ativo"\n}');
+  assert.equal(relida[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+});
+
+test('transcricaoPrecisaDeReleitura não pede releitura quando detalhe já tem parâmetros ou resposta', () => {
+  const comParametros = [
+    {
+      locutor: 'Agente de Voz' as const,
+      quando: '0:12',
+      texto: 'Aguarde.\n[Chamada de Ferramenta: consultar_cpf]',
+      detalhes: [
+        {
+          tipo: 'Ferramenta' as const,
+          nome: 'consultar_cpf',
+          nomeDaFerramenta: 'consultar_cpf',
+          id: 'fc-1',
+          parametros: '{"cpf":"123"}',
+          veredito: 'Sucesso' as const
+        }
+      ]
+    }
+  ];
+  const comResposta = [
+    {
+      locutor: 'Agente de Voz' as const,
+      quando: '0:12',
+      texto: 'Aguarde.\n[Chamada de Ferramenta: consultar_cpf]',
+      detalhes: [
+        {
+          tipo: 'Ferramenta' as const,
+          nome: 'consultar_cpf',
+          nomeDaFerramenta: 'consultar_cpf',
+          id: 'fc-1',
+          resposta: '{"ok":true}',
+          veredito: 'Sucesso' as const
+        }
+      ]
+    }
+  ];
+
+  assert.equal(transcricaoPrecisaDeReleitura(comParametros), false);
+  assert.equal(transcricaoPrecisaDeReleitura(comResposta), false);
+});
+
+test('transfer_to_number é sempre Ferramenta e nunca Procedimento', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-transf',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Transferindo.',
+        time_in_call_secs: 10,
+        tool_calls: [
+          {
+            type: 'system',
+            tool_name: 'transfer_to_number',
+            tool_call_id: 'tr-1',
+            params_as_json: '{"procedure_name":"Encaminhamento","procedure_id":"p1"}'
+          }
+        ],
+        tool_results: [
+          {
+            type: 'system',
+            tool_name: 'transfer_to_number',
+            tool_call_id: 'tr-1',
+            is_error: false,
+            result_value: '{"status":"transferred"}'
+          }
+        ]
+      }
+    ]
+  });
+
+  const detalhe = atendimento?.transcricao[0]?.detalhes?.[0];
+  assert.equal(detalhe?.tipo, 'Ferramenta');
+  assert.equal(detalhe?.nome, 'transfer_to_number');
+  assert.equal(detalhe?.idDoProcedimento, undefined);
 });

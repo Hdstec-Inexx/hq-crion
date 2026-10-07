@@ -1,7 +1,8 @@
 import type {
   GravacaoDaAvaliacaoDaIa,
   CriterioAvaliado,
-  PercursoDaFilaDeManutencao
+  PercursoDaFilaDeManutencao,
+  TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import type { ModoDaListagem } from './filtros.js';
@@ -21,6 +22,7 @@ export type ResultadoDoComentario = RegistroDeAtendimento | 'ausente' | 'ja-reso
 export type PortaDeAtendimentos = {
   listar(): Promise<readonly RegistroDeAtendimento[]>;
   buscarPorId(id: string): Promise<RegistroDeAtendimento | undefined>;
+  gravarTranscricao(id: string, transcricao: readonly TurnoDaTranscricao[]): Promise<void>;
   gravarAvaliacaoDaIa(
     id: string,
     entrada: GravacaoDaAvaliacaoDaIa

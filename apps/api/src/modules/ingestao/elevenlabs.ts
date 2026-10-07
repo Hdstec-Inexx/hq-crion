@@ -1,4 +1,5 @@
 import {
+  linhasDeFerramentaNoTexto,
   textoDaChamadaDeFerramenta,
   type TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
@@ -361,6 +362,36 @@ export function leituraAoVivoDaFonte(payload: PayloadElevenLabs): LeituraAoVivo 
   };
 }
 
+export function transcricaoPrecisaDeReleitura(turnos: readonly TurnoDaTranscricao[]) {
+  return turnos.some((turno) => {
+    if (linhasDeFerramentaNoTexto(turno.texto).length > 0 && !turno.detalhes?.length) {
+      return true;
+    }
+
+    return (
+      turno.detalhes?.some(
+        (detalhe) =>
+          Boolean(detalhe.veredito) &&
+          detalhe.parametros === undefined &&
+          detalhe.resposta === undefined
+      ) ?? false
+    );
+  });
+}
+
+export function transcricaoRelida(
+  gravada: readonly TurnoDaTranscricao[],
+  payload: PayloadElevenLabs
+) {
+  const daFonte = turnosDaFonte(payload).map(turnoPublico);
+
+  if (!daFonte.some((turno) => turno.detalhes?.length)) {
+    return gravada;
+  }
+
+  return daFonte;
+}
+
 export function atendimentoDaFonteElevenLabs(
   payload: PayloadElevenLabs
 ): RegistroDeAtendimento | undefined {
@@ -604,12 +635,16 @@ export async function buscarConversaElevenLabs(input: {
   baseUrl: string;
   id: string;
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+  esperaMs?: number;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const resposta = await respostaDaFonte(
     fetchImpl,
     urlDaFonte(input.baseUrl, `/v1/convai/conversations/${encodeURIComponent(input.id)}`),
-    input.apiKey
+    input.apiKey,
+    input.signal,
+    input.esperaMs
   );
 
   if (resposta.status === 404) {

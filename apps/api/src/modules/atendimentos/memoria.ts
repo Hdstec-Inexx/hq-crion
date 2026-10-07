@@ -69,6 +69,22 @@ export function repositorioEmMemoria(
     async buscarPorId(id) {
       return registros.find((registro) => registro.id === id);
     },
+    async gravarTranscricao(id, transcricao) {
+      const item = registros.find((registro) => registro.id === id);
+
+      if (!item) {
+        return;
+      }
+
+      item.transcricao = transcricao.map((turno) => ({
+        locutor: turno.locutor,
+        quando: turno.quando,
+        texto: turno.texto,
+        ...(turno.detalhes?.length
+          ? { detalhes: turno.detalhes.map((detalhe) => ({ ...detalhe })) }
+          : {})
+      }));
+    },
     async idsConcluidos(ids) {
       const pedidos = new Set(ids);
       return new Set(

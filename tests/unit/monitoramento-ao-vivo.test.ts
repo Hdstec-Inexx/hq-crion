@@ -1932,3 +1932,87 @@ test('observação atualiza turno já visto com a ferramenta e a correção cons
     'Vou verificar seu plano.\n[Chamada de Ferramenta: consultar_plano]\n[Resultado da Ferramenta: consultar_plano - Sucesso]'
   );
 });
+
+test('pulso completa parâmetros e resposta no Detalhe que só tem o veredito', () => {
+  const tela = observarTranscricao(
+    {
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:12',
+          texto: 'Aguarde um instante.\n[Chamada de Ferramenta: consultar_cpf]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_cpf',
+              nomeDaFerramenta: 'consultar_cpf',
+              id: 'fc-1',
+              veredito: 'Sucesso',
+              tipoDaFonte: 'webhook'
+            }
+          ]
+        }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:12',
+          texto: 'Aguarde um instante.\n[Chamada de Ferramenta: consultar_cpf]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_cpf',
+              nomeDaFerramenta: 'consultar_cpf',
+              id: 'fc-1',
+              parametros: '{\n  "cpf": "123"\n}',
+              resposta: '{\n  "situacao": "ativo"\n}',
+              veredito: 'Sucesso',
+              tipoDaFonte: 'webhook'
+            }
+          ]
+        }
+      ]
+    }
+  );
+
+  assert.equal(tela.transcricao[0]?.detalhes?.[0]?.parametros, '{\n  "cpf": "123"\n}');
+  assert.equal(tela.transcricao[0]?.detalhes?.[0]?.resposta, '{\n  "situacao": "ativo"\n}');
+  assert.equal(tela.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+});
+
+test('resultado posterior completa a resposta da chamada que já tem Sucesso', () => {
+  const comChamada = aplicarEventoDaObservacao(
+    { transcricao: [], observando: true },
+    {
+      tipo: 'chamada',
+      detalhe: {
+        tipo: 'Ferramenta',
+        nome: 'consultar_cpf',
+        nomeDaFerramenta: 'consultar_cpf',
+        id: 'fc-1',
+        parametros: '{}'
+      }
+    }
+  );
+  const comVeredito = aplicarEventoDaObservacao(comChamada, {
+    tipo: 'resultado',
+    resultado: { id: 'fc-1', nome: 'consultar_cpf', veredito: 'Sucesso', tipoDaFonte: 'webhook' }
+  });
+  const comCorpo = aplicarEventoDaObservacao(comVeredito, {
+    tipo: 'resultado',
+    resultado: {
+      id: 'fc-1',
+      nome: 'consultar_cpf',
+      veredito: 'Sucesso',
+      resposta: '{\n  "situacao": "ativo"\n}'
+    }
+  });
+
+  assert.equal(comCorpo.transcricao[0]?.detalhes?.[0]?.parametros, '{}');
+  assert.equal(comCorpo.transcricao[0]?.detalhes?.[0]?.resposta, '{\n  "situacao": "ativo"\n}');
+  assert.equal(comCorpo.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+});
