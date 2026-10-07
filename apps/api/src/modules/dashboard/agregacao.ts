@@ -6,6 +6,7 @@ import type {
 import { reguaUnica } from '../regua/regua-unica.js';
 import {
   avaliacaoDaIaTemVeredito,
+  iaEstaAprovada,
   semTransferencia,
   type RegistroDeAtendimento
 } from '../atendimentos/registro.js';
@@ -116,13 +117,7 @@ function kpisDoPeriodo(itens: RegistroDeAtendimento[]): KpiDoDashboard[] {
     },
     { executadas: 0, sucesso: 0 }
   );
-  const aprovados = itens.filter(
-    (item) =>
-      avaliacaoDaIaTemVeredito(item) &&
-      (typeof item.avaliacaoDaIa.nota === 'number'
-        ? item.avaliacaoDaIa.nota
-        : item.nota) >= reguaUnica.limiarDeAprovacao
-  ).length;
+  const aprovados = itens.filter(iaEstaAprovada).length;
 
   return [
     { id: 'atendimentos', rotulo: 'Atendimentos', valor: itens.length },

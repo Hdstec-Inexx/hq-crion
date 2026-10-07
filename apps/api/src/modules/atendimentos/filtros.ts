@@ -10,9 +10,9 @@ import {
   type PeriodoFechado
 } from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
-import { reguaUnica } from '../regua/regua-unica.js';
 import {
   avaliacaoDaIaTemVeredito,
+  iaEstaAprovada,
   semTransferencia,
   type RegistroDeAtendimento
 } from './registro.js';
@@ -231,7 +231,7 @@ export function aplicarIndicador(
         (item) => semTransferencia(item) && item.duracaoEmSegundos !== undefined
       );
     case 'aprovacao':
-      return itens.filter((item) => item.nota >= reguaUnica.limiarDeAprovacao);
+      return itens.filter(iaEstaAprovada);
     case 'concordancia':
       return itens.filter(
         (item) => Boolean(item.avaliacaoDaIa) && Boolean(item.avaliacaoDoCurador)

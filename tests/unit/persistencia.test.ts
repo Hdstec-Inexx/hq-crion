@@ -122,7 +122,8 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia e o boot', 
       '005_boot_e_custo_ausente.sql',
       '006_resumo_e_falhas_da_ia.sql',
       '07_funcao_persistir_avaliacao_da_ia.sql',
-      '08_transferencia_transfer_to_number.sql'
+      '08_transferencia_transfer_to_number.sql',
+      '09_uma_avaliacao_do_curador.sql'
     ]
   );
 });
@@ -190,6 +191,25 @@ test('nós n8n regravam atendimento e avaliação com parâmetros, sem interpola
     /SELECT \* FROM persistir_avaliacao_da_ia\(\s*\$1::text,\s*\$2::numeric,\s*\$3::jsonb,\s*\$4::text,\s*\$5::jsonb\s*\)/
   );
   assert.equal(avaliacao.includes('{{'), false);
+});
+
+test('a migration da conferência única guarda a avaliação mais recente antes do índice', () => {
+  const migracao = listarMigracoes().find(
+    (item) => item.nome === '09_uma_avaliacao_do_curador.sql'
+  );
+  assert.ok(migracao, 'migration 09 ausente');
+  const sql = migracao.sql.replace(/--[^\n]*/g, '');
+  const desliga = sql.search(/DISABLE TRIGGER hq_avaliacao_do_curador_imutavel/i);
+  const apagaComentario = sql.search(/DELETE FROM hq_comentario/i);
+  const apagaCriterio = sql.search(/DELETE FROM hq_criterio_da_avaliacao_do_curador/i);
+  const apagaAvaliacao = sql.search(/DELETE FROM hq_avaliacao_do_curador/i);
+  const religa = sql.search(/ENABLE TRIGGER hq_avaliacao_do_curador_imutavel/i);
+  const indice = sql.search(/CREATE UNIQUE INDEX IF NOT EXISTS hq_avaliacao_do_curador_por_atendimento/i);
+
+  assert.equal(desliga >= 0 && desliga < apagaComentario, true);
+  assert.equal(apagaComentario < apagaCriterio && apagaCriterio < apagaAvaliacao, true);
+  assert.equal(apagaAvaliacao < religa && religa < indice, true);
+  assert.match(sql, /ORDER BY vig\.criada_em DESC, vig\.id DESC/i);
 });
 
 test('as migrations não nomeiam sessão', () => {

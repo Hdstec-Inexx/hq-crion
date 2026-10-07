@@ -107,18 +107,23 @@ O conjunto único de critérios contra o qual todo Atendimento é medido, em tod
 _Avoid_: régua por Administradora, régua por Agente
 
 **Avaliação**:
-O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. A da IA é gerada para todo Atendimento concluído e carrega checklist de critérios, nota, **Resumo do Atendimento** e **Falhas Identificadas**. Enquanto a conferência humana não existir, o painel do Curador não aparece e o da IA ocupa a largura.
+O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. A da IA é gerada para todo Atendimento concluído e carrega checklist de critérios, nota, **Resumo do Atendimento** e **Falhas Identificadas**. A nota do Curador é a soma dos pontos da Régua nos Critérios cujo estado não é **Não atendido**; **Não se aplica** conserva os pontos. O Curador não a digita. O selo **Aprovado**, na IA e no Curador, exige nota no limiar da Régua e nenhum Critério crítico em **Não atendido**; fora disso o selo é **Reprovado**. Sem Avaliação do Curador, o painel da IA ocupa a largura — exceto na Conferência aberta, em que esse painel sai. Gravada a Conferência, os dois painéis ficam lado a lado.
+_Avoid_: Nota da Régua (número digitado na Conferência)
+
+**Conferência**:
+O ato único do Curador que produz a Avaliação do Curador. O formulário se chama **Conferência humana**, com o rótulo **Checklist do Curador** e a orientação de que os estados começam iguais aos da IA para confirmar ou corrigir cada Critério. Cada linha mostra o nome, o peso em pontos e, se for o caso, **crítico**; o estado é **Atendido**, **Não atendido** ou, só quando a Régua admite, **Não se aplica**. O selo recalcula a nota e **Aprovado** ou **Reprovado** a cada correção, no tratamento visual da Crion. Abaixo, em leitura, a nota da IA, as **Falhas Identificadas** e o **Resumo do Atendimento**; o **Comentário** é o único texto que o Curador escreve, com o rótulo “Comentário da revisão (opcional)”. O botão é “Salvar conferência”. Não se repete. Enquanto o formulário está aberto, o painel da Avaliação da IA não aparece.
+_Avoid_: reavaliação, histórico de revisão, Conferência da Avaliação da IA, Nota da Avaliação da IA editável
 
 **Resumo do Atendimento**:
-A síntese textual do contato gerada pela IA Avaliadora, descrevendo o objetivo do cliente e o desfecho da interação. Exibida na caixa de notas da Avaliação da IA em container com rolagem própria. Sem parágrafo, a caixa permanece, com a frase “Resumo não informado.”
-_Avoid_: Sinopse, descrição, resumo da chamada
+A síntese textual do contato gerada pela IA Avaliadora, descrevendo o objetivo do cliente e o desfecho da interação. Exibida na caixa de notas da Avaliação da IA, em container com rolagem própria, e em leitura na Conferência. Sem parágrafo, a caixa permanece, com a frase “Resumo não informado.” O Curador não a reescreve.
+_Avoid_: Sinopse, descrição, resumo da chamada, resumo da Conferência
 
 **Falhas Identificadas**:
-A lista de desvios, falhas de conduta e não conformidades operacionais identificadas pela IA Avaliadora no Atendimento. Exibida na caixa de notas da Avaliação da IA ao lado do Resumo do Atendimento, em container com rolagem própria. Lista vazia permanece na caixa, com a frase “Nenhuma falha identificada.”
-_Avoid_: Erros, apontamentos, bugs
+A lista de desvios, falhas de conduta e não conformidades operacionais identificadas pela IA Avaliadora no Atendimento. Exibida na caixa de notas da Avaliação da IA ao lado do Resumo do Atendimento, em container com rolagem própria, e em leitura na Conferência. Lista vazia permanece, com a frase “Nenhuma falha identificada.” O Curador não a reescreve; o que ele acrescenta é o **Comentário**.
+_Avoid_: Erros, apontamentos, bugs, falhas da Conferência
 
 **Concordância**:
-O alinhamento entre a Avaliação da IA e a do Curador no mesmo Atendimento — por nota e por Critério. Não é um flag gravado: deriva da comparação dos dois vereditos. Por Critério, a taxa é **iguais** sobre **comparáveis**.
+O alinhamento entre a Avaliação da IA e a do Curador no mesmo Atendimento — por nota e por Critério. Não é um flag gravado: deriva da comparação dos dois vereditos. Por Critério, a taxa é **iguais** sobre **comparáveis**. Por nota, compara a nota gravada pela IA com a soma do Curador. Critérios **iguais** podem conviver com notas discordantes, quando a nota da IA não é a soma da Régua.
 
 **Comparável**:
 Um Critério no Atendimento em que IA e Curador são ambos **aplicáveis**. Sem comparáveis não há Concordância naquele Critério.
@@ -135,7 +140,8 @@ _Avoid_: válido, preenchido
 A taxa de **Atendido** na Avaliação da IA, naquele Critério, só entre os **aplicáveis** do Recorte e do período. Não é participação no anel.
 
 **Aprovação**:
-O percentual de Atendimentos no Recorte e no período cuja nota da IA atinge o limiar da Régua única. Indicador do Dashboard próprio deste HQ; o GEAP não o tem.
+O percentual de Atendimentos no Recorte e no período cujo selo da IA é **Aprovado**: a nota gravada pela IA atinge o limiar da Régua e nenhum Critério crítico está **Não atendido**. Indicador do Dashboard próprio deste HQ; a GEAP não tem a taxa, e o critério é o do selo dela. O clique no KPI lista esses Atendimentos.
+_Avoid_: taxa só pela nota, nota do Curador
 
 ### Dashboard
 

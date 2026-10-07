@@ -917,14 +917,42 @@ a.login-cta {
   opacity: 0.6;
 }
 
-.conferencia-notas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: end;
+.conferencia-lista {
+  display: grid;
+  gap: 8px;
 }
 
-.conferencia-notas label,
+.conferencia-linha {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.conferencia-estados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.conferencia-estados label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.conferencia-form .avaliacao-score {
+  justify-self: start;
+}
+
 .conferencia-comentario {
   display: grid;
   gap: 4px;
