@@ -42,6 +42,16 @@ if (!rodaAceite) {
     }));
   }
 
+  function estados(
+    estado: EstadoDoCriterio = 'Atendido',
+    ajuste?: { nome: string; estado: EstadoDoCriterio }
+  ) {
+    return criterios(estado, ajuste).map(({ nome, estado: atual }) => ({
+      nome,
+      estado: atual
+    }));
+  }
+
   function conversa(parcial: Record<string, unknown>) {
     return {
       agent_name: 'Clara',
@@ -238,7 +248,7 @@ if (!rodaAceite) {
     );
   });
 
-  test('a Avaliação da IA substitui o veredito e a conferência acumula revisão', async () => {
+  test('a Avaliação da IA substitui o veredito e a segunda conferência é recusada', async () => {
     await comApp(
       {
         skipSeed: true,
@@ -287,9 +297,7 @@ if (!rodaAceite) {
           url: '/atendimentos/conv-vivo/conferencia',
           headers: auth(curador),
           payload: {
-            checklist: criterios(),
-            notaDaRegua: 9,
-            notaDaAvaliacaoDaIa: 9
+            checklist: estados()
           }
         });
         const monitoramento = await app.inject({
@@ -319,9 +327,7 @@ if (!rodaAceite) {
           url: '/atendimentos/conv-ok/conferencia',
           headers: auth(curador),
           payload: {
-            checklist: criterios(),
-            notaDaRegua: 9,
-            notaDaAvaliacaoDaIa: 1,
+            checklist: estados(),
             comentario: 'primeiro'
           }
         });
@@ -351,9 +357,7 @@ if (!rodaAceite) {
           url: '/atendimentos/conv-ok/conferencia',
           headers: auth(curador),
           payload: {
-            checklist: criterios('Não atendido'),
-            notaDaRegua: 4,
-            notaDaAvaliacaoDaIa: 1,
+            checklist: estados('Não atendido'),
             comentario: 'segundo'
           }
         });
@@ -368,9 +372,7 @@ if (!rodaAceite) {
           url: '/atendimentos/conv-mudo/conferencia',
           headers: auth(curador),
           payload: {
-            checklist: criterios(),
-            notaDaRegua: 9,
-            notaDaAvaliacaoDaIa: 9
+            checklist: estados()
           }
         });
         const manutencao = await app.inject({
@@ -416,7 +418,7 @@ if (!rodaAceite) {
         assert.equal(conferencia.json().avaliacaoDoCurador.curador, 'Carla Mendes');
         assert.equal(conferencia.json().avaliacaoDoCurador.comentario, 'primeiro');
         assert.equal(painelAntes.statusCode, 200, painelAntes.body);
-        assert.equal(painelAntes.json().paineis.concordancia.nota, 100);
+        assert.equal(painelAntes.json().paineis.concordancia.nota, 0);
         assert.equal(
           painelAntes.json().kpis.find((item: { id: string }) => item.id === 'aprovacao').valor,
           100
@@ -430,7 +432,7 @@ if (!rodaAceite) {
           ).estado,
           'Não atendido'
         );
-        assert.equal(troca.json().avaliacaoDoCurador.nota, 9);
+        assert.equal(troca.json().avaliacaoDoCurador.nota, 10);
         assert.equal(troca.json().avaliacaoDoCurador.notaDaAvaliacaoDaIa, 9);
         assert.equal(troca.json().avaliacaoDoCurador.aprovacao, 'Aprovado');
         assert.equal(
@@ -448,15 +450,13 @@ if (!rodaAceite) {
           filaDepois.json().itens.some((item: { id: string }) => item.id === 'conv-ok'),
           false
         );
-        assert.equal(segunda.statusCode, 200, segunda.body);
-        assert.equal(segunda.json().avaliacaoDoCurador.comentario, 'segundo');
-        assert.equal(segunda.json().avaliacaoDoCurador.notaDaAvaliacaoDaIa, 3);
+        assert.equal(segunda.statusCode, 409, segunda.body);
         assert.equal(iaMuda.statusCode, 200, iaMuda.body);
         assert.equal(silencio.statusCode, 200, silencio.body);
         assert.equal(silencio.json().avaliacaoDoCurador.comentario, undefined);
         assert.equal(gestaoNaFila.statusCode, 403);
         assert.equal(detalheGestao.statusCode, 200, detalheGestao.body);
-        assert.equal(detalheGestao.json().avaliacaoDoCurador.comentario, 'segundo');
+        assert.equal(detalheGestao.json().avaliacaoDoCurador.comentario, 'primeiro');
         assert.equal('custo' in curadorNoDetalhe.json(), false);
         assert.equal('downloadDeAudio' in curadorNoDetalhe.json(), false);
         assert.equal(curadorNoDetalhe.json().downloadDeAudio, undefined);
@@ -471,7 +471,7 @@ if (!rodaAceite) {
         assert.equal(manutencao.statusCode, 200, manutencao.body);
         assert.deepEqual(
           pendentes.map((item) => item.texto).sort(),
-          ['primeiro', 'segundo']
+          ['primeiro']
         );
         assert.equal(
           pendentes.some((item) => item.atendimentoId === 'conv-mudo'),
@@ -500,7 +500,7 @@ if (!rodaAceite) {
         assert.equal(resolucao.json().texto, 'primeiro');
         assert.deepEqual(
           ainda.json().itens.map((item: { texto: string }) => item.texto),
-          ['segundo']
+          []
         );
         assert.equal(resolvidos.json().itens[0].texto, 'primeiro');
         assert.equal(resolvidos.json().itens[0].status, 'Resolvido');
@@ -627,9 +627,7 @@ if (!rodaAceite) {
         url: '/atendimentos/dep-ok/conferencia',
         headers: { authorization: `Bearer ${curador}` },
         payload: {
-          checklist: criterios(),
-          notaDaRegua: 9,
-          notaDaAvaliacaoDaIa: 9,
+          checklist: estados(),
           comentario: 'fechar depois'
         }
       });

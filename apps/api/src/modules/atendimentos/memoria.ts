@@ -7,7 +7,7 @@ import {
 } from './consulta.js';
 import type { PortaDeAtendimentos } from './porta.js';
 import {
-  aprovacaoDaNota,
+  aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
   criteriosComChave,
@@ -86,10 +86,11 @@ export function repositorioEmMemoria(
       }
 
       item.nota = entrada.nota;
+      const criterios = criteriosComChave(entrada.criterios);
       item.avaliacaoDaIa = {
         nota: entrada.nota,
-        aprovacao: aprovacaoDaNota(entrada.nota),
-        criterios: criteriosComChave(entrada.criterios),
+        aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
+        criterios,
         resumo: entrada.resumo ?? undefined,
         falhasIdentificadas: entrada.falhasIdentificadas ?? []
       };
@@ -106,10 +107,11 @@ export function repositorioEmMemoria(
 
       item.curadoria = true;
       item.curadorDaRevisao = entrada.curador;
+      const criterios = criteriosComChave(entrada.criterios);
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
-        aprovacao: aprovacaoDaNota(entrada.nota),
-        criterios: criteriosComChave(entrada.criterios),
+        aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
+        criterios,
         notaDaAvaliacaoDaIa: item.avaliacaoDaIa.nota,
         curador: entrada.curador.nome,
         ...(entrada.comentario ? { comentario: entrada.comentario } : {})

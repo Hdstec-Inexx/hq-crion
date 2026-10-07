@@ -6,6 +6,7 @@ import {
   filaDeManutencaoResponseSchema,
   percursoDaFilaDeManutencaoSchema,
   falhasIdentificadasDe,
+  type EstadoDoCriterio,
   gravacaoDaAvaliacaoDaIaSchema,
   listagemResponseSchema,
   comentarioDaFilaSchema,
@@ -20,8 +21,10 @@ import { buscarPorId } from '../perfil/repositorio.js';
 import { periodoDaQuery, recorteDaQuery, type ModoDaListagem } from './filtros.js';
 import { paginaDaLista } from './pagina.js';
 import {
-  aprovacaoDaNota,
+  aprovacaoDaAvaliacao,
   detalhePublico,
+  montarConferencia,
+  recusaDaConferencia,
   recusaNaoSeAplica,
   type RegistroDeAtendimento
 } from './registro.js';
@@ -125,10 +128,21 @@ function ordenarFila(itens: RegistroDeAtendimento[]) {
   });
 }
 
-function comAprovacao<T extends { nota: number }>(avaliacao: T): T & Pick<Avaliacao, 'aprovacao'> {
+function corpoEnviaNota(body: unknown) {
+  if (!body || typeof body !== 'object') {
+    return false;
+  }
+
+  const campos = body as Record<string, unknown>;
+  return 'nota' in campos || 'notaDaRegua' in campos || 'notaDaAvaliacaoDaIa' in campos;
+}
+
+function comAprovacao<
+  T extends { nota: number; criterios: { estado: EstadoDoCriterio; critico: boolean }[] }
+>(avaliacao: T): T & Pick<Avaliacao, 'aprovacao'> {
   return {
     ...avaliacao,
-    aprovacao: aprovacaoDaNota(avaliacao.nota)
+    aprovacao: aprovacaoDaAvaliacao(avaliacao.nota, avaliacao.criterios)
   };
 }
 
@@ -325,21 +339,38 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return;
     }
 
+    if (corpoEnviaNota(request.body)) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
     const lido = conferenciaRequestSchema.safeParse(request.body);
 
     if (!lido.success) {
       return reply.code(400).send({ statusCode: 400 });
     }
 
-    if (recusaNaoSeAplica(lido.data.checklist)) {
+    const { id } = request.params as { id: string };
+    const atual = await app.atendimentos.buscarPorId(id);
+    const recusa = recusaDaConferencia(atual);
+
+    if (recusa === 'ausente') {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    if (recusa === 'indisponivel' || !atual?.avaliacaoDaIa) {
+      return reply.code(409).send({ statusCode: 409 });
+    }
+
+    const montada = montarConferencia(atual.avaliacaoDaIa.criterios, lido.data.checklist);
+
+    if (!montada) {
       return reply.code(400).send({ statusCode: 400 });
     }
 
-    const { id } = request.params as { id: string };
     const resultado = await app.atendimentos.conferir(id, {
       curador: { id: registro.id, nome: registro.nome },
-      nota: lido.data.notaDaRegua,
-      criterios: lido.data.checklist,
+      nota: montada.nota,
+      criterios: montada.criterios,
       ...(lido.data.comentario ? { comentario: lido.data.comentario } : {})
     });
 

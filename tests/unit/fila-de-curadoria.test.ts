@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
-import { destinoDaLista } from '../../packages/contracts/src/recorte.js';
+import { destinoDaLista, periodoMesCivil } from '../../packages/contracts/src/recorte.js';
 import { areasDaCasca } from '../../packages/contracts/src/casca.js';
 import { reguaUnica } from '../../apps/api/src/modules/regua/regua-unica.js';
 
 process.env.NODE_ENV = 'test';
+
+const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 async function sessaoDe(
   app: Awaited<ReturnType<typeof buildApp>>,
@@ -21,12 +26,13 @@ async function sessaoDe(
   return loginResponseSchema.parse(login.json()).sessao;
 }
 
-function checklistDaConferencia() {
+function checklistDaConferencia(
+  estadoDe: (nome: string) => 'Atendido' | 'Não atendido' | 'Não se aplica' = (nome) =>
+    nome === 'Validação de e-mail' ? 'Não se aplica' : 'Atendido'
+) {
   return reguaUnica.criterios.map((criterio) => ({
     nome: criterio.nome,
-    estado: criterio.nome === 'Validação de e-mail' ? 'Não se aplica' : 'Atendido',
-    pontos: criterio.valor,
-    critico: criterio.critico
+    estado: estadoDe(criterio.nome)
   }));
 }
 
@@ -268,8 +274,6 @@ test('conferência do Curador persiste snapshot e tira o Atendimento da fila', a
     const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
     const payload = {
       checklist: checklistDaConferencia(),
-      notaDaRegua: 8.5,
-      notaDaAvaliacaoDaIa: 8.5,
       comentario: 'Conferência alinhada com a Régua.'
     };
 
@@ -283,7 +287,7 @@ test('conferência do Curador persiste snapshot e tira o Atendimento da fila', a
     assert.equal(gravacao.statusCode, 200);
     const detalhe = gravacao.json();
     assert.equal(detalhe.id, 'a1');
-    assert.equal(detalhe.avaliacaoDoCurador.nota, 8.5);
+    assert.equal(detalhe.avaliacaoDoCurador.nota, 10);
     assert.equal(detalhe.avaliacaoDoCurador.notaDaAvaliacaoDaIa, 8.5);
     assert.equal(
       detalhe.avaliacaoDoCurador.comentario,
@@ -344,9 +348,7 @@ test('Gestão não grava conferência', async () => {
       url: '/atendimentos/a1/conferencia',
       headers: { authorization: `Bearer ${sessao}` },
       payload: {
-        checklist: checklistDaConferencia(),
-        notaDaRegua: 8,
-        notaDaAvaliacaoDaIa: 8.5
+        checklist: checklistDaConferencia()
       }
     });
 
@@ -443,9 +445,7 @@ test('conferência recusa Não se aplica fora do Critério que admite esse estad
           criterio.nome === 'Saudação'
             ? { ...criterio, estado: 'Não se aplica' }
             : criterio
-        ),
-        notaDaRegua: 8.5,
-        notaDaAvaliacaoDaIa: 8.5
+        )
       }
     });
 
@@ -453,4 +453,244 @@ test('conferência recusa Não se aplica fora do Critério que admite esse estad
   } finally {
     await app.close();
   }
+});
+
+test('conferência com todos Atendido grava a soma da Régua e o selo Aprovado', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const gravacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: checklistDaConferencia(() => 'Atendido')
+      }
+    });
+
+    assert.equal(gravacao.statusCode, 200, gravacao.body);
+    assert.equal(gravacao.json().avaliacaoDoCurador.nota, 10);
+    assert.equal(gravacao.json().avaliacaoDoCurador.aprovacao, 'Aprovado');
+    assert.equal('comentario' in gravacao.json().avaliacaoDoCurador, false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Não se aplica na Validação de e-mail conserva o peso e não altera a Avaliação da IA', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const headers = { authorization: `Bearer ${sessaoCurador}` };
+    const antes = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers
+    });
+    const gravacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers,
+      payload: { checklist: checklistDaConferencia() }
+    });
+
+    assert.equal(antes.statusCode, 200, antes.body);
+    assert.equal(gravacao.statusCode, 200, gravacao.body);
+    const iaAntes = antes.json().avaliacaoDaIa;
+    const iaDepois = gravacao.json().avaliacaoDaIa;
+    const curador = gravacao.json().avaliacaoDoCurador;
+    const email = curador.criterios.find(
+      (criterio: { nome: string }) => criterio.nome === 'Validação de e-mail'
+    );
+
+    assert.equal(curador.nota, 10);
+    assert.equal(email.estado, 'Não se aplica');
+    assert.equal(email.pontos, 0.5);
+    assert.equal(iaDepois.nota, iaAntes.nota);
+    assert.equal(iaDepois.resumo, iaAntes.resumo);
+    assert.deepEqual(iaDepois.falhasIdentificadas, iaAntes.falhasIdentificadas);
+    assert.equal('comentario' in curador, false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('conferência recusa nota digitada, critério ausente e critério desconhecido', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const headers = { authorization: `Bearer ${sessaoCurador}` };
+    const comNota = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers,
+      payload: {
+        checklist: checklistDaConferencia(),
+        notaDaRegua: 8
+      }
+    });
+    const incompleta = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers,
+      payload: { checklist: checklistDaConferencia().slice(1) }
+    });
+    const desconhecida = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers,
+      payload: {
+        checklist: [
+          ...checklistDaConferencia().slice(1),
+          { nome: 'Critério fora da Avaliação', estado: 'Atendido' }
+        ]
+      }
+    });
+    const detalhe = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers
+    });
+
+    assert.equal(comNota.statusCode, 400);
+    assert.equal(incompleta.statusCode, 400);
+    assert.equal(desconhecida.statusCode, 400);
+    assert.equal(detalhe.json().avaliacaoDoCurador, undefined);
+  } finally {
+    await app.close();
+  }
+});
+
+test('conferência recusa checklist acima do teto da gravação da IA', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: Array.from({ length: 31 }, (_, indice) => ({
+          nome: `Critério ${indice}`,
+          estado: 'Atendido'
+        }))
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
+test('segunda conferência do mesmo Atendimento é recusada', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const headers = { authorization: `Bearer ${sessaoCurador}` };
+    const primeira = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers,
+      payload: { checklist: checklistDaConferencia(() => 'Atendido') }
+    });
+    const segunda = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers,
+      payload: {
+        checklist: checklistDaConferencia(() => 'Não atendido'),
+        comentario: 'nova leitura'
+      }
+    });
+
+    assert.equal(primeira.statusCode, 200, primeira.body);
+    assert.equal(segunda.statusCode, 409, segunda.body);
+    assert.equal(segunda.json().avaliacaoDoCurador, undefined);
+    const detalhe = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a3',
+      headers
+    });
+    assert.equal(detalhe.json().avaliacaoDoCurador.nota, 10);
+    assert.equal('comentario' in detalhe.json().avaliacaoDoCurador, false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Concordância por nota compara a nota gravada da IA com a soma derivada', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoGestao = await sessaoDe(app, 'ana.souza@crion');
+    const { inicio, fim } = periodoMesCivil(new Date());
+    const gravacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: { checklist: checklistDaConferencia() }
+    });
+    const dashboard = await app.inject({
+      method: 'GET',
+      url: `/dashboard?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}`,
+      headers: { authorization: `Bearer ${sessaoGestao}` }
+    });
+
+    assert.equal(gravacao.statusCode, 200, gravacao.body);
+    assert.equal(gravacao.json().avaliacaoDaIa.nota, 8.5);
+    assert.equal(gravacao.json().avaliacaoDoCurador.nota, 10);
+    assert.deepEqual(
+      gravacao.json().avaliacaoDaIa.criterios.map((criterio: { nome: string; estado: string }) => [
+        criterio.nome,
+        criterio.estado
+      ]),
+      gravacao.json().avaliacaoDoCurador.criterios.map((criterio: { nome: string; estado: string }) => [
+        criterio.nome,
+        criterio.estado
+      ])
+    );
+    assert.equal(dashboard.statusCode, 200, dashboard.body);
+    assert.equal(dashboard.json().paineis.concordancia.nota, 0);
+    assert.equal(dashboard.json().paineis.concordancia.criterios, 100);
+  } finally {
+    await app.close();
+  }
+});
+
+test('o formulário da Conferência humana é a lista e esconde a Avaliação da IA', () => {
+  const detalhe = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/DetalheAtendimento.tsx'),
+    'utf8'
+  );
+
+  assert.match(detalhe, /Conferência humana/);
+  assert.match(detalhe, /Checklist do Curador/);
+  assert.match(detalhe, /Os estados começam iguais aos da IA\. Confirme ou corrija cada Critério\./);
+  assert.match(detalhe, /type="radio"/);
+  assert.match(detalhe, /Comentário da revisão \(opcional\)/);
+  assert.match(detalhe, /Salvar conferência/);
+  assert.match(detalhe, /Resumo não informado\./);
+  assert.match(detalhe, /Nenhuma falha identificada\./);
+  assert.match(detalhe, /avaliacao-score/);
+  assert.match(detalhe, /is-fail/);
+  assert.equal(detalhe.includes('notaDaRegua'), false);
+  assert.equal(detalhe.includes('<select'), false);
+  assert.match(detalhe, /!conferenciaAberta\(perfil\.papel, atendimento\) \? \(/);
+  assert.match(detalhe, /<FormularioConferencia\s+key=\{atendimento\.id\}/);
+  const formulario = detalhe.slice(detalhe.indexOf('function FormularioConferencia'));
+  const lista = formulario.indexOf('conferencia-lista');
+  const selo = formulario.indexOf('avaliacao-score');
+  const notaDaIa = formulario.indexOf('Nota da Avaliação da IA');
+  const falhas = formulario.indexOf('Falhas Identificadas');
+  const resumo = formulario.indexOf('Resumo do Atendimento');
+
+  assert.ok(lista >= 0 && lista < selo, 'o selo fica depois das linhas');
+  assert.ok(selo < notaDaIa && notaDaIa < falhas && falhas < resumo);
 });

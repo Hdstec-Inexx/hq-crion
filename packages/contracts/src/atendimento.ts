@@ -162,12 +162,50 @@ export const gravacaoDaAvaliacaoDaIaSchema = z.object({
   falhasIdentificadas: z.array(z.string().trim()).optional()
 });
 
+const criterioDaConferenciaSchema = z.object({
+  chave: z.string().trim().min(1).max(200).optional(),
+  nome: z.string().trim().min(1).max(200),
+  estado: estadoDoCriterioSchema
+});
+
 export const conferenciaRequestSchema = z.object({
-  checklist: z.array(criterioAvaliadoSchema).min(1),
-  notaDaRegua: z.number(),
-  notaDaAvaliacaoDaIa: z.number(),
+  checklist: z.array(criterioDaConferenciaSchema).min(1).max(30),
   comentario: z.string().trim().min(1).optional()
 });
+
+export function notaDerivada(
+  itens: readonly { estado: EstadoDoCriterio; pontos: number }[]
+) {
+  return itens.reduce(
+    (soma, item) => soma + (item.estado === 'Não atendido' ? 0 : item.pontos),
+    0
+  );
+}
+
+export function seloDaAvaliacao(
+  nota: number,
+  limiar: number,
+  criterios: readonly { estado: EstadoDoCriterio; critico: boolean }[]
+): 'Aprovado' | 'Reprovado' {
+  const criticoNaoAtendido = criterios.some(
+    (criterio) => criterio.critico && criterio.estado === 'Não atendido'
+  );
+
+  return nota >= limiar && !criticoNaoAtendido ? 'Aprovado' : 'Reprovado';
+}
+
+export function linhaDaRegua<T extends { chave: string; nome: string }>(
+  criterios: readonly T[],
+  identidade: { chave?: string; nome: string }
+) {
+  const porNome = criterios.find((item) => item.nome === identidade.nome);
+
+  if (!porNome || (identidade.chave && identidade.chave !== porNome.chave)) {
+    return undefined;
+  }
+
+  return porNome;
+}
 
 export const turnoDaTranscricaoSchema = z.object({
   locutor: z.enum(['Agente de Voz', 'Cliente']),
@@ -297,6 +335,7 @@ export type Avaliacao = z.infer<typeof avaliacaoSchema>;
 export type AvaliacaoDoCurador = z.infer<typeof avaliacaoDoCuradorSchema>;
 export type GravacaoDaAvaliacaoDaIa = z.infer<typeof gravacaoDaAvaliacaoDaIaSchema>;
 export type ConferenciaRequest = z.infer<typeof conferenciaRequestSchema>;
+export type CriterioDaConferencia = ConferenciaRequest['checklist'][number];
 export type TurnoDaTranscricao = z.infer<typeof turnoDaTranscricaoSchema>;
 export type AtendimentoDetalhe = z.infer<typeof atendimentoDetalheSchema>;
 export type MonitoramentoDetalhe = z.infer<typeof monitoramentoDetalheSchema>;
