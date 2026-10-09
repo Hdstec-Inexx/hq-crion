@@ -1472,7 +1472,7 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
       }
     }
   );
-  assert.equal(
+  assert.deepEqual(
     eventoDaMensagemDaFonte({
       type: 'agent_tool_response',
       agent_tool_response: {
@@ -1485,7 +1485,10 @@ test('o canal ao vivo autentica a sessão e só observa a fonte', () => {
         status: 'skipped'
       }
     }),
-    undefined
+    {
+      tipo: 'cancelamento',
+      chamada: { id: 'c2', nome: 'ocultar' }
+    }
   );
   assert.deepEqual(
     eventoDaMensagemDaFonte({
@@ -1743,7 +1746,7 @@ test('resultado ao vivo sem nome completa a chamada pelo id', () => {
   assert.equal(comResultado.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
 });
 
-test('resultado ao vivo sem chamada anterior entra na fala do agente', () => {
+test('resultado ao vivo sem chamada anterior entra em novo turno sem fala', () => {
   const comFala = aplicarEventoDaObservacao(
     { transcricao: [], observando: true },
     {
@@ -1763,13 +1766,11 @@ test('resultado ao vivo sem chamada anterior entra na fala do agente', () => {
     }
   });
 
-  assert.equal(comResultado.transcricao.length, 1);
-  assert.equal(
-    comResultado.transcricao[0]?.texto,
-    'Aguarde um instante enquanto consulto aqui.\n[Chamada de Ferramenta: enviar_sms]'
-  );
-  assert.equal(comResultado.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
-  assert.equal(comResultado.transcricao[0]?.detalhes?.[0]?.resposta, '{"protocolo":"123"}');
+  assert.equal(comResultado.transcricao.length, 2);
+  assert.equal(comResultado.transcricao[0]?.texto, 'Aguarde um instante enquanto consulto aqui.');
+  assert.equal(comResultado.transcricao[1]?.texto, '[Chamada de Ferramenta: enviar_sms]');
+  assert.equal(comResultado.transcricao[1]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(comResultado.transcricao[1]?.detalhes?.[0]?.resposta, '{"protocolo":"123"}');
 });
 
 test('resultado ao vivo completa o detalhe da chamada e não abre outro turno', () => {
@@ -1795,15 +1796,180 @@ test('resultado ao vivo completa o detalhe da chamada e não abre outro turno', 
     resultado: { nome: 'outra', veredito: 'Falha' }
   });
 
-  assert.equal(orfao.transcricao.length, 1);
-  assert.equal(
-    orfao.transcricao[0]?.texto,
-    '[Chamada de Ferramenta: transfer_to_number]\n[Chamada de Ferramenta: outra]'
-  );
+  assert.equal(orfao.transcricao.length, 2);
+  assert.equal(orfao.transcricao[0]?.texto, '[Chamada de Ferramenta: transfer_to_number]');
+  assert.equal(orfao.transcricao[1]?.texto, '[Chamada de Ferramenta: outra]');
   assert.equal(orfao.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
   assert.equal(orfao.transcricao[0]?.detalhes?.[0]?.resposta, '{"ok":true}');
-  assert.equal(orfao.transcricao[0]?.detalhes?.[1]?.nome, 'outra');
-  assert.equal(orfao.transcricao[0]?.detalhes?.[1]?.veredito, 'Falha');
+  assert.equal(orfao.transcricao[1]?.detalhes?.[0]?.nome, 'outra');
+  assert.equal(orfao.transcricao[1]?.detalhes?.[0]?.veredito, 'Falha');
+});
+
+test('cancelamento posterior remove somente a Chamada de Ferramenta identificada', () => {
+  const cancelada = aplicarEventoDaObservacao(
+    {
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:08',
+          texto: 'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_plano',
+              nomeDaFerramenta: 'consultar_plano',
+              id: 'c1'
+            }
+          ]
+        },
+        {
+          locutor: 'Agente de Voz',
+          quando: '—',
+          texto: '[Chamada de Ferramenta: consultar_plano]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_plano',
+              nomeDaFerramenta: 'consultar_plano',
+              id: 'c2'
+            }
+          ]
+        }
+      ],
+      observando: true
+    },
+    { tipo: 'cancelamento', chamada: { id: 'c2', nome: 'consultar_plano' } }
+  );
+
+  assert.equal(cancelada.transcricao.length, 1);
+  assert.equal(cancelada.transcricao[0]?.texto, 'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]');
+  assert.equal(cancelada.transcricao[0]?.detalhes?.[0]?.id, 'c1');
+});
+
+test('evento repetido da mesma Chamada de Ferramenta apenas completa o detalhe', () => {
+  const inicial = aplicarEventoDaObservacao(
+    { transcricao: [{ locutor: 'Agente de Voz', quando: '—', texto: 'Vou consultar.' }], observando: true },
+    {
+      tipo: 'chamada',
+      detalhe: {
+        tipo: 'Ferramenta',
+        nome: 'consultar_plano',
+        nomeDaFerramenta: 'consultar_plano',
+        id: 'c1'
+      }
+    }
+  );
+  const repetida = aplicarEventoDaObservacao(inicial, {
+    tipo: 'chamada',
+    detalhe: {
+      tipo: 'Ferramenta',
+      nome: 'consultar_plano',
+      nomeDaFerramenta: 'consultar_plano',
+      id: 'c1',
+      parametros: '{"cpf":"123"}'
+    }
+  });
+
+  assert.equal(repetida.transcricao.length, 1);
+  assert.equal(repetida.transcricao[0]?.detalhes?.length, 1);
+  assert.equal(repetida.transcricao[0]?.detalhes?.[0]?.parametros, '{"cpf":"123"}');
+  assert.equal(
+    repetida.transcricao[0]?.texto,
+    'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]'
+  );
+});
+
+test('segunda chamada sem turno identificado cria outro turno sem fala', () => {
+  const primeira = aplicarEventoDaObservacao(
+    { transcricao: [{ locutor: 'Cliente', quando: '—', texto: 'Quero plano.' }], observando: true },
+    {
+      tipo: 'chamada',
+      detalhe: { tipo: 'Ferramenta', nome: 'consultar', nomeDaFerramenta: 'consultar', id: 'c1' }
+    }
+  );
+  const segunda = aplicarEventoDaObservacao(primeira, {
+    tipo: 'chamada',
+    detalhe: { tipo: 'Ferramenta', nome: 'detalhar', nomeDaFerramenta: 'detalhar', id: 'c2' }
+  });
+
+  assert.equal(segunda.transcricao.length, 3);
+  assert.equal(segunda.transcricao[1]?.texto, '[Chamada de Ferramenta: consultar]');
+  assert.equal(segunda.transcricao[2]?.texto, '[Chamada de Ferramenta: detalhar]');
+});
+
+test('chamada repetida sem id completa a mais antiga mesmo com veredito', () => {
+  const comResultado = aplicarEventoDaObservacao(
+    { transcricao: [], observando: true },
+    {
+      tipo: 'resultado',
+      resultado: { nome: 'consultar_plano', veredito: 'Sucesso', resposta: '{"p":1}' }
+    }
+  );
+  const repetida = aplicarEventoDaObservacao(comResultado, {
+    tipo: 'chamada',
+    detalhe: {
+      tipo: 'Ferramenta',
+      nome: 'consultar_plano',
+      nomeDaFerramenta: 'consultar_plano',
+      parametros: '{"cpf":"000"}'
+    }
+  });
+
+  assert.equal(repetida.transcricao.length, 1);
+  assert.equal(repetida.transcricao[0]?.detalhes?.length, 1);
+  assert.equal(repetida.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(repetida.transcricao[0]?.detalhes?.[0]?.parametros, '{"cpf":"000"}');
+});
+
+test('fonte posiciona a chamada provisória no turno correto sem duplicá-la', () => {
+  const reconciliada = observarTranscricao(
+    {
+      transcricao: [
+        { locutor: 'Agente de Voz', quando: '—', texto: 'Vou consultar.' },
+        { locutor: 'Cliente', quando: '—', texto: 'Certo.' },
+        {
+          locutor: 'Agente de Voz',
+          quando: '—',
+          texto: '[Chamada de Ferramenta: consultar_plano]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_plano',
+              nomeDaFerramenta: 'consultar_plano',
+              id: 'c1',
+              veredito: 'Sucesso',
+              resposta: '{"ok":true}'
+            }
+          ]
+        }
+      ],
+      observando: true
+    },
+    {
+      aberto: true,
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:08',
+          texto: 'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_plano',
+              nomeDaFerramenta: 'consultar_plano',
+              id: 'c1'
+            }
+          ]
+        },
+        { locutor: 'Cliente', quando: '0:10', texto: 'Certo.' }
+      ]
+    }
+  );
+
+  assert.equal(reconciliada.transcricao.length, 2);
+  assert.equal(reconciliada.transcricao[0]?.detalhes?.length, 1);
+  assert.equal(reconciliada.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(reconciliada.transcricao[0]?.detalhes?.[0]?.resposta, '{"ok":true}');
 });
 
 test('pulso atrasado não apaga o veredito que o ao vivo já completou', () => {

@@ -3,6 +3,7 @@ import {
   acaoDoProcedimento,
   ehFerramentaDeProcedimento,
   type DetalheDaFerramenta,
+  type IdentificacaoDaChamada,
   type ResultadoDaChamada
 } from '@hq-crion/contracts/ferramenta';
 
@@ -41,11 +42,16 @@ export function nomeDaFerramenta(item: ItemDaFonte) {
 }
 
 export function chamadaRecusada(item: ItemDaFonte) {
-  return item.is_called === false || item.status === 'skipped';
+  const status = item.status?.trim().toLowerCase();
+  return status === 'skipped' || status === 'cancelled' || status === 'canceled';
 }
 
 export function chamadaExecutada(item: ItemDaFonte) {
-  return !chamadaRecusada(item) && item.tool_has_been_called !== false;
+  return (
+    !chamadaRecusada(item) &&
+    item.tool_has_been_called !== false &&
+    item.is_called !== false
+  );
 }
 
 export function textoDeDuracao(segundos: number) {
@@ -223,6 +229,25 @@ export function resultadoFalhou(item: ItemDaFonte) {
 
 export type DetalheDaChamada = DetalheDaFerramenta & { pendente?: boolean };
 
+export function identificacaoDaChamada(item: ItemDaFonte): IdentificacaoDaChamada | undefined {
+  const nome = nomeDaFerramenta(item);
+  const id = (item.tool_call_id ?? item.request_id)?.trim() || undefined;
+
+  if (!nome && !id) {
+    return undefined;
+  }
+
+  const campos = camposDoProcedimento(comoObjeto(parametrosDe(item)));
+
+  return {
+    ...(id ? { id } : {}),
+    ...(nome ? { nome } : {}),
+    ...(campos.nome ? { nomeDoProcedimento: campos.nome } : {}),
+    ...(campos.id ? { idDoProcedimento: campos.id } : {}),
+    ...(campos.indice ? { indiceDoProcedimento: campos.indice } : {})
+  };
+}
+
 export function detalheDaChamada(
   item: ItemDaFonte,
   contexto: ContextoDaChamada = {}
@@ -259,7 +284,9 @@ export function detalheDaChamada(
     ...(contexto.tempoNoAtendimento ? { tempoNoAtendimento: contexto.tempoNoAtendimento } : {}),
     ...(contexto.tempoDoLlm ? { tempoDoLlm: contexto.tempoDoLlm } : {}),
     ...(tipoDaFonteDe(item) ? { tipoDaFonte: tipoDaFonteDe(item) } : {}),
-    ...(item.tool_has_been_called === false ? { pendente: true as const } : {})
+    ...(item.tool_has_been_called === false || item.is_called === false
+      ? { pendente: true as const }
+      : {})
   };
 }
 
@@ -274,7 +301,7 @@ export function resultadoDaFonte(item: ItemDaFonte): ResultadoDaChamada | undefi
 
   const id = (item.tool_call_id ?? item.request_id)?.trim() || undefined;
 
-  if ((!nome && !id) || !chamadaExecutada(item)) {
+  if ((!nome && !id) || chamadaRecusada(item)) {
     return undefined;
   }
 

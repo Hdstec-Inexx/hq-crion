@@ -7,6 +7,7 @@ import {
 import {
   chamadaRecusada,
   detalheDaChamada,
+  identificacaoDaChamada,
   nomeDaFerramenta,
   resultadoDaFonte,
   type ItemDaFonte
@@ -84,6 +85,12 @@ function eventoDeFerramenta(mensagem: MensagemDaFonte): EventoDaObservacao | und
       mensagem.type === 'agent_tool_response'
         ? mensagem.agent_tool_response
         : mensagem.agent_tool_response_full_payload;
+
+    if (ferramenta && chamadaRecusada(ferramenta)) {
+      const chamada = identificacaoDaChamada(ferramenta);
+      return chamada ? { tipo: 'cancelamento', chamada } : undefined;
+    }
+
     const resultado = ferramenta ? resultadoDaFonte(ferramenta) : undefined;
 
     if (!resultado) {

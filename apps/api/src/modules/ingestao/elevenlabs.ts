@@ -3,10 +3,17 @@ import {
   textoDaChamadaDeFerramenta,
   type TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
-import { aplicarResultados, type DetalheDaFerramenta } from '@hq-crion/contracts/ferramenta';
+import {
+  aplicarResultados,
+  detalheDoResultado,
+  indiceDaChamada,
+  type DetalheDaFerramenta
+} from '@hq-crion/contracts/ferramenta';
 import {
   chamadaExecutada,
+  chamadaRecusada,
   detalheDaChamada,
+  identificacaoDaChamada,
   nomeDaFerramenta,
   resultadoDaFonte,
   tempoDoLlm,
@@ -218,17 +225,62 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
     };
   });
 
-  const comResultados = aplicarResultados(
+  for (const turno of payload.transcript ?? []) {
+    for (const resultado of turno.tool_results ?? []) {
+      const comNome = resultadoComNomeDaChamada(resultado, nomesPorId);
+      if (chamadaRecusada(comNome)) {
+        const cancelada = identificacaoDaChamada(comNome);
+        if (cancelada) {
+          const todos = turnosComChamadas.flatMap((t) => t.detalhes);
+          const idx = indiceDaChamada(todos, cancelada);
+          if (idx >= 0) {
+            let cursor = 0;
+            for (const t of turnosComChamadas) {
+              const q = t.detalhes.length;
+              if (idx >= cursor && idx < cursor + q) {
+                t.detalhes.splice(idx - cursor, 1);
+                break;
+              }
+              cursor += q;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const aplicacao = aplicarResultados(
     turnosComChamadas,
     turnosComChamadas.flatMap((turno) => turno.resultados)
-  ).turnos;
+  );
+  const naoAplicadosSet = new Set(aplicacao.naoAplicados);
+  const comResultados: typeof aplicacao.turnos = [];
+
+  for (let i = 0; i < aplicacao.turnos.length; i += 1) {
+    const turnoOriginal = turnosComChamadas[i];
+    const turnoAplicado = aplicacao.turnos[i];
+    if (turnoAplicado) {
+      comResultados.push(turnoAplicado);
+    }
+    for (const resultado of turnoOriginal?.resultados ?? []) {
+      if (naoAplicadosSet.has(resultado)) {
+        const detalhe = detalheDoResultado(resultado);
+        if (detalhe) {
+          comResultados.push({
+            locutor: 'Agente de Voz' as const,
+            fala: '',
+            quando: turnoOriginal?.quando ?? '—',
+            comTempo: turnoOriginal?.comTempo ?? false,
+            detalhes: [detalhe],
+            resultados: []
+          });
+        }
+      }
+    }
+  }
 
   return comResultados.flatMap((turno) => {
     const detalhes = (turno.detalhes ?? []).flatMap((detalhe) => {
-      if (detalhe.pendente && !detalhe.veredito) {
-        return [];
-      }
-
       const { pendente: _pendente, ...publico } = detalhe;
       return [publico];
     });

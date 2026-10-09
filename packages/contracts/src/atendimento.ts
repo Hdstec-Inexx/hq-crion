@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { detalheDaFerramentaSchema, resultadoDaChamadaSchema } from './ferramenta.js';
+import {
+  detalheDaFerramentaSchema,
+  identificacaoDaChamadaSchema,
+  resultadoDaChamadaSchema
+} from './ferramenta.js';
 import type { Papel } from './perfil.js';
 import { administradoraSchema, recorteSchema } from './recorte.js';
 
@@ -370,6 +374,10 @@ export const eventoDaObservacaoSchema = z.discriminatedUnion('tipo', [
   z.object({
     tipo: z.literal('resultado'),
     resultado: resultadoDaChamadaSchema
+  }),
+  z.object({
+    tipo: z.literal('cancelamento'),
+    chamada: identificacaoDaChamadaSchema
   })
 ]);
 

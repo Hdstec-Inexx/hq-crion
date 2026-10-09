@@ -18,12 +18,16 @@ export const detalheDaFerramentaSchema = z.object({
   tipoDaFonte: z.string().min(1).optional()
 });
 
-export const resultadoDaChamadaSchema = z.object({
+const identificacaoDaChamadaShape = {
   id: z.string().min(1).optional(),
   nome: z.string().min(1).optional(),
   nomeDoProcedimento: z.string().min(1).optional(),
   idDoProcedimento: z.string().min(1).optional(),
-  indiceDoProcedimento: z.string().min(1).optional(),
+  indiceDoProcedimento: z.string().min(1).optional()
+};
+
+export const resultadoDaChamadaSchema = z.object({
+  ...identificacaoDaChamadaShape,
   veredito: z.enum(['Sucesso', 'Falha']),
   resposta: z.string().optional(),
   tempoDeExecucao: z.string().min(1).optional(),
@@ -31,8 +35,13 @@ export const resultadoDaChamadaSchema = z.object({
   raciocinio: z.string().min(1).optional()
 }).refine((resultado) => Boolean(resultado.nome || resultado.id));
 
+export const identificacaoDaChamadaSchema = z
+  .object(identificacaoDaChamadaShape)
+  .refine((chamada) => Boolean(chamada.nome || chamada.id));
+
 export type DetalheDaFerramenta = z.infer<typeof detalheDaFerramentaSchema>;
 export type ResultadoDaChamada = z.infer<typeof resultadoDaChamadaSchema>;
+export type IdentificacaoDaChamada = z.infer<typeof identificacaoDaChamadaSchema>;
 
 export function linhaDaChamada(detalhe: DetalheDaFerramenta) {
   if (detalhe.tipo === 'Procedimento') {
@@ -78,7 +87,7 @@ export function acaoDoProcedimento(nome: string | undefined): 'iniciou' | 'encer
   return nome === 'end_procedure' ? 'encerrou' : 'iniciou';
 }
 
-function compativelComOResultado(detalhe: DetalheDaFerramenta, resultado: ResultadoDaChamada) {
+function compativelComOResultado(detalhe: DetalheDaFerramenta, resultado: IdentificacaoDaChamada) {
   if (!ehFerramentaDeProcedimento(resultado.nome)) {
     return true;
   }
@@ -86,7 +95,7 @@ function compativelComOResultado(detalhe: DetalheDaFerramenta, resultado: Result
   return nomeDePareamento(detalhe) === resultado.nome;
 }
 
-function resultadoDeProcedimento(resultado: ResultadoDaChamada) {
+function resultadoDeProcedimento(resultado: IdentificacaoDaChamada) {
   return (
     Boolean(
       resultado.idDoProcedimento || resultado.indiceDoProcedimento || resultado.nomeDoProcedimento
@@ -96,7 +105,7 @@ function resultadoDeProcedimento(resultado: ResultadoDaChamada) {
 
 function indiceDoResultado(
   detalhes: readonly DetalheDaFerramenta[],
-  resultado: ResultadoDaChamada
+  resultado: IdentificacaoDaChamada
 ) {
   if (resultado.id) {
     return detalhes.findIndex((detalhe) => detalhe.id === resultado.id);
@@ -144,14 +153,50 @@ function indiceDoResultado(
       }
     }
 
-    return primeiroSemVeredito(detalhes, (detalhe) => nomeDePareamento(detalhe) === resultado.nome);
+    return primeiroSemVeredito(
+      detalhes,
+      (detalhe) =>
+        detalhe.tipo === 'Procedimento' && compativelComOResultado(detalhe, resultado)
+    );
   }
 
-  return primeiroSemVeredito(
+  const semVeredito = primeiroSemVeredito(
     detalhes,
     (detalhe) =>
       detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === resultado.nome
   );
+  if (semVeredito >= 0) {
+    return semVeredito;
+  }
+
+  return detalhes.findIndex(
+    (detalhe) =>
+      detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === resultado.nome
+  );
+}
+
+export function identificacaoDoDetalhe(detalhe: DetalheDaFerramenta): IdentificacaoDaChamada {
+  if (detalhe.tipo === 'Procedimento') {
+    return {
+      ...(detalhe.id ? { id: detalhe.id } : {}),
+      nome: detalhe.nomeDaFerramenta,
+      ...(detalhe.nome !== detalhe.nomeDaFerramenta ? { nomeDoProcedimento: detalhe.nome } : {}),
+      ...(detalhe.idDoProcedimento ? { idDoProcedimento: detalhe.idDoProcedimento } : {}),
+      ...(detalhe.indiceDoProcedimento ? { indiceDoProcedimento: detalhe.indiceDoProcedimento } : {})
+    };
+  }
+
+  return {
+    ...(detalhe.id ? { id: detalhe.id } : {}),
+    nome: detalhe.nomeDaFerramenta || detalhe.nome
+  };
+}
+
+export function indiceDaChamada(
+  detalhes: readonly DetalheDaFerramenta[],
+  chamada: IdentificacaoDaChamada
+) {
+  return indiceDoResultado(detalhes, chamada);
 }
 
 function identificadorDoProcedimento(
@@ -238,16 +283,34 @@ export function conservarVereditoDaTela(
   };
 }
 
+export function detalheCorrespondente(
+  detalhes: readonly DetalheDaFerramenta[],
+  chamada: IdentificacaoDaChamada
+): { detalhe: DetalheDaFerramenta; indice: number } | undefined {
+  const indice = indiceDoResultado(detalhes, chamada);
+  if (indice < 0) {
+    return undefined;
+  }
+  const detalhe = detalhes[indice];
+  return detalhe ? { detalhe, indice } : undefined;
+}
+
 export function detalhesComVereditoDaTela(
   daTela: readonly DetalheDaFerramenta[] | undefined,
   daFonte: readonly DetalheDaFerramenta[]
 ) {
-  return daFonte.map((fonte, indice) => {
-    const tela =
-      (fonte.id ? daTela?.find((item) => item.id === fonte.id) : undefined) ??
-      (daTela && daTela.length === daFonte.length ? daTela[indice] : undefined);
+  const restantes = daTela ? [...daTela] : [];
 
-    return conservarVereditoDaTela(tela, fonte);
+  return daFonte.map((fonte) => {
+    let correspondente: DetalheDaFerramenta | undefined;
+    const achado = detalheCorrespondente(restantes, identificacaoDoDetalhe(fonte));
+
+    if (achado) {
+      correspondente = achado.detalhe;
+      restantes.splice(achado.indice, 1);
+    }
+
+    return conservarVereditoDaTela(correspondente, fonte);
   });
 }
 
@@ -257,12 +320,15 @@ export function aplicarResultados<T extends { detalhes?: DetalheDaFerramenta[] }
 ) {
   let detalhes = turnos.flatMap((turno) => turno.detalhes ?? []);
   let aplicou = false;
+  const naoAplicados: ResultadoDaChamada[] = [];
 
   for (const resultado of resultados) {
     const aplicado = aplicarResultado(detalhes, resultado);
     if (aplicado.aplicou) {
       detalhes = aplicado.detalhes;
       aplicou = true;
+    } else {
+      naoAplicados.push(resultado);
     }
   }
 
@@ -270,6 +336,7 @@ export function aplicarResultados<T extends { detalhes?: DetalheDaFerramenta[] }
 
   return {
     aplicou,
+    naoAplicados,
     turnos: turnos.map((turno) => {
       const quantidade = turno.detalhes?.length ?? 0;
 
