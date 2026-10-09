@@ -111,7 +111,7 @@ test('suíte de aceite opta pelo Postgres sem tirar o teste comum da memória', 
   );
 });
 
-test('as migrations numeradas cobrem o depósito, os fatos, a mídia e o boot', () => {
+test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e favoritos', () => {
   assert.deepEqual(
     listarMigracoes().map((migracao) => migracao.nome),
     [
@@ -123,9 +123,22 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia e o boot', 
       '006_resumo_e_falhas_da_ia.sql',
       '07_funcao_persistir_avaliacao_da_ia.sql',
       '08_transferencia_transfer_to_number.sql',
-      '09_uma_avaliacao_do_curador.sql'
+      '09_uma_avaliacao_do_curador.sql',
+      '010_favoritos.sql'
     ]
   );
+});
+
+test('a migration 010_favoritos cria hq_favorito com chaves estrangeiras, unicidade e índices', () => {
+  const migracao = listarMigracoes().find((m) => m.nome === '010_favoritos.sql');
+  assert.ok(migracao, 'migration 010_favoritos.sql ausente');
+  const sql = migracao.sql;
+  assert.match(sql, /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+hq_favorito/i);
+  assert.match(sql, /perfil_id\s+TEXT\s+NOT\s+NULL\s+REFERENCES\s+hq_perfil\s*\(\s*id\s*\)/i);
+  assert.match(sql, /atendimento_id\s+TEXT\s+NOT\s+NULL\s+REFERENCES\s+hq_atendimento\s*\(\s*id\s*\)/i);
+  assert.match(sql, /UNIQUE\s*\(\s*perfil_id\s*,\s*atendimento_id\s*\)/i);
+  assert.match(sql, /idx_hq_favorito_atendimento_id/i);
+  assert.match(sql, /idx_hq_favorito_perfil_id/i);
 });
 
 test('SKIP_SEED pula só a demonstração; a semente estrutural não recebe esse flag', () => {

@@ -261,12 +261,28 @@ export function textoSoDeFerramenta(texto: string) {
   return linhas.length > 0 && linhas.every(linhaDeFerramenta);
 }
 
+export const favoritoPerfilSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().min(1)
+});
+
+export const favoritosInfoSchema = z.object({
+  count: z.number().int().min(0),
+  perfis: z.array(favoritoPerfilSchema)
+});
+
+export const favoritoMutacaoResponseSchema = z.object({
+  favoritadoPeloUsuario: z.boolean()
+});
+
 export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
   audio: caminhoDeMidiaSchema.optional(),
   downloadDeAudio: caminhoDeMidiaSchema.optional(),
   transcricao: z.array(turnoDaTranscricaoSchema),
   avaliacaoDaIa: avaliacaoSchema.optional(),
-  avaliacaoDoCurador: avaliacaoDoCuradorSchema.optional()
+  avaliacaoDoCurador: avaliacaoDoCuradorSchema.optional(),
+  favoritadoPeloUsuario: z.boolean().optional(),
+  favoritos: favoritosInfoSchema.optional()
 });
 
 function compatibilizarItemAoVivo(bruto: unknown) {
@@ -342,6 +358,9 @@ export type ConferenciaRequest = z.infer<typeof conferenciaRequestSchema>;
 export type CriterioDaConferencia = ConferenciaRequest['checklist'][number];
 export type TurnoDaTranscricao = z.infer<typeof turnoDaTranscricaoSchema>;
 export type AtendimentoDetalhe = z.infer<typeof atendimentoDetalheSchema>;
+export type FavoritoPerfil = z.infer<typeof favoritoPerfilSchema>;
+export type FavoritosInfo = z.infer<typeof favoritosInfoSchema>;
+export type FavoritoMutacaoResponse = z.infer<typeof favoritoMutacaoResponseSchema>;
 export type MonitoramentoDetalhe = z.infer<typeof monitoramentoDetalheSchema>;
 export type MonitoramentoListagemResponse = z.infer<
   typeof monitoramentoListagemResponseSchema

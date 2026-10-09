@@ -26,6 +26,8 @@ import { Link, useLocation, useNavigate, useParams, useRouteLoaderData, useSearc
 import { lerSessao } from '../auth/sessao';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { buscarRegua } from '../regua/api';
+import { BadgeFavoritos } from './BadgeFavoritos';
+import { BotaoFavorito } from './BotaoFavorito';
 import { buscarAtendimento, buscarObjetoDaMidia, buscarPercursoDaFila, gravarConferencia, marcarComentarioResolvido } from './api';
 import { ReproducaoDoAtendimento } from './TranscricaoDoAtendimento';
 
@@ -160,10 +162,12 @@ function estadosDoCriterioNaConferencia(criterio: Pick<CriterioDaRegua, 'admiteN
 
 function FormularioConferencia({
   atendimento,
-  onGravada
+  onGravada,
+  onFavoritoAlterado
 }: {
   atendimento: AtendimentoDetalhe & { avaliacaoDaIa: Avaliacao };
   onGravada: (detalhe: AtendimentoDetalhe) => void;
+  onFavoritoAlterado?: (novoEstado: boolean) => void;
 }) {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -267,7 +271,14 @@ function FormularioConferencia({
 
   return (
     <form className="conferencia-form" onSubmit={onSubmit} aria-label="Conferência humana">
-      <h2>Conferência humana</h2>
+      <div className="conferencia-cabecalho">
+        <h2>Conferência humana</h2>
+        <BotaoFavorito
+          atendimentoId={atendimento.id}
+          favoritado={atendimento.favoritadoPeloUsuario ?? false}
+          onToggle={onFavoritoAlterado}
+        />
+      </div>
       <p className="panel-label">Checklist do Curador</p>
       <p>Os estados começam iguais aos da IA. Confirme ou corrija cada Critério.</p>
       <div className="conferencia-lista">
@@ -501,6 +512,25 @@ export function DetalheAtendimento() {
     URL.revokeObjectURL(objeto);
   }
 
+  async function atualizarFavorito(novoEstado: boolean) {
+    setAtendimento((atual) =>
+      atual ? { ...atual, favoritadoPeloUsuario: novoEstado } : atual
+    );
+
+    if (!id) {
+      return;
+    }
+
+    try {
+      const atualizado = await buscarAtendimento(id);
+      if (atualizado) {
+        setAtendimento(atualizado);
+      }
+    } catch {
+      // conserva atualização otimista
+    }
+  }
+
   return (
     <div>
       <div className="pagina-head">
@@ -541,6 +571,20 @@ export function DetalheAtendimento() {
               <dt>Motivo de Contato</dt>
               <dd>{atendimento.motivo}</dd>
             </div>
+            <div>
+              <dt>Favorito</dt>
+              <dd>
+                {perfil.papel === 'Curador' ? (
+                  <BotaoFavorito
+                    atendimentoId={atendimento.id}
+                    favoritado={atendimento.favoritadoPeloUsuario ?? false}
+                    onToggle={atualizarFavorito}
+                  />
+                ) : (
+                  <BadgeFavoritos favoritos={atendimento.favoritos} />
+                )}
+              </dd>
+            </div>
             {custoVisivelPara(perfil.papel) && atendimento.custo ? (
               <div>
                 <dt>Custo</dt>
@@ -568,6 +612,7 @@ export function DetalheAtendimento() {
               key={atendimento.id}
               atendimento={{ ...atendimento, avaliacaoDaIa: atendimento.avaliacaoDaIa }}
               onGravada={setAtendimento}
+              onFavoritoAlterado={atualizarFavorito}
             />
           ) : null}
           {!conferenciaAberta(perfil.papel, atendimento) ? (

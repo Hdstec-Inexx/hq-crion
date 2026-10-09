@@ -791,6 +791,67 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         return registros[0] ?? ('ausente' as const);
       });
     },
+    async favoritar(atendimentoId, perfilId) {
+      const existe = await pool.query('SELECT 1 FROM hq_atendimento WHERE id = $1', [
+        atendimentoId
+      ]);
+      if (existe.rows.length === 0) {
+        return 'ausente' as const;
+      }
+      await pool.query(
+        `INSERT INTO hq_favorito (id, perfil_id, atendimento_id, favoritado_em)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (perfil_id, atendimento_id) DO NOTHING`,
+        [randomUUID(), perfilId, atendimentoId]
+      );
+      return 'ok' as const;
+    },
+    async desfavoritar(atendimentoId, perfilId) {
+      const existe = await pool.query('SELECT 1 FROM hq_atendimento WHERE id = $1', [
+        atendimentoId
+      ]);
+      if (existe.rows.length === 0) {
+        return 'ausente' as const;
+      }
+      await pool.query(
+        `DELETE FROM hq_favorito
+         WHERE atendimento_id = $1 AND perfil_id = $2`,
+        [atendimentoId, perfilId]
+      );
+      return 'ok' as const;
+    },
+    async obterFavoritos(atendimentoId, perfilId) {
+      const existe = await pool.query('SELECT 1 FROM hq_atendimento WHERE id = $1', [
+        atendimentoId
+      ]);
+      if (existe.rows.length === 0) {
+        return undefined;
+      }
+      const resultado = await pool.query(
+        `SELECT f.perfil_id, p.nome, f.favoritado_em
+         FROM hq_favorito f
+         JOIN hq_perfil p ON p.id = f.perfil_id
+         WHERE f.atendimento_id = $1
+         ORDER BY f.favoritado_em DESC`,
+        [atendimentoId]
+      );
+      const perfis = resultado.rows.map(
+        (linha: { perfil_id: string; nome: string }) => ({
+          id: linha.perfil_id,
+          nome: linha.nome
+        })
+      );
+      const favoritadoPeloUsuario = perfilId
+        ? resultado.rows.some((linha: { perfil_id: string }) => linha.perfil_id === perfilId)
+        : false;
+      return {
+        favoritadoPeloUsuario,
+        favoritos: {
+          count: perfis.length,
+          perfis
+        }
+      };
+    },
     async consultarListagem(recorte, query, modo, perfilId) {
       const registros = await lerRegistros(pool, { recorte, query, modo });
       return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
