@@ -153,11 +153,23 @@ function indiceDoResultado(
       }
     }
 
-    return primeiroSemVeredito(detalhes, (detalhe) => nomeDePareamento(detalhe) === resultado.nome);
+    return primeiroSemVeredito(
+      detalhes,
+      (detalhe) =>
+        detalhe.tipo === 'Procedimento' && compativelComOResultado(detalhe, resultado)
+    );
   }
 
-  return primeiroSemVeredito(
+  const semVeredito = primeiroSemVeredito(
     detalhes,
+    (detalhe) =>
+      detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === resultado.nome
+  );
+  if (semVeredito >= 0) {
+    return semVeredito;
+  }
+
+  return detalhes.findIndex(
     (detalhe) =>
       detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === resultado.nome
   );
@@ -184,22 +196,7 @@ export function indiceDaChamada(
   detalhes: readonly DetalheDaFerramenta[],
   chamada: IdentificacaoDaChamada
 ) {
-  if (chamada.id) {
-    return detalhes.findIndex((detalhe) => detalhe.id === chamada.id);
-  }
-
-  const semVeredito = indiceDoResultado(detalhes, chamada);
-  if (semVeredito >= 0) {
-    return semVeredito;
-  }
-
-  if (resultadoDeProcedimento(chamada)) {
-    return detalhes.findIndex((detalhe) => nomeDePareamento(detalhe) === chamada.nome);
-  }
-
-  return detalhes.findIndex(
-    (detalhe) => detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === chamada.nome
-  );
+  return indiceDoResultado(detalhes, chamada);
 }
 
 function identificadorDoProcedimento(

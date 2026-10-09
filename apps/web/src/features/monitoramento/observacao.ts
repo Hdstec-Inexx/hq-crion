@@ -171,12 +171,12 @@ function adotarFonte(
   tela: readonly TurnoDaTranscricao[],
   fonte: readonly TurnoDaTranscricao[]
 ) {
-  const todosDetalhesDaTela = tela.flatMap((item) => item.detalhes ?? []);
+  const restantesDaTela = tela.flatMap((item) => item.detalhes ?? []);
   const base = fonte.map((turno) => {
     return {
       ...copiar(turno),
       ...(turno.detalhes?.length
-        ? { detalhes: detalhesComVereditoDaTela(todosDetalhesDaTela, turno.detalhes) }
+        ? { detalhes: detalhesComVereditoDaTela(restantesDaTela, turno.detalhes) }
         : {})
     };
   });
