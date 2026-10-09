@@ -246,3 +246,37 @@ export async function buscarObjetoDaMidia(caminho: string, signal?: AbortSignal)
 
   return URL.createObjectURL(await response.blob());
 }
+
+async function enviarRequisicaoFavorito(id: string, method: 'POST' | 'DELETE') {
+  const sessao = lerSessao();
+
+  if (!sessao) {
+    return null;
+  }
+
+  const response = await fetch(`${apiUrl}/atendimentos/${encodeURIComponent(id)}/favorito`, {
+    method,
+    headers: {
+      ...autorizacao(sessao),
+      'Cache-Control': 'no-store'
+    }
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(method === 'POST' ? 'erro-ao-favoritar' : 'erro-ao-desfavoritar');
+  }
+
+  return ((await response.json()) as { favoritadoPeloUsuario: boolean }).favoritadoPeloUsuario;
+}
+
+export async function favoritarAtendimento(id: string) {
+  return enviarRequisicaoFavorito(id, 'POST');
+}
+
+export async function desfavoritarAtendimento(id: string) {
+  return enviarRequisicaoFavorito(id, 'DELETE');
+}

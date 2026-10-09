@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { buscarPorId as buscarPerfilPorId } from '../perfil/repositorio.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
 import {
   aplicarConsultaDaListagem,
@@ -57,6 +59,12 @@ export function repositorioEmMemoria(
   ingeridos: readonly RegistroDeAtendimento[] = []
 ): PortaDeAtendimentos {
   const registros = catalogoDeAtendimentos();
+  const favoritos: Array<{
+    id: string;
+    perfilId: string;
+    atendimentoId: string;
+    favoritadoEm: string;
+  }> = [];
 
   for (const ingerido of ingeridos) {
     incorporar(registros, ingerido);
@@ -68,6 +76,73 @@ export function repositorioEmMemoria(
     },
     async buscarPorId(id) {
       return registros.find((registro) => registro.id === id);
+    },
+    async favoritar(atendimentoId, perfilId) {
+      const item = registros.find((registro) => registro.id === atendimentoId);
+
+      if (!item) {
+        return 'ausente';
+      }
+
+      const jaExiste = favoritos.some(
+        (fav) => fav.atendimentoId === atendimentoId && fav.perfilId === perfilId
+      );
+
+      if (!jaExiste) {
+        favoritos.push({
+          id: randomUUID(),
+          perfilId,
+          atendimentoId,
+          favoritadoEm: new Date().toISOString()
+        });
+      }
+
+      return 'ok';
+    },
+    async desfavoritar(atendimentoId, perfilId) {
+      const item = registros.find((registro) => registro.id === atendimentoId);
+
+      if (!item) {
+        return 'ausente';
+      }
+
+      const indice = favoritos.findIndex(
+        (fav) => fav.atendimentoId === atendimentoId && fav.perfilId === perfilId
+      );
+
+      if (indice !== -1) {
+        favoritos.splice(indice, 1);
+      }
+
+      return 'ok';
+    },
+    async obterFavoritos(atendimentoId, perfilId) {
+      const item = registros.find((registro) => registro.id === atendimentoId);
+
+      if (!item) {
+        return undefined;
+      }
+
+      const doAtendimento = favoritos
+        .filter((fav) => fav.atendimentoId === atendimentoId)
+        .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
+
+      const perfis = doAtendimento.map((fav) => ({
+        id: fav.perfilId,
+        nome: buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
+      }));
+
+      const favoritadoPeloUsuario = perfilId
+        ? doAtendimento.some((fav) => fav.perfilId === perfilId)
+        : false;
+
+      return {
+        favoritadoPeloUsuario,
+        favoritos: {
+          count: perfis.length,
+          perfis
+        }
+      };
     },
     async gravarTranscricao(id, transcricao) {
       const item = registros.find((registro) => registro.id === id);

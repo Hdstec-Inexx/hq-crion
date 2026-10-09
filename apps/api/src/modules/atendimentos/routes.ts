@@ -25,6 +25,7 @@ import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js
 import { buscarPorId } from '../perfil/repositorio.js';
 import { periodoDaQuery, recorteDaQuery, type ModoDaListagem } from './filtros.js';
 import { paginaDaLista } from './pagina.js';
+import type { FavoritosDoAtendimento } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
   detalhePublico,
@@ -151,7 +152,11 @@ function comAprovacao<
   };
 }
 
-function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
+function responderDetalhe(
+  item: RegistroDeAtendimento,
+  papel: Papel,
+  favoritosInfo?: FavoritosDoAtendimento
+) {
   const { custo, downloadDeAudio, avaliacaoDaIa, avaliacaoDoCurador, ...resto } =
     detalhePublico(item);
 
@@ -160,7 +165,9 @@ function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
     ...(avaliacaoDaIa ? { avaliacaoDaIa: comAprovacao(avaliacaoDaIa) } : {}),
     ...(avaliacaoDoCurador ? { avaliacaoDoCurador: comAprovacao(avaliacaoDoCurador) } : {}),
     ...(custoVisivelPara(papel) && custo ? { custo } : {}),
-    ...(downloadVisivelPara(papel) && downloadDeAudio ? { downloadDeAudio } : {})
+    ...(downloadVisivelPara(papel) && downloadDeAudio ? { downloadDeAudio } : {}),
+    favoritadoPeloUsuario: favoritosInfo?.favoritadoPeloUsuario ?? false,
+    favoritos: favoritosInfo?.favoritos ?? { count: 0, perfis: [] }
   });
 }
 
@@ -304,9 +311,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/atendimentos/:id', async (request, reply) => {
     semCache(reply);
-    const perfil = perfilDaAutorizacao(request.headers.authorization);
+    const registro = registroDaAutorizacao(request.headers.authorization);
 
-    if (!perfil) {
+    if (!registro) {
       return reply.code(401).send({ statusCode: 401 });
     }
 
@@ -361,7 +368,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    return responderDetalhe(item, perfil.papel);
+    const favoritos = await app.atendimentos.obterFavoritos(id, registro.id);
+    return responderDetalhe(item, registro.papel, favoritos);
   });
 
   app.post('/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, async (request, reply) => {
@@ -421,7 +429,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    return responderDetalhe(encontrado, registro.papel);
+    const favoritos = await app.atendimentos.obterFavoritos(id, registro.id);
+    return responderDetalhe(encontrado, registro.papel, favoritos);
   });
 
   app.post('/atendimentos/:id/avaliacao-da-ia', { bodyLimit: 32_768 }, async (request, reply) => {
@@ -462,7 +471,44 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ statusCode: 404 });
     }
 
-    return responderDetalhe(encontrado, registro.papel);
+    const favoritos = await app.atendimentos.obterFavoritos(id, registro.id);
+    return responderDetalhe(encontrado, registro.papel, favoritos);
+  });
+
+  app.post('/atendimentos/:id/favorito', async (request, reply) => {
+    semCache(reply);
+    const registro = exigirPapel(request, reply, 'Curador');
+
+    if (!registro) {
+      return;
+    }
+
+    const { id } = request.params as { id: string };
+    const resultado = await app.atendimentos.favoritar(id, registro.id);
+
+    if (resultado === 'ausente') {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    return reply.code(200).send({ favoritadoPeloUsuario: true });
+  });
+
+  app.delete('/atendimentos/:id/favorito', async (request, reply) => {
+    semCache(reply);
+    const registro = exigirPapel(request, reply, 'Curador');
+
+    if (!registro) {
+      return;
+    }
+
+    const { id } = request.params as { id: string };
+    const resultado = await app.atendimentos.desfavoritar(id, registro.id);
+
+    if (resultado === 'ausente') {
+      return reply.code(404).send({ statusCode: 404 });
+    }
+
+    return reply.code(200).send({ favoritadoPeloUsuario: false });
   });
 
   app.post('/manutencao/:id/resolver', async (request, reply) => {

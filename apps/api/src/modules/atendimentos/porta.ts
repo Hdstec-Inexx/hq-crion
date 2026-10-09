@@ -19,6 +19,14 @@ export type ResultadoDaAvaliacao = 'ok' | 'ausente' | 'em-andamento';
 export type ResultadoDaConferencia = 'ok' | 'ausente' | 'indisponivel';
 export type ResultadoDoComentario = RegistroDeAtendimento | 'ausente' | 'ja-resolvido';
 
+export type FavoritosDoAtendimento = {
+  favoritadoPeloUsuario: boolean;
+  favoritos: {
+    count: number;
+    perfis: Array<{ id: string; nome: string }>;
+  };
+};
+
 export type PortaDeAtendimentos = {
   listar(): Promise<readonly RegistroDeAtendimento[]>;
   buscarPorId(id: string): Promise<RegistroDeAtendimento | undefined>;
@@ -29,6 +37,9 @@ export type PortaDeAtendimentos = {
   ): Promise<ResultadoDaAvaliacao>;
   conferir(id: string, entrada: EntradaDeConferencia): Promise<ResultadoDaConferencia>;
   resolverComentario(id: string, adminId: string): Promise<ResultadoDoComentario>;
+  favoritar(atendimentoId: string, perfilId: string): Promise<'ok' | 'ausente'>;
+  desfavoritar(atendimentoId: string, perfilId: string): Promise<'ok' | 'ausente'>;
+  obterFavoritos(atendimentoId: string, perfilId: string): Promise<FavoritosDoAtendimento | undefined>;
   idsConcluidos(ids: readonly string[]): Promise<ReadonlySet<string>>;
   consultarListagem(
     recorte: Recorte,
