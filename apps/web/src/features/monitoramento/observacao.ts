@@ -10,7 +10,9 @@ import {
   aplicarResultados,
   detalheDoResultado,
   detalhesComVereditoDaTela,
+  indiceDaChamada,
   type DetalheDaFerramenta,
+  type IdentificacaoDaChamada,
   type ResultadoDaChamada
 } from '@hq-crion/contracts/ferramenta';
 
@@ -57,6 +59,7 @@ function incorporarFerramentas(
   fonte: readonly TurnoDaTranscricao[]
 ) {
   let cursor = 0;
+  const todosDetalhesDaTela = tela.flatMap((item) => item.detalhes ?? []);
 
   return tela.map((turno) => {
     const indice = fonte.findIndex(
@@ -78,12 +81,14 @@ function incorporarFerramentas(
       return copiar(turno);
     }
 
+    const combinados = [...(turno.detalhes ?? []), ...todosDetalhesDaTela];
+
     return {
       ...copiar(turno),
       texto: daFonte.texto,
       quando: turno.quando === '—' ? daFonte.quando : turno.quando,
       ...(daFonte.detalhes?.length
-        ? { detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes) }
+        ? { detalhes: detalhesComVereditoDaTela(combinados, daFonte.detalhes) }
         : {})
     };
   });
@@ -154,16 +159,33 @@ function adotarFonte(
   tela: readonly TurnoDaTranscricao[],
   fonte: readonly TurnoDaTranscricao[]
 ) {
+  const todosDetalhesDaTela = tela.flatMap((item) => item.detalhes ?? []);
   const base = fonte.map((turno) => {
     const daTela = tela.find(
       (item) => item.locutor === turno.locutor && falaDoTexto(item.texto) === falaDoTexto(turno.texto)
     );
-    return turnoComDetalheDaTela(copiar(turno), daTela);
+    const combinados = [...(daTela?.detalhes ?? []), ...todosDetalhesDaTela];
+    return {
+      ...copiar(turno),
+      ...(turno.detalhes?.length
+        ? { detalhes: detalhesComVereditoDaTela(combinados, turno.detalhes) }
+        : {})
+    };
   });
 
   for (const turno of tela) {
     if (falaCoberta(base, turno) || jaEstaNaTela(base, turno)) {
       continue;
+    }
+
+    if (turnoSoDeFerramenta(turno)) {
+      const detalhesDaBase = base.flatMap((item) => item.detalhes ?? []);
+      const absorvido =
+        turno.detalhes?.length &&
+        turno.detalhes.every((d) => indiceDaChamada(detalhesDaBase, d) >= 0);
+      if (absorvido) {
+        continue;
+      }
     }
 
     base.push(copiar(turno));
@@ -245,15 +267,17 @@ function mesclarFragmento(
     }
 
     const prefixo = tela.slice(0, inicioNaTela).map(copiar);
+    const todosDetalhesDaTela = tela.flatMap((item) => item.detalhes ?? []);
     const meio = tela.slice(inicioNaTela, inicioNaTela + tamanho).map((turno, indice) => {
       const daFonte = fonte[indice];
+      const combinados = [...(turno.detalhes ?? []), ...todosDetalhesDaTela];
 
       if (inicioNaTela + indice === correcao) {
         return {
           ...copiar(turno),
           texto: daFonte?.texto ?? turno.texto,
           ...(daFonte?.detalhes?.length
-            ? { detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes) }
+            ? { detalhes: detalhesComVereditoDaTela(combinados, daFonte.detalhes) }
             : {})
         };
       }
@@ -261,7 +285,7 @@ function mesclarFragmento(
       if (daFonte?.detalhes?.length) {
         return {
           ...copiar(turno),
-          detalhes: detalhesComVereditoDaTela(turno.detalhes, daFonte.detalhes)
+          detalhes: detalhesComVereditoDaTela(combinados, daFonte.detalhes)
         };
       }
 
@@ -273,7 +297,16 @@ function mesclarFragmento(
       .filter((turno) => !jaEstaNaTela(base, turno))
       .map(copiar);
 
-    return [...base, ...novas];
+    const resultadoFinal = [...base, ...novas];
+    return resultadoFinal.filter((turno) => {
+      if (turnoSoDeFerramenta(turno)) {
+        const outrosDetalhes = resultadoFinal
+          .filter((t) => t !== turno)
+          .flatMap((t) => t.detalhes ?? []);
+        return !turno.detalhes?.every((d) => indiceDaChamada(outrosDetalhes, d) >= 0);
+      }
+      return true;
+    });
   }
 
   return [...tela.map(copiar), ...fonte.filter((turno) => !jaEstaNaTela(tela, turno)).map(copiar)];
@@ -290,7 +323,19 @@ export function mesclarTranscricao(
   const comFerramentas = incorporarFerramentas(tela, fonte);
 
   if (comFerramentas.length === 0 || transcricaoInteiraDaFonte(comFerramentas, fonte)) {
-    return fonte.map((turno, indice) => turnoComDetalheDaTela(copiar(turno), comFerramentas[indice]));
+    const todosDaTela = tela.flatMap((t) => t.detalhes ?? []);
+    return fonte.map((turno, indice) => {
+      const combinados = [
+        ...(comFerramentas[indice]?.detalhes ?? []),
+        ...todosDaTela
+      ];
+      return {
+        ...copiar(turno),
+        ...(turno.detalhes?.length
+          ? { detalhes: detalhesComVereditoDaTela(combinados, turno.detalhes) }
+          : {})
+      };
+    });
   }
 
   if (abreAMesmaFala(comFerramentas, fonte)) {
@@ -337,14 +382,98 @@ function completarResultado(turnos: readonly TurnoDaTranscricao[], resultado: Re
     return turnos.map(copiar);
   }
 
-  return acrescentarChamada(turnos, detalhe);
+  return acrescentarChamada(turnos, detalhe, true);
 }
 
-function acrescentarChamada(turnos: readonly TurnoDaTranscricao[], detalhe: DetalheDaFerramenta) {
+function atualizarDetalhe(
+  atual: DetalheDaFerramenta,
+  novo: DetalheDaFerramenta
+): DetalheDaFerramenta {
+  return {
+    ...atual,
+    ...novo,
+    ...(atual.veredito && !novo.veredito ? { veredito: atual.veredito } : {}),
+    ...(atual.resposta && !novo.resposta ? { resposta: atual.resposta } : {})
+  };
+}
+
+function alterarDetalheNoTurno(
+  turnos: readonly TurnoDaTranscricao[],
+  indice: number,
+  operacao: (detalhe: DetalheDaFerramenta) => DetalheDaFerramenta | null
+): TurnoDaTranscricao[] {
+  let cursor = 0;
+
+  return turnos.flatMap((turno) => {
+    const detalhesDoTurno = turno.detalhes ?? [];
+    const posicao = indice - cursor;
+    cursor += detalhesDoTurno.length;
+
+    if (posicao < 0 || posicao >= detalhesDoTurno.length) {
+      return [copiar(turno)];
+    }
+
+    const detalheAtual = detalhesDoTurno[posicao];
+    const novoDetalhe = detalheAtual ? operacao(detalheAtual) : null;
+
+    if (!novoDetalhe) {
+      const linha = detalheAtual ? textoDaChamadaDeFerramenta(detalheAtual.nomeDaFerramenta) : '';
+      let removeuLinha = false;
+      const texto = turno.texto
+        .split('\n')
+        .filter((item) => {
+          if (!removeuLinha && item.trim() === linha) {
+            removeuLinha = true;
+            return false;
+          }
+          return true;
+        })
+        .join('\n')
+        .trim();
+      const restantes = detalhesDoTurno.filter((_, i) => i !== posicao);
+
+      if (!texto) {
+        return [];
+      }
+
+      return [
+        {
+          ...copiar(turno),
+          texto,
+          ...(restantes.length
+            ? { detalhes: restantes.map((d) => ({ ...d })) }
+            : { detalhes: undefined })
+        }
+      ];
+    }
+
+    return [
+      {
+        ...copiar(turno),
+        detalhes: detalhesDoTurno.map((d, i) => (i === posicao ? { ...novoDetalhe } : { ...d }))
+      }
+    ];
+  });
+}
+
+function acrescentarChamada(
+  turnos: readonly TurnoDaTranscricao[],
+  detalhe: DetalheDaFerramenta,
+  emNovoTurno = false
+) {
+  const detalhes = turnos.flatMap((turno) => turno.detalhes ?? []);
+  const indiceExistente = indiceDaChamada(detalhes, detalhe);
+
+  if (indiceExistente >= 0) {
+    return alterarDetalheNoTurno(turnos, indiceExistente, (atual) =>
+      atualizarDetalhe(atual, detalhe)
+    );
+  }
+
   const linha = textoDaChamadaDeFerramenta(detalhe.nomeDaFerramenta);
   const ultimo = turnos.at(-1);
 
-  if (ultimo?.locutor !== 'Agente de Voz') {
+  if (emNovoTurno || ultimo?.locutor !== 'Agente de Voz') {
     return [
       ...turnos.map(copiar),
       {
@@ -367,6 +496,20 @@ function acrescentarChamada(turnos: readonly TurnoDaTranscricao[], detalhe: Deta
       detalhes: [...(turno.detalhes ?? []).map((item) => ({ ...item })), { ...detalhe }]
     };
   });
+}
+
+function cancelarChamada(
+  turnos: readonly TurnoDaTranscricao[],
+  chamada: IdentificacaoDaChamada
+) {
+  const detalhes = turnos.flatMap((turno) => turno.detalhes ?? []);
+  const indice = indiceDaChamada(detalhes, chamada);
+
+  if (indice < 0) {
+    return turnos.map(copiar);
+  }
+
+  return alterarDetalheNoTurno(turnos, indice, () => null);
 }
 
 function acrescentarFala(
@@ -422,6 +565,13 @@ export function aplicarEventoDaObservacao(
   if (evento.tipo === 'resultado') {
     return {
       transcricao: completarResultado(atual.transcricao, evento.resultado),
+      observando: true
+    };
+  }
+
+  if (evento.tipo === 'cancelamento') {
+    return {
+      transcricao: cancelarChamada(atual.transcricao, evento.chamada),
       observando: true
     };
   }

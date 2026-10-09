@@ -152,10 +152,11 @@ test('resultado completa o detalhe da chamada e não entra no turno seguinte', (
 
   assert.equal(
     atendimento?.transcricao[0]?.texto,
-    'Vou consultar seu plano.\n[Chamada de Ferramenta: consultar_plano]'
+    'Vou consultar seu plano.\n[Chamada de Ferramenta: consultar_plano]\n[Chamada de Ferramenta: ocultar]'
   );
   assert.equal(atendimento?.transcricao[0]?.locutor, 'Agente de Voz');
   assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.veredito, 'Falha');
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[1]?.veredito, undefined);
   assert.equal(atendimento?.transcricao[1]?.texto, 'pode seguir');
   assert.equal(atendimento?.transcricao[1]?.detalhes, undefined);
   assert.equal(atendimento?.transcricao[1]?.locutor, 'Cliente');
@@ -345,9 +346,9 @@ test('transferência não executada não vira fato nem detalhe', () => {
   assert.equal(atendimento?.transcricao[0]?.detalhes, undefined);
 });
 
-test('chamada marcada como não executada e sem resultado não entra', () => {
+test('chamada aguardando retorno entra sem veredito', () => {
   const atendimento = atendimentoDaFonteElevenLabs({
-    conversation_id: 'conv-nao-executada',
+    conversation_id: 'conv-aguardando-retorno',
     agent_id: 'affix-0800',
     status: 'done',
     start_time_unix_secs: 1_715_000_000,
@@ -360,8 +361,11 @@ test('chamada marcada como não executada e sem resultado não entra', () => {
     ]
   });
 
-  assert.equal(atendimento?.transcricao[0]?.texto, 'Vou consultar.');
-  assert.equal(atendimento?.transcricao[0]?.detalhes, undefined);
+  assert.equal(
+    atendimento?.transcricao[0]?.texto,
+    'Vou consultar.\n[Chamada de Ferramenta: consultar_plano]'
+  );
+  assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.veredito, undefined);
   assert.equal(atendimento?.transferencia, false);
 });
 
@@ -410,6 +414,43 @@ test('chamada ainda não marcada como executada aparece e o resultado cola depoi
   assert.equal(atendimento?.transcricao[0]?.detalhes?.[0]?.resposta, '{\n  "nome": "Maria"\n}');
   assert.equal(atendimento?.transcricao[1]?.texto, 'Obrigada. Agora me confirme o nome.');
   assert.equal(atendimento?.transcricao[1]?.detalhes, undefined);
+});
+
+test('resultado isolado na ingestão cria turno sem fala do agente de voz', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-resultado-isolado',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Aguarde um instante.',
+        time_in_call_secs: 5
+      },
+      {
+        role: 'agent',
+        time_in_call_secs: 10,
+        tool_results: [
+          {
+            request_id: 'iso-1',
+            tool_name: 'consultar_cpf',
+            is_error: false,
+            result_value: '{"status":"regular"}'
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transcricao.length, 2);
+  assert.equal(atendimento?.transcricao[0]?.texto, 'Aguarde um instante.');
+  assert.equal(
+    atendimento?.transcricao[1]?.texto,
+    '[Chamada de Ferramenta: consultar_cpf]'
+  );
+  assert.equal(atendimento?.transcricao[1]?.locutor, 'Agente de Voz');
+  assert.equal(atendimento?.transcricao[1]?.detalhes?.[0]?.veredito, 'Sucesso');
 });
 
 test('procedimento mostra o nome da fonte e o resultado cola pelo índice', () => {

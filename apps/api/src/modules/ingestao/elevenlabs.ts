@@ -2,7 +2,11 @@ import {
   textoDaChamadaDeFerramenta,
   type TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
-import { aplicarResultados, type DetalheDaFerramenta } from '@hq-crion/contracts/ferramenta';
+import {
+  aplicarResultados,
+  detalheDoResultado,
+  type DetalheDaFerramenta
+} from '@hq-crion/contracts/ferramenta';
 import {
   chamadaExecutada,
   detalheDaChamada,
@@ -217,17 +221,28 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
     };
   });
 
-  const comResultados = aplicarResultados(
+  const aplicacao = aplicarResultados(
     turnosComChamadas,
     turnosComChamadas.flatMap((turno) => turno.resultados)
-  ).turnos;
+  );
+  const comResultados = [...aplicacao.turnos];
+
+  for (const resultado of aplicacao.naoAplicados) {
+    const detalhe = detalheDoResultado(resultado);
+    if (detalhe) {
+      comResultados.push({
+        locutor: 'Agente de Voz' as const,
+        fala: '',
+        quando: '—',
+        comTempo: false,
+        detalhes: [detalhe],
+        resultados: []
+      });
+    }
+  }
 
   return comResultados.flatMap((turno) => {
     const detalhes = (turno.detalhes ?? []).flatMap((detalhe) => {
-      if (detalhe.pendente && !detalhe.veredito) {
-        return [];
-      }
-
       const { pendente: _pendente, ...publico } = detalhe;
       return [publico];
     });
