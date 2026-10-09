@@ -9,9 +9,9 @@ export const detalheDaFerramentaSchema = z.object({
   idDoProcedimento: z.string().min(1).optional(),
   indiceDoProcedimento: z.string().min(1).optional(),
   raciocinio: z.string().min(1).optional(),
-  parametros: z.string().min(1).optional(),
+  parametros: z.string().optional(),
   tempoDeExecucao: z.string().min(1).optional(),
-  resposta: z.string().min(1).optional(),
+  resposta: z.string().optional(),
   veredito: z.enum(['Sucesso', 'Falha']).optional(),
   tempoNoAtendimento: z.string().min(1).optional(),
   tempoDoLlm: z.string().min(1).optional(),
@@ -29,7 +29,7 @@ const identificacaoDaChamadaShape = {
 export const resultadoDaChamadaSchema = z.object({
   ...identificacaoDaChamadaShape,
   veredito: z.enum(['Sucesso', 'Falha']),
-  resposta: z.string().min(1).optional(),
+  resposta: z.string().optional(),
   tempoDeExecucao: z.string().min(1).optional(),
   tipoDaFonte: z.string().min(1).optional(),
   raciocinio: z.string().min(1).optional()

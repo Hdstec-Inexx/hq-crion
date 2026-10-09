@@ -16,6 +16,11 @@ import {
 } from '@hq-crion/contracts/atendimento';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import {
+  buscarConversaElevenLabs,
+  transcricaoPrecisaDeReleitura,
+  transcricaoRelida
+} from '../ingestao/elevenlabs.js';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
 import { periodoDaQuery, recorteDaQuery, type ModoDaListagem } from './filtros.js';
@@ -158,6 +163,8 @@ function responderDetalhe(item: RegistroDeAtendimento, papel: Papel) {
     ...(downloadVisivelPara(papel) && downloadDeAudio ? { downloadDeAudio } : {})
   });
 }
+
+export const conversasSemChamadaEstruturada = new Set<string>();
 
 const atendimentoRoutes: FastifyPluginAsync = async (app) => {
   async function listar(
@@ -312,6 +319,32 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     const item = { ...encontrado };
 
+    if (
+      app.config.ELEVENLABS_API_KEY &&
+      item.conversa &&
+      !conversasSemChamadaEstruturada.has(item.conversa) &&
+      transcricaoPrecisaDeReleitura(item.transcricao)
+    ) {
+      try {
+        const payload = await buscarConversaElevenLabs({
+          apiKey: app.config.ELEVENLABS_API_KEY,
+          baseUrl: app.config.ELEVENLABS_BASE_URL,
+          id: item.conversa,
+          esperaMs: 5_000
+        });
+        const relida = payload ? transcricaoRelida(item.transcricao, payload) : item.transcricao;
+
+        if (relida !== item.transcricao) {
+          item.transcricao = [...relida];
+          await app.atendimentos.gravarTranscricao(item.id, item.transcricao);
+        } else {
+          conversasSemChamadaEstruturada.add(item.conversa);
+        }
+      } catch {
+        item.transcricao = encontrado.transcricao;
+      }
+    }
+
     if (app.descobrirMidia) {
       if (!item.audio || !/^https?:\/\//i.test(item.audio)) {
         const chaveBusca =
@@ -331,7 +364,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     return responderDetalhe(item, perfil.papel);
   });
 
-  app.post('/atendimentos/:id/conferencia', async (request, reply) => {
+  app.post('/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, async (request, reply) => {
     semCache(reply);
     const registro = exigirPapel(request, reply, 'Curador');
 

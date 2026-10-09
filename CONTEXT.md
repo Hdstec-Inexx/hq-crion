@@ -53,7 +53,7 @@ A janela de leitura em dias civis (America/Sao_Paulo). Nas listagens, sem data �
 _Avoid_: fim aberto, range
 
 **Atendimento**:
-Uma interação completa entre um Agente de Voz e um cliente, do início ao fim do contato. Pertence a um Agente de Voz, portanto a uma Administradora. O detalhe mostra fatos, transcrição, player e as duas Avaliações — não um thread de inbox. A transcrição inclui fala e Chamada de Ferramenta com seu Detalhe da Ferramenta. Transcrição já gravada permanece como foi salva, sem Detalhe da Ferramenta.
+Uma interação completa entre um Agente de Voz e um cliente, do início ao fim do contato. Pertence a um Agente de Voz, portanto a uma Administradora. O detalhe mostra fatos, transcrição, player e as duas Avaliações — não um thread de inbox. A transcrição inclui fala e Chamada de Ferramenta com seu Detalhe da Ferramenta. Chamada que ficou só como texto entre colchetes, ou Detalhe já salvo só com o veredito, ainda não está completa: se a fonte ainda tem a conversa e nela a chamada estruturada, quem abre o Atendimento vê a linha e o Detalhe, com parâmetros e resposta, e os colchetes saem da leitura. Conversa que só traz os colchetes na fala, sem a chamada estruturada, não tem Detalhe, e a transcrição permanece como foi salva. Se a fonte não tem mais a conversa, a transcrição também permanece como foi salva.
 _Avoid_: Conversa, ligação, chamada
 
 **Chamada de Ferramenta**:
@@ -69,11 +69,11 @@ A Chamada de Ferramenta que não é Procedimento. Na linha, o Agente de Voz inic
 _Avoid_: procedimento, tool
 
 **Detalhe da Ferramenta**:
-O que a fonte devolveu sobre uma Chamada de Ferramenta: nome, id, raciocínio, parâmetros, tempo de execução, resposta e o veredito Sucesso ou Falha. Campo que a fonte não enviou está ausente. O resultado completa esse mesmo detalhe. Admin, Gestão e Curador leem o detalhe completo, inclusive dados pessoais presentes nos parâmetros e na resposta, sem mascaramento.
+O que a Chamada enviou e o que a fonte devolveu: parâmetros, resposta, nome, id e o veredito Sucesso ou Falha. Parâmetros são o JSON enviado na chamada. O bloco de parâmetros aparece quando esse JSON existe; JSON vazio aparece vazio. Resposta é o corpo que voltou; em Falha, é o corpo de erro ou a mensagem de erro. O bloco de resposta aparece quando esse corpo existe. Na chamada concluída os dois estão no detalhe. O veredito acompanha os dois; sozinho, o detalhe não está completo. Raciocínio e tempo de execução entram quando a fonte os mandou. O resultado completa esse mesmo detalhe. Admin, Gestão e Curador leem o detalhe completo, inclusive dados pessoais presentes nos parâmetros e na resposta, sem mascaramento, no Atendimento e no Monitoramento ao Vivo.
 _Avoid_: payload, log da API
 
 **Resultado da Ferramenta**:
-O veredito dentro do Detalhe da Ferramenta: Sucesso ou Falha. Sem o retorno da fonte, a transcrição não inventa Falha. Com id da chamada, completa essa chamada. No Procedimento, sem esse id, completa a chamada do mesmo identificador de procedimento: id do procedimento, senão o índice, senão o nome. Na Ferramenta, sem id da chamada, completa a chamada ainda sem veredito e de mesmo nome, a mais antiga. Esgotada a regra, vale essa mais antiga pelo nome de ferramenta. Se a fonte entrega um resultado identificável sem o evento anterior, o resultado também comprova e cria a Chamada de Ferramenta em um novo turno sem fala do Agente de Voz, já com veredito. Resultado sem identificação suficiente não cria chamada nem veredito.
+O veredito dentro do Detalhe da Ferramenta: Sucesso ou Falha. Não é uma fala do turno. Sem o retorno da fonte, a transcrição não inventa Falha. Com id da chamada, completa essa chamada. No Procedimento, sem esse id, completa a chamada do mesmo identificador de procedimento: id do procedimento, senão o índice, senão o nome. Na Ferramenta, sem id da chamada, completa a chamada ainda sem veredito e de mesmo nome, a mais antiga. Esgotada a regra, vale essa mais antiga pelo nome de ferramenta. Se a fonte entrega um resultado identificável sem o evento anterior, o resultado também comprova e cria a Chamada de Ferramenta em um novo turno sem fala do Agente de Voz, já com veredito. Resultado sem identificação suficiente não cria chamada nem veredito.
 _Avoid_: promessa cumprida, retorno da API, payload
 
 **Transferência**:
@@ -107,18 +107,23 @@ O conjunto único de critérios contra o qual todo Atendimento é medido, em tod
 _Avoid_: régua por Administradora, régua por Agente
 
 **Avaliação**:
-O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. A da IA é gerada para todo Atendimento concluído e carrega checklist de critérios, nota, **Resumo do Atendimento** e **Falhas Identificadas**. Enquanto a conferência humana não existir, o painel do Curador não aparece e o da IA ocupa a largura.
+O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. A da IA é gerada para todo Atendimento concluído e carrega checklist de critérios, nota, **Resumo do Atendimento** e **Falhas Identificadas**. A nota do Curador é a soma dos pontos da Régua nos Critérios cujo estado não é **Não atendido**; **Não se aplica** conserva os pontos. O Curador não a digita. O selo **Aprovado**, na IA e no Curador, exige nota no limiar da Régua e nenhum Critério crítico em **Não atendido**; fora disso o selo é **Reprovado**. Sem Avaliação do Curador, o painel da IA ocupa a largura — exceto na Conferência aberta, em que esse painel sai. Gravada a Conferência, os dois painéis ficam lado a lado.
+_Avoid_: Nota da Régua (número digitado na Conferência)
+
+**Conferência**:
+O ato único do Curador que produz a Avaliação do Curador. O formulário se chama **Conferência humana**, com o rótulo **Checklist do Curador** e a orientação de que os estados começam iguais aos da IA para confirmar ou corrigir cada Critério. Cada linha mostra o nome, o peso em pontos e, se for o caso, **crítico**; o estado é **Atendido**, **Não atendido** ou, só quando a Régua admite, **Não se aplica**. O selo recalcula a nota e **Aprovado** ou **Reprovado** a cada correção, no tratamento visual da Crion. Abaixo, em leitura, a nota da IA, as **Falhas Identificadas** e o **Resumo do Atendimento**; o **Comentário** é o único texto que o Curador escreve, com o rótulo “Comentário da revisão (opcional)”. O botão é “Salvar conferência”. Não se repete. Enquanto o formulário está aberto, o painel da Avaliação da IA não aparece.
+_Avoid_: reavaliação, histórico de revisão, Conferência da Avaliação da IA, Nota da Avaliação da IA editável
 
 **Resumo do Atendimento**:
-A síntese textual do contato gerada pela IA Avaliadora, descrevendo o objetivo do cliente e o desfecho da interação. Exibida na caixa de notas da Avaliação da IA em container com rolagem própria. Sem parágrafo, a caixa permanece, com a frase “Resumo não informado.”
-_Avoid_: Sinopse, descrição, resumo da chamada
+A síntese textual do contato gerada pela IA Avaliadora, descrevendo o objetivo do cliente e o desfecho da interação. Exibida na caixa de notas da Avaliação da IA, em container com rolagem própria, e em leitura na Conferência. Sem parágrafo, a caixa permanece, com a frase “Resumo não informado.” O Curador não a reescreve.
+_Avoid_: Sinopse, descrição, resumo da chamada, resumo da Conferência
 
 **Falhas Identificadas**:
-A lista de desvios, falhas de conduta e não conformidades operacionais identificadas pela IA Avaliadora no Atendimento. Exibida na caixa de notas da Avaliação da IA ao lado do Resumo do Atendimento, em container com rolagem própria. Lista vazia permanece na caixa, com a frase “Nenhuma falha identificada.”
-_Avoid_: Erros, apontamentos, bugs
+A lista de desvios, falhas de conduta e não conformidades operacionais identificadas pela IA Avaliadora no Atendimento. Exibida na caixa de notas da Avaliação da IA ao lado do Resumo do Atendimento, em container com rolagem própria, e em leitura na Conferência. Lista vazia permanece, com a frase “Nenhuma falha identificada.” O Curador não a reescreve; o que ele acrescenta é o **Comentário**.
+_Avoid_: Erros, apontamentos, bugs, falhas da Conferência
 
 **Concordância**:
-O alinhamento entre a Avaliação da IA e a do Curador no mesmo Atendimento — por nota e por Critério. Não é um flag gravado: deriva da comparação dos dois vereditos. Por Critério, a taxa é **iguais** sobre **comparáveis**.
+O alinhamento entre a Avaliação da IA e a do Curador no mesmo Atendimento — por nota e por Critério. Não é um flag gravado: deriva da comparação dos dois vereditos. Por Critério, a taxa é **iguais** sobre **comparáveis**. Por nota, compara a nota gravada pela IA com a soma do Curador. Critérios **iguais** podem conviver com notas discordantes, quando a nota da IA não é a soma da Régua.
 
 **Comparável**:
 Um Critério no Atendimento em que IA e Curador são ambos **aplicáveis**. Sem comparáveis não há Concordância naquele Critério.
@@ -135,7 +140,8 @@ _Avoid_: válido, preenchido
 A taxa de **Atendido** na Avaliação da IA, naquele Critério, só entre os **aplicáveis** do Recorte e do período. Não é participação no anel.
 
 **Aprovação**:
-O percentual de Atendimentos no Recorte e no período cujo selo da IA é Aprovado: a nota gravada atinge o limiar da Régua única e nenhum Critério crítico está Não atendido. Indicador do Dashboard próprio deste HQ; o GEAP não o tem.
+O percentual de Atendimentos no Recorte e no período cujo selo da IA é **Aprovado**: a nota gravada pela IA atinge o limiar da Régua e nenhum Critério crítico está **Não atendido**. Indicador do Dashboard próprio deste HQ; a GEAP não tem a taxa, e o critério é o do selo dela. O clique no KPI lista esses Atendimentos.
+_Avoid_: taxa só pela nota, nota do Curador
 
 ### Dashboard
 
@@ -162,7 +168,7 @@ _Avoid_: pct, o mesmo sentido de Acerto ou Concordância
 ### Operação
 
 **Monitoramento ao Vivo**:
-A observação em tempo real — somente texto, sem áudio — de Atendimentos ainda abertos, no pulso do GEAP. Observação recebida é a lista: as linhas entram e não há frase de falha de carga. Essa frase só existe quando a área não tem lista nenhuma — distinta de Recorte vazio e de fonte não configurada. A lista se atualiza enquanto a área está visível; se uma atualização falha, permanece a última lista boa. O detalhe mostra a transcrição que a fonte já devolveu — fala e Chamada de Ferramenta com seu Detalhe da Ferramenta — sem cortar o início. Fala nova entra só se ainda não está na tela. Resultado que a fonte devolve completa o Detalhe da Ferramenta da chamada já na tela, mesmo que o evento chegue depois. Correção da fala troca o que foi dito e conserva a Chamada e o Detalhe já naquele turno. Sem transcrição ainda, espera a próxima fala. Quando o contato acaba, a observação encerra e o texto permanece. Na leitura consolidada (Administradora “Todas”) entram os ainda abertos que a fonte lista, tenham ou não **Agente de Voz** no catálogo. Contato com encerramento, desfecho ou duração parada não está aberto, mesmo que a fonte ainda diga em progresso. O **Recorte** é que restringe a uma Administradora ou a um Agente de Voz. Linha da lista exige o id da conversa e o id do agente; sem um dos dois, essa linha não existe e as outras ficam. Se não sobrar nenhuma, é Recorte vazio. O texto da linha é o nome. O início é o instante de começo que a fonte registra, em segundos; na linha aparece como dia/mês e hora, em America/Sao_Paulo. Sem esse instante, a linha é só o nome. Linha sem Agente no catálogo mostra o nome da fonte, ou o id se não houver nome. Se esse nome traz a Administradora, o Recorte dessa Administradora a inclui, e o Recorte de um Agente de Voz a inclui quando o nome da fonte contém o nome daquele agente. A linha continua sem Administradora. Sem esse nome, ela só aparece na leitura consolidada. Sem a fonte configurada, a área não observa: isso não é Recorte vazio. Na casca o rótulo é “Ao vivo”; o nome da área é este.
+A observação em tempo real — somente texto, sem áudio — de Atendimentos ainda abertos, no pulso do GEAP. Observação recebida é a lista: as linhas entram e não há frase de falha de carga. Essa frase só existe quando a área não tem lista nenhuma — distinta de Recorte vazio e de fonte não configurada. A lista se atualiza enquanto a área está visível; se uma atualização falha, permanece a última lista boa. O detalhe mostra a transcrição que a fonte já devolveu — fala e Chamada de Ferramenta com seu Detalhe da Ferramenta — sem cortar o início. Chamada já executada entra com o Detalhe, mesmo que a observação comece no meio do contato. A linha da chamada entra na hora. O veredito pode chegar antes da resposta; a resposta completa esse mesmo detalhe. Quando a chamada se conclui na tela, o Detalhe tem parâmetros e resposta. Fala nova entra só se ainda não está na tela. Correção da fala troca o que foi dito e conserva a Chamada e o Detalhe já naquele turno. Sem transcrição ainda, espera a próxima fala. Quando o contato acaba, a observação encerra e o texto permanece. Na leitura consolidada (Administradora “Todas”) entram os ainda abertos que a fonte lista, tenham ou não **Agente de Voz** no catálogo. Contato com encerramento, desfecho ou duração parada não está aberto, mesmo que a fonte ainda diga em progresso. O **Recorte** é que restringe a uma Administradora ou a um Agente de Voz. Linha da lista exige o id da conversa e o id do agente; sem um dos dois, essa linha não existe e as outras ficam. Se não sobrar nenhuma, é Recorte vazio. O texto da linha é o nome. O início é o instante de começo que a fonte registra, em segundos; na linha aparece como dia/mês e hora, em America/Sao_Paulo. Sem esse instante, a linha é só o nome. Linha sem Agente no catálogo mostra o nome da fonte, ou o id se não houver nome. Se esse nome traz a Administradora, o Recorte dessa Administradora a inclui, e o Recorte de um Agente de Voz a inclui quando o nome da fonte contém o nome daquele agente. A linha continua sem Administradora. Sem esse nome, ela só aparece na leitura consolidada. Sem a fonte configurada, a área não observa: isso não é Recorte vazio. Na casca o rótulo é “Ao vivo”; o nome da área é este.
 _Avoid_: Supervisão (implica intervenção), Ao vivo (fora da casca)
 
 **Filtro de Nota da IA**:

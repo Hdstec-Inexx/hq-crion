@@ -31,6 +31,9 @@ function copiar(turno: TurnoDaTranscricao): TurnoDaTranscricao {
 }
 
 function turnoSoDeFerramenta(turno: TurnoDaTranscricao) {
+  if (turno.detalhes?.length) {
+    return falaDoTexto(turno.texto).length === 0;
+  }
   return textoSoDeFerramenta(turno.texto);
 }
 
