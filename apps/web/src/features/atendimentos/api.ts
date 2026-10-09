@@ -247,7 +247,7 @@ export async function buscarObjetoDaMidia(caminho: string, signal?: AbortSignal)
   return URL.createObjectURL(await response.blob());
 }
 
-async function mutarFavorito(id: string, method: 'POST' | 'DELETE') {
+async function enviarRequisicaoFavorito(id: string, method: 'POST' | 'DELETE') {
   const sessao = lerSessao();
 
   if (!sessao) {
@@ -274,9 +274,9 @@ async function mutarFavorito(id: string, method: 'POST' | 'DELETE') {
 }
 
 export async function favoritarAtendimento(id: string) {
-  return mutarFavorito(id, 'POST');
+  return enviarRequisicaoFavorito(id, 'POST');
 }
 
 export async function desfavoritarAtendimento(id: string) {
-  return mutarFavorito(id, 'DELETE');
+  return enviarRequisicaoFavorito(id, 'DELETE');
 }

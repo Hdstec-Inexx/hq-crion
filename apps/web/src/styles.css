@@ -1225,6 +1225,11 @@ a.login-cta {
   cursor: wait;
 }
 
+.botao-favorito.is-erro {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .badge-favoritos {
   display: inline-flex;
   align-items: center;

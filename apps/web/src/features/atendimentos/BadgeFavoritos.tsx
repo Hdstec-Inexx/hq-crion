@@ -15,6 +15,7 @@ export function BadgeFavoritos({ favoritos }: BadgeFavoritosProps) {
       className={`badge-favoritos${count > 0 ? ' is-ativo' : ' is-vazio'}`}
       title={descricao}
       aria-label={descricao}
+      tabIndex={count > 0 ? 0 : undefined}
     >
       <span className="badge-favoritos-icone" aria-hidden="true">★</span>
       <span className="badge-favoritos-contagem">{count}</span>

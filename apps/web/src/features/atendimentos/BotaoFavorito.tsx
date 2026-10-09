@@ -15,6 +15,7 @@ export function BotaoFavorito({
   disabled = false
 }: BotaoFavoritoProps) {
   const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState(false);
 
   async function alternar() {
     if (carregando || disabled) {
@@ -22,29 +23,30 @@ export function BotaoFavorito({
     }
 
     setCarregando(true);
+    setErro(false);
     try {
-      if (favoritado) {
-        const resultado = await desfavoritarAtendimento(atendimentoId);
-        if (resultado !== null) {
-          onToggle?.(resultado);
-        }
-      } else {
-        const resultado = await favoritarAtendimento(atendimentoId);
-        if (resultado !== null) {
-          onToggle?.(resultado);
-        }
+      const acao = favoritado ? desfavoritarAtendimento : favoritarAtendimento;
+      const resultado = await acao(atendimentoId);
+      if (resultado !== null) {
+        onToggle?.(resultado);
       }
+    } catch {
+      setErro(true);
     } finally {
       setCarregando(false);
     }
   }
 
-  const rotulo = favoritado ? 'Remover dos favoritos' : 'Adicionar aos favoritos';
+  const rotulo = erro
+    ? 'Erro ao atualizar favorito. Tente novamente.'
+    : favoritado
+      ? 'Remover dos favoritos'
+      : 'Adicionar aos favoritos';
 
   return (
     <button
       type="button"
-      className={`botao-favorito${favoritado ? ' is-favorito' : ''}${carregando ? ' is-carregando' : ''}`}
+      className={`botao-favorito${favoritado ? ' is-favorito' : ''}${carregando ? ' is-carregando' : ''}${erro ? ' is-erro' : ''}`}
       onClick={() => void alternar()}
       disabled={disabled || carregando}
       aria-label={rotulo}
