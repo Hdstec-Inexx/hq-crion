@@ -40,7 +40,12 @@ export type PortaDeAtendimentos = {
   favoritar(atendimentoId: string, perfilId: string): Promise<'ok' | 'ausente'>;
   desfavoritar(atendimentoId: string, perfilId: string): Promise<'ok' | 'ausente'>;
   obterFavoritos(atendimentoId: string, perfilId: string): Promise<FavoritosDoAtendimento | undefined>;
+  obterFavoritosPorAtendimentos(
+    atendimentoIds: readonly string[],
+    perfilId: string
+  ): Promise<Map<string, FavoritosDoAtendimento>>;
   idsConcluidos(ids: readonly string[]): Promise<ReadonlySet<string>>;
+  idsPersistidos(ids: readonly string[]): Promise<ReadonlySet<string>>;
   consultarListagem(
     recorte: Recorte,
     query: Record<string, string | undefined>,

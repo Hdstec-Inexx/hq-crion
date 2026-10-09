@@ -39,9 +39,11 @@ export function BotaoFavorito({
 
   const rotulo = erro
     ? 'Erro ao atualizar favorito. Tente novamente.'
-    : favoritado
-      ? 'Remover dos favoritos'
-      : 'Adicionar aos favoritos';
+    : disabled
+      ? 'Aguardando persistência do atendimento no HQ para favoritar'
+      : favoritado
+        ? 'Remover dos favoritos'
+        : 'Adicionar aos favoritos';
 
   return (
     <button

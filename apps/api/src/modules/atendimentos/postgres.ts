@@ -8,7 +8,7 @@ import {
   consultaDoPercurso
 } from './consulta.js';
 import { periodoDaQuery, type ModoDaListagem } from './filtros.js';
-import type { PortaDeAtendimentos } from './porta.js';
+import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
@@ -68,7 +68,10 @@ SELECT
   EXISTS (
     SELECT 1 FROM hq_avaliacao_do_curador revisao
     WHERE revisao.atendimento_id = a.id
-  ) AS tem_curadoria
+  ) AS tem_curadoria,
+  COALESCE(fav_agg.favoritado_pelo_usuario, false) AS favoritado_pelo_usuario,
+  COALESCE(fav_agg.favoritos_count, 0) AS favoritos_count,
+  COALESCE(fav_agg.favoritos_perfis, '[]'::json) AS favoritos_perfis
 FROM hq_atendimento a
 JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
 LEFT JOIN hq_avaliacao_da_ia ia ON ia.atendimento_id = a.id
@@ -80,6 +83,15 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) vig ON true
 LEFT JOIN hq_comentario com ON com.avaliacao_id = vig.id
+LEFT JOIN LATERAL (
+  SELECT
+    BOOL_OR(fav.perfil_id = $8) AS favoritado_pelo_usuario,
+    COUNT(*)::int AS favoritos_count,
+    COALESCE(json_agg(p.nome ORDER BY fav.favoritado_em DESC), '[]'::json) AS favoritos_perfis
+  FROM hq_favorito fav
+  JOIN hq_perfil p ON p.id = fav.perfil_id
+  WHERE fav.atendimento_id = a.id
+) fav_agg ON true
 WHERE ($7::text IS NULL OR a.id = $7)
   AND ($1::text IS NULL OR ag.administradora = $1)
   AND ($2::text IS NULL OR a.agente_id = $2)
@@ -239,6 +251,9 @@ function montarRegistro(
     comentario_vigente: string | null;
     comentario_status_vigente: 'Pendente' | 'Resolvido' | null;
     tem_curadoria: boolean;
+    favoritado_pelo_usuario?: boolean | null;
+    favoritos_count?: unknown;
+    favoritos_perfis?: unknown;
   },
   criteriosIa: Map<string, CriterioAvaliado[]>,
   criteriosCurador: Map<string, CriterioAvaliado[]>
@@ -287,6 +302,13 @@ function montarRegistro(
     status: linha.status,
     curadoria: Boolean(linha.tem_curadoria),
     conversa: linha.id,
+    favoritadoPeloUsuario: Boolean(linha.favoritado_pelo_usuario),
+    favoritosCount: numero(linha.favoritos_count ?? 0),
+    favoritosPerfis: Array.isArray(linha.favoritos_perfis)
+      ? (linha.favoritos_perfis as string[])
+      : typeof linha.favoritos_perfis === 'string'
+        ? JSON.parse(linha.favoritos_perfis)
+        : [],
     ...(custo ? { custo } : {}),
     ...camposDeMidia(linha.audio),
     transcricao: linha.transcricao ?? [],
@@ -326,6 +348,7 @@ async function lerRegistros(
     recorte?: Recorte;
     query?: Record<string, string | undefined>;
     modo?: ModoDaListagem | 'dashboard' | 'manutencao';
+    perfilId?: string;
   }
 ) {
   const query = entrada.query ?? {};
@@ -340,7 +363,8 @@ async function lerRegistros(
     aplicarPeriodo ? (periodo?.inicio ?? '9999-12-31') : '1970-01-01',
     aplicarPeriodo ? (periodo?.fim ?? '1970-01-01') : '9999-12-31',
     modo === 'fila' ? 'conclusao' : 'inicio',
-    entrada.id ?? null
+    entrada.id ?? null,
+    entrada.perfilId ?? null
   ]);
   const linhas = resultado.rows as Parameters<typeof montarRegistro>[0][];
   const criteriosIa = await mapaDeCriterios(
@@ -393,6 +417,9 @@ function registroDoComentario(linha: {
     status: linha.status_atendimento,
     curadoria: true,
     conversa: linha.id,
+    favoritadoPeloUsuario: false,
+    favoritosCount: 0,
+    favoritosPerfis: [],
     ...camposDeMidia(linha.audio),
     transcricao: [],
     comentarioStatus: linha.status,
@@ -669,10 +696,18 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       if (ids.length === 0) {
         return new Set<string>();
       }
-
       const resultado = await pool.query(
-        `SELECT id FROM hq_atendimento
-         WHERE status = 'Concluído' AND id = ANY($1::text[])`,
+        `SELECT id FROM hq_atendimento WHERE status = 'Concluído' AND id = ANY($1::text[])`,
+        [ids]
+      );
+      return new Set((resultado.rows as { id: string }[]).map((linha) => linha.id));
+    },
+    async idsPersistidos(ids) {
+      if (ids.length === 0) {
+        return new Set<string>();
+      }
+      const resultado = await pool.query(
+        `SELECT id FROM hq_atendimento WHERE id = ANY($1::text[])`,
         [ids]
       );
       return new Set((resultado.rows as { id: string }[]).map((linha) => linha.id));
@@ -852,8 +887,48 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         }
       };
     },
+    async obterFavoritosPorAtendimentos(atendimentoIds, perfilId) {
+      const mapa = new Map<string, FavoritosDoAtendimento>();
+      if (atendimentoIds.length === 0) {
+        return mapa;
+      }
+
+      for (const id of atendimentoIds) {
+        mapa.set(id, {
+          favoritadoPeloUsuario: false,
+          favoritos: { count: 0, perfis: [] }
+        });
+      }
+
+      const resultado = await pool.query(
+        `SELECT f.atendimento_id, f.perfil_id, p.nome
+         FROM hq_favorito f
+         JOIN hq_perfil p ON p.id = f.perfil_id
+         WHERE f.atendimento_id = ANY($1::text[])
+         ORDER BY f.favoritado_em DESC`,
+        [atendimentoIds]
+      );
+
+      for (const linha of resultado.rows as Array<{
+        atendimento_id: string;
+        perfil_id: string;
+        nome: string;
+      }>) {
+        const item = mapa.get(linha.atendimento_id);
+        if (!item) {
+          continue;
+        }
+        item.favoritos.count++;
+        item.favoritos.perfis.push({ id: linha.perfil_id, nome: linha.nome });
+        if (perfilId && linha.perfil_id === perfilId) {
+          item.favoritadoPeloUsuario = true;
+        }
+      }
+
+      return mapa;
+    },
     async consultarListagem(recorte, query, modo, perfilId) {
-      const registros = await lerRegistros(pool, { recorte, query, modo });
+      const registros = await lerRegistros(pool, { recorte, query, modo, perfilId });
       return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
     },
     async consultarDashboard(recorte, query) {

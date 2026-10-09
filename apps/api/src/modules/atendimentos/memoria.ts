@@ -7,7 +7,7 @@ import {
   aplicarConsultaDoDashboard,
   consultaDoPercurso
 } from './consulta.js';
-import type { PortaDeAtendimentos } from './porta.js';
+import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
@@ -53,6 +53,31 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
   if (novo.audio) {
     Object.assign(atual, camposDeMidia(novo.audio));
   }
+}
+
+function resolverFavoritos(
+  favoritos: Array<{ id: string; perfilId: string; atendimentoId: string; favoritadoEm: string }>,
+  atendimentoId: string,
+  perfilId: string
+): FavoritosDoAtendimento {
+  const doAtendimento = favoritos
+    .filter((fav) => fav.atendimentoId === atendimentoId)
+    .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
+
+  const perfis = doAtendimento.map((fav) => ({
+    id: fav.perfilId,
+    nome: buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
+  }));
+
+  return {
+    favoritadoPeloUsuario: perfilId
+      ? doAtendimento.some((fav) => fav.perfilId === perfilId)
+      : false,
+    favoritos: {
+      count: perfis.length,
+      perfis
+    }
+  };
 }
 
 export function repositorioEmMemoria(
@@ -123,26 +148,21 @@ export function repositorioEmMemoria(
         return undefined;
       }
 
-      const doAtendimento = favoritos
-        .filter((fav) => fav.atendimentoId === atendimentoId)
-        .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
+      return resolverFavoritos(favoritos, atendimentoId, perfilId);
+    },
+    async obterFavoritosPorAtendimentos(atendimentoIds, perfilId) {
+      const mapa = new Map<string, FavoritosDoAtendimento>();
 
-      const perfis = doAtendimento.map((fav) => ({
-        id: fav.perfilId,
-        nome: buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
-      }));
-
-      const favoritadoPeloUsuario = perfilId
-        ? doAtendimento.some((fav) => fav.perfilId === perfilId)
-        : false;
-
-      return {
-        favoritadoPeloUsuario,
-        favoritos: {
-          count: perfis.length,
-          perfis
+      for (const id of atendimentoIds) {
+        const item = registros.find((r) => r.id === id);
+        if (!item) {
+          continue;
         }
-      };
+
+        mapa.set(id, resolverFavoritos(favoritos, id, perfilId));
+      }
+
+      return mapa;
     },
     async gravarTranscricao(id, transcricao) {
       const item = registros.find((registro) => registro.id === id);
@@ -165,6 +185,14 @@ export function repositorioEmMemoria(
       return new Set(
         registros
           .filter((registro) => pedidos.has(registro.id) && registro.status === 'Concluído')
+          .map((registro) => registro.id)
+      );
+    },
+    async idsPersistidos(ids) {
+      const pedidos = new Set(ids);
+      return new Set(
+        registros
+          .filter((registro) => pedidos.has(registro.id))
           .map((registro) => registro.id)
       );
     },
@@ -234,7 +262,16 @@ export function repositorioEmMemoria(
       return item;
     },
     async consultarListagem(recorte, query, modo, perfilId) {
-      return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
+      const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
+      return itens.map((item) => {
+        const info = resolverFavoritos(favoritos, item.id, perfilId);
+        return {
+          ...item,
+          favoritadoPeloUsuario: info.favoritadoPeloUsuario,
+          favoritosCount: info.favoritos.count,
+          favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
+        };
+      });
     },
     async consultarDashboard(recorte, query) {
       return aplicarConsultaDoDashboard(registros, recorte, query);

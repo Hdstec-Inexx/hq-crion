@@ -96,7 +96,10 @@ function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
     status: detalhe.status,
     curadoria: detalhe.curadoria,
     conversa: detalhe.conversa,
-    ...(detalhe.custo ? { custo: detalhe.custo } : {})
+    ...(detalhe.custo ? { custo: detalhe.custo } : {}),
+    favoritadoPeloUsuario: detalhe.favoritadoPeloUsuario ?? false,
+    favoritosCount: detalhe.favoritosCount ?? 0,
+    favoritosPerfis: detalhe.favoritosPerfis ?? []
   };
 }
 
