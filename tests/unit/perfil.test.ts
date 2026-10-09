@@ -256,6 +256,7 @@ test('casca libera as áreas do papel com rótulos curtos', () => {
     [
       'Dashboard',
       'Atendimentos',
+      'Favoritos',
       'Ao vivo',
       'Fila de curadoria',
       'Curadorias realizadas',
@@ -266,6 +267,7 @@ test('casca libera as áreas do papel com rótulos curtos', () => {
     areasDaCasca('Curador').map((area) => area.rotulo),
     [
       'Atendimentos',
+      'Favoritos',
       'Ao vivo',
       'Fila de curadoria',
       'Minhas curadorias',
@@ -277,6 +279,7 @@ test('casca libera as áreas do papel com rótulos curtos', () => {
     [
       'Dashboard',
       'Atendimentos',
+      'Favoritos',
       'Ao vivo',
       'Fila de curadoria',
       'Curadorias realizadas',

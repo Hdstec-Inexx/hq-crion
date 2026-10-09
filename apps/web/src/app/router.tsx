@@ -10,6 +10,7 @@ import { lerSessao, limparSessao } from '../features/auth/sessao';
 import { DetalheAtendimento } from '../features/atendimentos/DetalheAtendimento';
 import { FilaDeManutencao } from '../features/atendimentos/FilaDeManutencao';
 import { ListagemAtendimentos } from '../features/atendimentos/ListagemAtendimentos';
+import { FavoritosPage } from '../features/atendimentos/FavoritosPage';
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { HealthPage } from '../features/health/HealthPage';
@@ -131,6 +132,7 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'atendimentos', element: <ListagemAtendimentos /> },
       { path: 'atendimentos/:id', element: <DetalheAtendimento /> },
+      { path: 'favoritos', element: <FavoritosPage /> },
       { path: 'monitoramento', element: <MonitoramentoPage /> },
       { path: 'monitoramento/:id', element: <DetalheMonitoramento /> },
       {

@@ -243,6 +243,54 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     listar(request, reply, 'realizadas')
   );
 
+  app.get('/favoritos', async (request, reply) => {
+    semCache(reply);
+    const registro = registroDaAutorizacao(request.headers.authorization);
+
+    if (!registro) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    const query = request.query as Record<string, string | undefined>;
+    const recorte = recorteDaQuery(query);
+
+    if (!recorte) {
+      return reply.code(400).send({ statusCode: 400 });
+    }
+
+    // Se Curador tentar passar filtro curador/perfilId, ignorar silenciosamente ou não permitir
+    const queryParaFavoritos: Record<string, string | undefined> = {
+      conversa: query.conversa,
+      curador: registro.papel === 'Curador' ? undefined : (query.perfilId ?? query.curador)
+    };
+
+    const resultado = await app.atendimentos.consultarFavoritos(
+      recorte,
+      queryParaFavoritos,
+      registro
+    );
+
+    const pagina = paginaDaLista(resultado.itens.length, query.pagina);
+
+    return listagemResponseSchema.parse({
+      recorte,
+      pagina: pagina.pagina,
+      tamanho: pagina.tamanho,
+      total: pagina.total,
+      itens: pagina.inicio < pagina.fim ? resultado.itens.slice(pagina.inicio, pagina.fim).map((item) => {
+        const listagem = itemDaListagem(item);
+
+        if (custoVisivelPara(registro.papel)) {
+          return listagem;
+        }
+
+        const { custo: _custo, ...semCusto } = listagem;
+        return semCusto;
+      }) : [],
+      curadores: resultado.curadores
+    });
+  });
+
   app.get('/manutencao', async (request, reply) => {
     semCache(reply);
     const registro = exigirPapel(request, reply, 'Admin');

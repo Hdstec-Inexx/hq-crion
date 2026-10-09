@@ -273,6 +273,92 @@ export function repositorioEmMemoria(
         };
       });
     },
+    async consultarFavoritos(recorte, query, perfil) {
+      const { passaNoRecorte } = await import('./filtros.js');
+      const conversa = typeof query.conversa === 'string' ? query.conversa.trim() : '';
+      const perfilFiltro = typeof query.curador === 'string' ? query.curador.trim() : '';
+
+      const mapearItem = (item: RegistroDeAtendimento) => {
+        const info = resolverFavoritos(favoritos, item.id, perfil.id);
+        return {
+          ...item,
+          favoritadoPeloUsuario: perfil.papel === 'Curador' ? true : info.favoritadoPeloUsuario,
+          favoritosCount: info.favoritos.count,
+          favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
+        };
+      };
+
+      if (perfil.papel === 'Curador') {
+        // Apenas favoritados por ele, ordenados por favoritadoEm DESC
+        const meusFavoritos = favoritos
+          .filter((fav) => fav.perfilId === perfil.id)
+          .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
+
+        const itens: RegistroDeAtendimento[] = [];
+        for (const fav of meusFavoritos) {
+          const item = registros.find((r) => r.id === fav.atendimentoId);
+          if (!item) continue;
+          if (!passaNoRecorte(item, recorte)) continue;
+          if (conversa && item.conversa !== conversa && item.id !== conversa) continue;
+
+          itens.push(mapearItem(item));
+        }
+
+        return { itens, curadores: [] };
+      }
+
+      // Curadores disponíveis para filtro (Admin e Gestão)
+      const curadoresMap = new Map<string, string>();
+      for (const fav of favoritos) {
+        const p = buscarPerfilPorId(fav.perfilId);
+        if (p) {
+          curadoresMap.set(p.id, p.nome);
+        } else {
+          curadoresMap.set(fav.perfilId, fav.perfilId);
+        }
+      }
+      const curadores = Array.from(curadoresMap.entries())
+        .map(([id, nome]) => ({ id, nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
+      // Admin e Gestão: deduplicados que possuem ao menos 1 marcação ativa, ordenados por MAX(favoritado_em) DESC
+      const agrupadosPorAtendimento = new Map<string, { maxFavoritadoEm: string; perfilIds: Set<string> }>();
+      for (const fav of favoritos) {
+        const atual = agrupadosPorAtendimento.get(fav.atendimentoId);
+        if (!atual) {
+          agrupadosPorAtendimento.set(fav.atendimentoId, {
+            maxFavoritadoEm: fav.favoritadoEm,
+            perfilIds: new Set([fav.perfilId])
+          });
+        } else {
+          if (fav.favoritadoEm > atual.maxFavoritadoEm) {
+            atual.maxFavoritadoEm = fav.favoritadoEm;
+          }
+          atual.perfilIds.add(fav.perfilId);
+        }
+      }
+
+      // Ordenar por maxFavoritadoEm DESC
+      const ordenados = Array.from(agrupadosPorAtendimento.entries()).sort(
+        (a, b) => b[1].maxFavoritadoEm.localeCompare(a[1].maxFavoritadoEm)
+      );
+
+      const itens: RegistroDeAtendimento[] = [];
+      for (const [atendimentoId, meta] of ordenados) {
+        if (perfilFiltro && !meta.perfilIds.has(perfilFiltro)) {
+          continue;
+        }
+
+        const item = registros.find((r) => r.id === atendimentoId);
+        if (!item) continue;
+        if (!passaNoRecorte(item, recorte)) continue;
+        if (conversa && item.conversa !== conversa && item.id !== conversa) continue;
+
+        itens.push(mapearItem(item));
+      }
+
+      return { itens, curadores };
+    },
     async consultarDashboard(recorte, query) {
       return aplicarConsultaDoDashboard(registros, recorte, query);
     },

@@ -4,6 +4,7 @@ import type {
   PercursoDaFilaDeManutencao,
   TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
+import type { Papel } from '@hq-crion/contracts/perfil';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import type { ModoDaListagem } from './filtros.js';
 import type { CuradorDaRevisao, RegistroDeAtendimento } from './registro.js';
@@ -25,6 +26,16 @@ export type FavoritosDoAtendimento = {
     count: number;
     perfis: Array<{ id: string; nome: string }>;
   };
+};
+
+export type CuradorDoFiltro = {
+  id: string;
+  nome: string;
+};
+
+export type ResultadoFavoritos = {
+  itens: RegistroDeAtendimento[];
+  curadores: CuradorDoFiltro[];
 };
 
 export type PortaDeAtendimentos = {
@@ -52,6 +63,11 @@ export type PortaDeAtendimentos = {
     modo: ModoDaListagem,
     perfilId: string
   ): Promise<RegistroDeAtendimento[]>;
+  consultarFavoritos(
+    recorte: Recorte,
+    query: Record<string, string | undefined>,
+    perfil: { id: string; papel: Papel }
+  ): Promise<ResultadoFavoritos>;
   consultarDashboard(
     recorte: Recorte,
     query: Record<string, string | undefined>
