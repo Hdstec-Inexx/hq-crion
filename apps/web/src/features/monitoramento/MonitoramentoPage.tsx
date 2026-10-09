@@ -25,6 +25,11 @@ export function MonitoramentoPage() {
   const [favoritosLocais, setFavoritosLocais] = useState<Record<string, boolean>>({});
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
+  const dadosProntos = estado.status === 'ready' ? estado.data : null;
+
+  useEffect(() => {
+    setFavoritosLocais({});
+  }, [dadosProntos]);
 
   function atualizarRecorte(administradora: string, agente: string) {
     setSearchParams(escreverRecorteNaQuery(searchParams, administradora, agente), {
@@ -60,7 +65,7 @@ export function MonitoramentoPage() {
             <p>{aviso}</p>
           ) : (
             estado.data.itens.map((item) => (
-              <article className="listagem-linha" key={item.id}>
+              <article className="listagem-linha listagem-linha-monitoramento" key={item.id}>
                 <div>
                   <Link
                     className="listagem-link"

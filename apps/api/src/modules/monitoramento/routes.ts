@@ -66,6 +66,21 @@ function itemDoMonitoramento(item: LeituraAoVivo) {
   };
 }
 
+function dadosDeFavorito(
+  persistidoNoHq: boolean,
+  favInfo?: {
+    favoritadoPeloUsuario: boolean;
+    favoritos: { count: number; perfis: Array<{ id: string; nome: string }> };
+  }
+) {
+  return {
+    persistidoNoHq,
+    favoritadoPeloUsuario: favInfo?.favoritadoPeloUsuario ?? false,
+    favoritosCount: favInfo?.favoritos.count ?? 0,
+    favoritosPerfis: (favInfo?.favoritos.perfis ?? []).map((p) => p.nome)
+  };
+}
+
 function listaVazia(recorte: Recorte, fonteConfigurada: boolean) {
   const pagina = paginaDaLista(0, undefined);
 
@@ -150,21 +165,22 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     const persistidos = await app.atendimentos.idsPersistidos(
       abertos.map((item) => item.id)
     );
-    const itens = await Promise.all(
-      abertos.map(async (item) => {
-        const persistidoNoHq = persistidos.has(item.id);
-        const favInfo = persistidoNoHq
-          ? await app.atendimentos.obterFavoritos(item.id, registro.id)
-          : undefined;
-        return {
-          ...itemDoMonitoramento(item),
-          persistidoNoHq,
-          favoritadoPeloUsuario: favInfo?.favoritadoPeloUsuario ?? false,
-          favoritosCount: favInfo?.favoritos.count ?? 0,
-          favoritosPerfis: (favInfo?.favoritos.perfis ?? []).map((p) => p.nome)
-        };
-      })
+    const persistidosIds = abertos
+      .filter((item) => persistidos.has(item.id))
+      .map((item) => item.id);
+    const mapaFavoritos = await app.atendimentos.obterFavoritosPorAtendimentos(
+      persistidosIds,
+      registro.id
     );
+
+    const itens = abertos.map((item) => {
+      const persistidoNoHq = persistidos.has(item.id);
+      const favInfo = persistidoNoHq ? mapaFavoritos.get(item.id) : undefined;
+      return {
+        ...itemDoMonitoramento(item),
+        ...dadosDeFavorito(persistidoNoHq, favInfo)
+      };
+    });
     const pagina = paginaDaLista(itens.length, undefined);
 
     return monitoramentoListagemResponseSchema.parse({
@@ -223,10 +239,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     return monitoramentoDetalheSchema.parse({
       ...itemDoMonitoramento(atendimento),
       transcricao: atendimento.transcricao,
-      persistidoNoHq,
-      favoritadoPeloUsuario: favInfo?.favoritadoPeloUsuario ?? false,
-      favoritosCount: favInfo?.favoritos.count ?? 0,
-      favoritosPerfis: (favInfo?.favoritos.perfis ?? []).map((p) => p.nome)
+      ...dadosDeFavorito(persistidoNoHq, favInfo)
     });
   });
 

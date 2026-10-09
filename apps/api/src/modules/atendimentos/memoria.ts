@@ -7,7 +7,7 @@ import {
   aplicarConsultaDoDashboard,
   consultaDoPercurso
 } from './consulta.js';
-import type { PortaDeAtendimentos } from './porta.js';
+import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
@@ -143,6 +143,37 @@ export function repositorioEmMemoria(
           perfis
         }
       };
+    },
+    async obterFavoritosPorAtendimentos(atendimentoIds, perfilId) {
+      const mapa = new Map<string, FavoritosDoAtendimento>();
+
+      for (const id of atendimentoIds) {
+        const item = registros.find((r) => r.id === id);
+        if (!item) {
+          continue;
+        }
+
+        const doAtendimento = favoritos
+          .filter((fav) => fav.atendimentoId === id)
+          .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
+
+        const perfis = doAtendimento.map((fav) => ({
+          id: fav.perfilId,
+          nome: buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
+        }));
+
+        mapa.set(id, {
+          favoritadoPeloUsuario: perfilId
+            ? doAtendimento.some((fav) => fav.perfilId === perfilId)
+            : false,
+          favoritos: {
+            count: perfis.length,
+            perfis
+          }
+        });
+      }
+
+      return mapa;
     },
     async gravarTranscricao(id, transcricao) {
       const item = registros.find((registro) => registro.id === id);

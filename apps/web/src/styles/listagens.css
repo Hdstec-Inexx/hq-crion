@@ -188,6 +188,10 @@
   border-radius: 14px;
 }
 
+.listagem-linha-monitoramento {
+  grid-template-columns: 1fr auto auto;
+}
+
 .listagem-link {
   background: none;
   border: 0;

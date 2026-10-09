@@ -8,7 +8,7 @@ import {
   consultaDoPercurso
 } from './consulta.js';
 import { periodoDaQuery, type ModoDaListagem } from './filtros.js';
-import type { PortaDeAtendimentos } from './porta.js';
+import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
@@ -893,6 +893,46 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
           perfis
         }
       };
+    },
+    async obterFavoritosPorAtendimentos(atendimentoIds, perfilId) {
+      const mapa = new Map<string, FavoritosDoAtendimento>();
+      if (atendimentoIds.length === 0) {
+        return mapa;
+      }
+
+      for (const id of atendimentoIds) {
+        mapa.set(id, {
+          favoritadoPeloUsuario: false,
+          favoritos: { count: 0, perfis: [] }
+        });
+      }
+
+      const resultado = await pool.query(
+        `SELECT f.atendimento_id, f.perfil_id, p.nome
+         FROM hq_favorito f
+         JOIN hq_perfil p ON p.id = f.perfil_id
+         WHERE f.atendimento_id = ANY($1::text[])
+         ORDER BY f.favoritado_em DESC`,
+        [atendimentoIds]
+      );
+
+      for (const linha of resultado.rows as Array<{
+        atendimento_id: string;
+        perfil_id: string;
+        nome: string;
+      }>) {
+        const item = mapa.get(linha.atendimento_id);
+        if (!item) {
+          continue;
+        }
+        item.favoritos.count++;
+        item.favoritos.perfis.push({ id: linha.perfil_id, nome: linha.nome });
+        if (perfilId && linha.perfil_id === perfilId) {
+          item.favoritadoPeloUsuario = true;
+        }
+      }
+
+      return mapa;
     },
     async consultarListagem(recorte, query, modo, perfilId) {
       const registros = await lerRegistros(pool, { recorte, query, modo, perfilId });
