@@ -168,6 +168,14 @@ export function repositorioEmMemoria(
           .map((registro) => registro.id)
       );
     },
+    async idsPersistidos(ids) {
+      const pedidos = new Set(ids);
+      return new Set(
+        registros
+          .filter((registro) => pedidos.has(registro.id))
+          .map((registro) => registro.id)
+      );
+    },
     async gravarAvaliacaoDaIa(id, entrada) {
       const item = registros.find((registro) => registro.id === id);
       const recusa = recusaDaAvaliacao(item);
@@ -234,7 +242,27 @@ export function repositorioEmMemoria(
       return item;
     },
     async consultarListagem(recorte, query, modo, perfilId) {
-      return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
+      const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
+      return itens.map((item) => {
+        const doAtendimento = favoritos
+          .filter((fav) => fav.atendimentoId === item.id)
+          .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
+
+        const perfis = doAtendimento.map(
+          (fav) => buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
+        );
+
+        const favoritadoPeloUsuario = perfilId
+          ? doAtendimento.some((fav) => fav.perfilId === perfilId)
+          : false;
+
+        return {
+          ...item,
+          favoritadoPeloUsuario,
+          favoritosCount: doAtendimento.length,
+          favoritosPerfis: perfis
+        };
+      });
     },
     async consultarDashboard(recorte, query) {
       return aplicarConsultaDoDashboard(registros, recorte, query);

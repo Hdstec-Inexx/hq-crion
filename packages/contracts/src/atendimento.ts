@@ -53,7 +53,10 @@ export const atendimentoListItemSchema = z.object({
   status: z.string().min(1),
   curadoria: z.boolean(),
   conversa: z.string().min(1),
-  custo: z.string().min(1).optional()
+  custo: z.string().min(1).optional(),
+  favoritadoPeloUsuario: z.boolean().optional(),
+  favoritosCount: z.number().int().min(0).optional(),
+  favoritosPerfis: z.array(z.string()).optional()
 });
 
 export const curadorDaListagemSchema = z.object({
@@ -318,7 +321,11 @@ const monitoramentoListItemObjetoSchema = z.object({
   agentId: z.string().min(1).optional(),
   iniciadoEm: z.string().min(1).optional(),
   motivo: z.string().min(1),
-  status: z.literal('Em andamento')
+  status: z.literal('Em andamento'),
+  persistidoNoHq: z.boolean().optional(),
+  favoritadoPeloUsuario: z.boolean().optional(),
+  favoritosCount: z.number().int().min(0).optional(),
+  favoritosPerfis: z.array(z.string()).optional()
 });
 
 export const monitoramentoListItemSchema = z.preprocess(

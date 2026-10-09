@@ -68,7 +68,22 @@ SELECT
   EXISTS (
     SELECT 1 FROM hq_avaliacao_do_curador revisao
     WHERE revisao.atendimento_id = a.id
-  ) AS tem_curadoria
+  ) AS tem_curadoria,
+  EXISTS (
+    SELECT 1 FROM hq_favorito fav
+    WHERE fav.atendimento_id = a.id AND ($8::text IS NOT NULL AND fav.perfil_id = $8)
+  ) AS favoritado_pelo_usuario,
+  (
+    SELECT COUNT(*)::int
+    FROM hq_favorito fav
+    WHERE fav.atendimento_id = a.id
+  ) AS favoritos_count,
+  COALESCE((
+    SELECT json_agg(p.nome ORDER BY fav.favoritado_em DESC)
+    FROM hq_favorito fav
+    JOIN hq_perfil p ON p.id = fav.perfil_id
+    WHERE fav.atendimento_id = a.id
+  ), '[]'::json) AS favoritos_perfis
 FROM hq_atendimento a
 JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
 LEFT JOIN hq_avaliacao_da_ia ia ON ia.atendimento_id = a.id
@@ -239,6 +254,9 @@ function montarRegistro(
     comentario_vigente: string | null;
     comentario_status_vigente: 'Pendente' | 'Resolvido' | null;
     tem_curadoria: boolean;
+    favoritado_pelo_usuario?: boolean | null;
+    favoritos_count?: unknown;
+    favoritos_perfis?: unknown;
   },
   criteriosIa: Map<string, CriterioAvaliado[]>,
   criteriosCurador: Map<string, CriterioAvaliado[]>
@@ -287,6 +305,13 @@ function montarRegistro(
     status: linha.status,
     curadoria: Boolean(linha.tem_curadoria),
     conversa: linha.id,
+    favoritadoPeloUsuario: Boolean(linha.favoritado_pelo_usuario),
+    favoritosCount: numero(linha.favoritos_count ?? 0),
+    favoritosPerfis: Array.isArray(linha.favoritos_perfis)
+      ? (linha.favoritos_perfis as string[])
+      : typeof linha.favoritos_perfis === 'string'
+        ? JSON.parse(linha.favoritos_perfis)
+        : [],
     ...(custo ? { custo } : {}),
     ...camposDeMidia(linha.audio),
     transcricao: linha.transcricao ?? [],
@@ -326,6 +351,7 @@ async function lerRegistros(
     recorte?: Recorte;
     query?: Record<string, string | undefined>;
     modo?: ModoDaListagem | 'dashboard' | 'manutencao';
+    perfilId?: string;
   }
 ) {
   const query = entrada.query ?? {};
@@ -340,7 +366,8 @@ async function lerRegistros(
     aplicarPeriodo ? (periodo?.inicio ?? '9999-12-31') : '1970-01-01',
     aplicarPeriodo ? (periodo?.fim ?? '1970-01-01') : '9999-12-31',
     modo === 'fila' ? 'conclusao' : 'inicio',
-    entrada.id ?? null
+    entrada.id ?? null,
+    entrada.perfilId ?? null
   ]);
   const linhas = resultado.rows as Parameters<typeof montarRegistro>[0][];
   const criteriosIa = await mapaDeCriterios(
@@ -393,6 +420,9 @@ function registroDoComentario(linha: {
     status: linha.status_atendimento,
     curadoria: true,
     conversa: linha.id,
+    favoritadoPeloUsuario: false,
+    favoritosCount: 0,
+    favoritosPerfis: [],
     ...camposDeMidia(linha.audio),
     transcricao: [],
     comentarioStatus: linha.status,
@@ -677,6 +707,18 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       );
       return new Set((resultado.rows as { id: string }[]).map((linha) => linha.id));
     },
+    async idsPersistidos(ids) {
+      if (ids.length === 0) {
+        return new Set<string>();
+      }
+
+      const resultado = await pool.query(
+        `SELECT id FROM hq_atendimento
+         WHERE id = ANY($1::text[])`,
+        [ids]
+      );
+      return new Set((resultado.rows as { id: string }[]).map((linha) => linha.id));
+    },
     async gravarAvaliacaoDaIa(id, entrada) {
       return emTransacao(pool, async (cliente) => {
         const atendimento = await cliente.query(`SELECT status FROM hq_atendimento WHERE id = $1`, [
@@ -853,7 +895,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       };
     },
     async consultarListagem(recorte, query, modo, perfilId) {
-      const registros = await lerRegistros(pool, { recorte, query, modo });
+      const registros = await lerRegistros(pool, { recorte, query, modo, perfilId });
       return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
     },
     async consultarDashboard(recorte, query) {

@@ -8,6 +8,8 @@ import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { buscarAtendimentos } from './api';
 import { BarraDeFiltrosDaListagem } from './BarraDeFiltrosDaListagem';
+import { BadgeFavoritos } from './BadgeFavoritos';
+import { BotaoFavorito } from './BotaoFavorito';
 
 function formatarQuando(iso: string) {
   const parts = new Intl.DateTimeFormat('pt-BR', {
@@ -95,6 +97,20 @@ export function ListagemAtendimentos({
     setSearchParams(proxima);
   }
 
+  function alternarFavorito(id: string, novoEstado: boolean) {
+    setListagem((atual) => {
+      if (!atual) {
+        return atual;
+      }
+      return {
+        ...atual,
+        itens: atual.itens.map((it) =>
+          it.id === id ? { ...it, favoritadoPeloUsuario: novoEstado } : it
+        )
+      };
+    });
+  }
+
   return (
     <div>
       <div className="pagina-head">
@@ -148,6 +164,18 @@ export function ListagemAtendimentos({
                     administradora={item.administradora}
                     lista={location.pathname}
                   />
+                  {perfil.papel === 'Curador' ? (
+                    <BotaoFavorito
+                      atendimentoId={item.id}
+                      favoritado={item.favoritadoPeloUsuario ?? false}
+                      onToggle={(novo) => alternarFavorito(item.id, novo)}
+                    />
+                  ) : (
+                    <BadgeFavoritos
+                      count={item.favoritosCount}
+                      perfis={item.favoritosPerfis}
+                    />
+                  )}
                   <strong>{formatarNota(item.nota)}</strong>
                 </article>
               ))

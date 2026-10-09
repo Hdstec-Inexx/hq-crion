@@ -208,6 +208,107 @@ test('Curador favorita e desfavorita com idempotência e GET /atendimentos/:id r
   }
 });
 
+test('consultas de listagem enriquecem itens com favoritadoPeloUsuario, favoritosCount e favoritosPerfis', async () => {
+  const { listagemResponseSchema } = await import(
+    '../../packages/contracts/src/atendimento.js'
+  );
+  const app = await buildApp();
+
+  try {
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    const sessaoGestao = await sessaoDe(app, 'ana.souza@crion');
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+
+    // Carla favorita atendimento a1
+    const favRes = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/favorito',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(favRes.statusCode, 200);
+
+    // 1. Curador em /atendimentos
+    const listCurador = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(listCurador.statusCode, 200);
+    const dadosCurador = listagemResponseSchema.parse(listCurador.json());
+    const itemA1Curador = dadosCurador.itens.find((it) => it.id === 'a1');
+    assert.ok(itemA1Curador);
+    assert.equal(itemA1Curador.favoritadoPeloUsuario, true);
+    assert.equal(itemA1Curador.favoritosCount, 1);
+    assert.deepEqual(itemA1Curador.favoritosPerfis, ['Carla Mendes']);
+
+    // 2. Admin em /atendimentos
+    const listAdmin = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(listAdmin.statusCode, 200);
+    const dadosAdmin = listagemResponseSchema.parse(listAdmin.json());
+    const itemA1Admin = dadosAdmin.itens.find((it) => it.id === 'a1');
+    assert.ok(itemA1Admin);
+    assert.equal(itemA1Admin.favoritadoPeloUsuario, false);
+    assert.equal(itemA1Admin.favoritosCount, 1);
+    assert.deepEqual(itemA1Admin.favoritosPerfis, ['Carla Mendes']);
+
+    // 3. Gestão em /atendimentos
+    const listGestao = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessaoGestao}` }
+    });
+    assert.equal(listGestao.statusCode, 200);
+    const dadosGestao = listagemResponseSchema.parse(listGestao.json());
+    const itemA1Gestao = dadosGestao.itens.find((it) => it.id === 'a1');
+    assert.ok(itemA1Gestao);
+    assert.equal(itemA1Gestao.favoritadoPeloUsuario, false);
+    assert.equal(itemA1Gestao.favoritosCount, 1);
+    assert.deepEqual(itemA1Gestao.favoritosPerfis, ['Carla Mendes']);
+
+    // 4. Curador em /fila-de-curadoria
+    const listFilaCurador = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(listFilaCurador.statusCode, 200);
+    const dadosFila = listagemResponseSchema.parse(listFilaCurador.json());
+    for (const item of dadosFila.itens) {
+      assert.equal(typeof item.favoritadoPeloUsuario, 'boolean');
+      assert.equal(typeof item.favoritosCount, 'number');
+      assert.ok(Array.isArray(item.favoritosPerfis));
+    }
+
+    // 5. Admin em /curadorias-realizadas
+    const listRealizadas = await app.inject({
+      method: 'GET',
+      url: '/curadorias-realizadas',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(listRealizadas.statusCode, 200);
+    const dadosRealizadas = listagemResponseSchema.parse(listRealizadas.json());
+    for (const item of dadosRealizadas.itens) {
+      assert.equal(typeof item.favoritadoPeloUsuario, 'boolean');
+      assert.equal(typeof item.favoritosCount, 'number');
+      assert.ok(Array.isArray(item.favoritosPerfis));
+    }
+
+    // 6. Item não favoritado (ex: a2) tem contagem 0 e favoritadoPeloUsuario false
+    const itemA2 = dadosCurador.itens.find((it) => it.id === 'a2');
+    if (itemA2) {
+      assert.equal(itemA2.favoritadoPeloUsuario, false);
+      assert.equal(itemA2.favoritosCount, 0);
+      assert.deepEqual(itemA2.favoritosPerfis, []);
+    }
+  } finally {
+    await app.close();
+  }
+});
+
 test('repositorioPostgres implementa favoritar, desfavoritar e obterFavoritos com verificação relacional', async () => {
   const { repositorioPostgres } = await import(
     '../../apps/api/src/modules/atendimentos/postgres.js'
@@ -266,6 +367,24 @@ test('repositorioPostgres implementa favoritar, desfavoritar e obterFavoritos co
   assert.equal(favInfo.favoritadoPeloUsuario, true);
   assert.equal(favInfo.favoritos.count, 1);
   assert.deepEqual(favInfo.favoritos.perfis, [{ id: 'perfil-1', nome: 'Curador 1' }]);
+
+  // consultarListagem repassa perfilId para a query SQL com join/subselect de hq_favorito
+  consultas.length = 0;
+  await repo.consultarListagem(
+    { administradora: null, agente: null },
+    {},
+    'todos',
+    'perfil-curador-123'
+  );
+  const consultaListagem = consultas.find((c) =>
+    c.sql.includes('FROM hq_atendimento') && c.sql.includes('hq_favorito')
+  );
+  assert.ok(consultaListagem, 'Query de listagem deve incluir subselect com hq_favorito');
+  assert.equal(
+    consultaListagem.valores?.[7],
+    'perfil-curador-123',
+    'perfilId deve ser repassado como parâmetro $8'
+  );
 });
 
 test('renderização do estado de favorito no detalhe e conferência humana', async () => {
@@ -311,4 +430,180 @@ test('renderização do estado de favorito no detalhe e conferência humana', as
 
   // 4. FormularioConferencia permite favoritar e desfavoritar durante o preenchimento da revisão
   assert.match(detalhe, /<form className="conferencia-form"[\s\S]*<BotaoFavorito/);
+
+  // 5. ListagemAtendimentos exibe BotaoFavorito para Curador e BadgeFavoritos para Gestão/Admin
+  const listagem = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/ListagemAtendimentos.tsx'),
+    'utf8'
+  );
+  assert.match(
+    listagem,
+    /perfil\.papel === 'Curador' \?\s*\(\s*<BotaoFavorito[\s\S]*?\/>\s*\)\s*:\s*\(\s*<BadgeFavoritos[\s\S]*?\/>\s*\)/
+  );
+
+  // 6. MonitoramentoPage e DetalheMonitoramento exibem BotaoFavorito desabilitado se não persistido
+  const monitoramentoLista = readFileSync(
+    join(raiz, 'apps/web/src/features/monitoramento/MonitoramentoPage.tsx'),
+    'utf8'
+  );
+  assert.match(monitoramentoLista, /disabled=\{!item\.persistidoNoHq\}/);
+  assert.match(monitoramentoLista, /perfil\.papel === 'Curador'/);
+
+  const monitoramentoDetalhe = readFileSync(
+    join(raiz, 'apps/web/src/features/monitoramento/DetalheMonitoramento.tsx'),
+    'utf8'
+  );
+  assert.match(monitoramentoDetalhe, /disabled=\{!atendimento\.persistidoNoHq\}/);
+  assert.match(monitoramentoDetalhe, /perfil\.papel === 'Curador'/);
+});
+
+test('Monitoramento ao Vivo atribui persistidoNoHq e desabilita preventivamente favoritos de atendimentos não persistidos', async () => {
+  const { monitoramentoDetalheSchema, monitoramentoListagemResponseSchema } = await import(
+    '../../packages/contracts/src/atendimento.js'
+  );
+
+  const agoraUnix = Math.floor(Date.now() / 1000);
+  const conversasAoVivo = [
+    {
+      conversation_id: 'conv-nova-ao-vivo',
+      agent_id: 'affix-wa',
+      agent_name: 'Clara Affix WhatsApp',
+      status: 'in-progress',
+      start_time_unix_secs: agoraUnix,
+      transcript: [
+        { role: 'agent', message: 'Estou na linha.', time_in_call_secs: 1 }
+      ]
+    }
+  ];
+
+  let inicializado = false;
+  const originalFetch = globalThis.fetch;
+  process.env.ELEVENLABS_API_KEY = 'chave-de-teste';
+  process.env.ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const id = url.match(/\/conversations\/([^/?]+)/)?.[1];
+
+    if (id) {
+      const encontrada = conversasAoVivo.find((item) => item.conversation_id === id);
+      return new Response(JSON.stringify(encontrada ?? {}), {
+        status: encontrada ? 200 : 404,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+
+    // Na inicialização (coletarDaFonte), simula que não coletou conv-nova-ao-vivo
+    if (!inicializado) {
+      return new Response(JSON.stringify({ conversations: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+
+    return new Response(JSON.stringify({ conversations: conversasAoVivo }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    });
+  }) as typeof fetch;
+
+  const app = await buildApp();
+  inicializado = true;
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+
+    // 1. GET /monitoramento lista abertos e indica persistidoNoHq: false
+    const resLista = await app.inject({
+      method: 'GET',
+      url: '/monitoramento',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(resLista.statusCode, 200, resLista.body);
+    const lista = monitoramentoListagemResponseSchema.parse(resLista.json());
+    const itemAberto = lista.itens.find((it) => it.id === 'conv-nova-ao-vivo');
+    assert.ok(itemAberto);
+    assert.equal(itemAberto.persistidoNoHq, false);
+    assert.equal(itemAberto.favoritadoPeloUsuario, false);
+
+    // 2. GET /monitoramento/:id detalhe indica persistidoNoHq: false para não persistido
+    const resDetalhe = await app.inject({
+      method: 'GET',
+      url: '/monitoramento/conv-nova-ao-vivo',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(resDetalhe.statusCode, 200);
+    const detalheNaoPersistido = monitoramentoDetalheSchema.parse(resDetalhe.json());
+    assert.equal(detalheNaoPersistido.persistidoNoHq, false);
+    assert.equal(detalheNaoPersistido.favoritadoPeloUsuario, false);
+
+    // 3. Tentar favoritar diretamente atendimento não persistido retorna 404
+    const postFavNaoPersistido = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/conv-nova-ao-vivo/favorito',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(postFavNaoPersistido.statusCode, 404);
+
+    // 4. Agora simula que o atendimento foi persistido no banco do HQ (ex: via ingestão/job)
+    const repo = app.atendimentos;
+    const listaAtual = await repo.listar();
+    const mockAtendimento = {
+      ...listaAtual[0]!,
+      id: 'conv-nova-ao-vivo',
+      conversa: 'conv-nova-ao-vivo',
+      status: 'Em andamento'
+    };
+    (listaAtual as any[]).push(mockAtendimento);
+
+    // Agora GET /monitoramento/conv-nova-ao-vivo deve devolver persistidoNoHq: true
+    const resDetalhePersistido = await app.inject({
+      method: 'GET',
+      url: '/monitoramento/conv-nova-ao-vivo',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(resDetalhePersistido.statusCode, 200);
+    const detalhePersistido = monitoramentoDetalheSchema.parse(resDetalhePersistido.json());
+    assert.equal(detalhePersistido.persistidoNoHq, true);
+
+    // E Curador agora pode favoritar 'conv-nova-ao-vivo' com sucesso
+    const postFav = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/conv-nova-ao-vivo/favorito',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(postFav.statusCode, 200);
+
+    // Detalhe ao vivo reflete que foi favoritado
+    const resDetalheFavoritado = await app.inject({
+      method: 'GET',
+      url: '/monitoramento/conv-nova-ao-vivo',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(resDetalheFavoritado.statusCode, 200);
+    const detalheFavoritado = monitoramentoDetalheSchema.parse(resDetalheFavoritado.json());
+    assert.equal(detalheFavoritado.persistidoNoHq, true);
+    assert.equal(detalheFavoritado.favoritadoPeloUsuario, true);
+
+    // E desfavoritar também funciona
+    const delFav = await app.inject({
+      method: 'DELETE',
+      url: '/atendimentos/conv-nova-ao-vivo/favorito',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(delFav.statusCode, 200);
+
+    const resDetalheDesfavoritado = await app.inject({
+      method: 'GET',
+      url: '/monitoramento/conv-nova-ao-vivo',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(resDetalheDesfavoritado.statusCode, 200);
+    const detalheDesfavoritado = monitoramentoDetalheSchema.parse(resDetalheDesfavoritado.json());
+    assert.equal(detalheDesfavoritado.favoritadoPeloUsuario, false);
+  } finally {
+    await app.close();
+    delete process.env.ELEVENLABS_API_KEY;
+    globalThis.fetch = originalFetch;
+  }
 });

@@ -2,11 +2,20 @@ import type { FavoritosInfo } from '@hq-crion/contracts/atendimento';
 
 export type BadgeFavoritosProps = {
   favoritos?: FavoritosInfo;
+  count?: number;
+  perfis?: string[];
 };
 
-export function BadgeFavoritos({ favoritos }: BadgeFavoritosProps) {
-  const count = favoritos?.count ?? 0;
-  const nomes = (favoritos?.perfis ?? []).map((p) => p.nome).join(', ');
+export function BadgeFavoritos({
+  favoritos,
+  count: countProp,
+  perfis: perfisProp
+}: BadgeFavoritosProps) {
+  const count = countProp !== undefined ? countProp : (favoritos?.count ?? 0);
+  const nomes =
+    perfisProp !== undefined
+      ? perfisProp.join(', ')
+      : (favoritos?.perfis ?? []).map((p) => p.nome).join(', ');
   const descricao =
     count > 0 ? `Favoritado por ${count} curador(es): ${nomes}` : 'Nenhum favorito registrado';
 

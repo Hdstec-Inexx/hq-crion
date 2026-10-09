@@ -1,9 +1,11 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
+import { BotaoFavorito } from '../atendimentos/BotaoFavorito';
 import { useListaAoVivo } from './listaAoVivo';
 import { mensagemDaListaAoVivo, textoDaLinhaAoVivo } from './pulso';
 
@@ -20,6 +22,7 @@ export function MonitoramentoPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const estado = useListaAoVivo(searchParams);
+  const [favoritosLocais, setFavoritosLocais] = useState<Record<string, boolean>>({});
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
 
@@ -70,6 +73,20 @@ export function MonitoramentoPage() {
                   <BadgeAdministradora
                     administradora={item.administradora}
                     lista="/monitoramento"
+                  />
+                ) : null}
+                {perfil.papel === 'Curador' ? (
+                  <BotaoFavorito
+                    atendimentoId={item.id}
+                    favoritado={
+                      favoritosLocais[item.id] !== undefined
+                        ? favoritosLocais[item.id]!
+                        : (item.favoritadoPeloUsuario ?? false)
+                    }
+                    disabled={!item.persistidoNoHq}
+                    onToggle={(novo) => {
+                      setFavoritosLocais((atual) => ({ ...atual, [item.id]: novo }));
+                    }}
                   />
                 ) : null}
               </article>

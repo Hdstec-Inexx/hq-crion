@@ -1203,6 +1203,11 @@ a.login-cta {
   border-color: var(--cyan);
 }
 
+.botao-favorito:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .botao-favorito.is-favorito {
   border-color: #f59e0b;
   background: #fffbeb;
