@@ -153,11 +153,26 @@ function indiceDoResultado(
       }
     }
 
-    return primeiroSemVeredito(detalhes, (detalhe) => nomeDePareamento(detalhe) === resultado.nome);
+    const semVeredito = primeiroSemVeredito(
+      detalhes,
+      (detalhe) => nomeDePareamento(detalhe) === resultado.nome
+    );
+    if (semVeredito >= 0) {
+      return semVeredito;
+    }
+    return detalhes.findIndex((detalhe) => nomeDePareamento(detalhe) === resultado.nome);
   }
 
-  return primeiroSemVeredito(
+  const semVeredito = primeiroSemVeredito(
     detalhes,
+    (detalhe) =>
+      detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === resultado.nome
+  );
+  if (semVeredito >= 0) {
+    return semVeredito;
+  }
+
+  return detalhes.findIndex(
     (detalhe) =>
       detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === resultado.nome
   );
@@ -272,15 +287,13 @@ export function detalhesComVereditoDaTela(
 ) {
   const restantes = daTela ? [...daTela] : [];
 
-  return daFonte.map((fonte, indice) => {
+  return daFonte.map((fonte) => {
     let correspondente: DetalheDaFerramenta | undefined;
     const achado = detalheCorrespondente(restantes, fonte);
 
     if (achado) {
       correspondente = achado.detalhe;
       restantes.splice(achado.indice, 1);
-    } else if (daTela && daTela.length === daFonte.length) {
-      correspondente = daTela[indice];
     }
 
     return conservarVereditoDaTela(correspondente, fonte);

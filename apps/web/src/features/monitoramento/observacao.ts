@@ -81,14 +81,12 @@ function incorporarFerramentas(
       return copiar(turno);
     }
 
-    const combinados = [...(turno.detalhes ?? []), ...todosDetalhesDaTela];
-
     return {
       ...copiar(turno),
       texto: daFonte.texto,
       quando: turno.quando === '—' ? daFonte.quando : turno.quando,
       ...(daFonte.detalhes?.length
-        ? { detalhes: detalhesComVereditoDaTela(combinados, daFonte.detalhes) }
+        ? { detalhes: detalhesComVereditoDaTela(todosDetalhesDaTela, daFonte.detalhes) }
         : {})
     };
   });
@@ -155,37 +153,43 @@ function turnoComDetalheDaTela(
   return { ...copiado, detalhes: detalhesComVereditoDaTela(daTela.detalhes, copiado.detalhes) };
 }
 
+function turnoProvisorioAbsorvido(
+  turno: TurnoDaTranscricao,
+  detalhesPresentes: readonly DetalheDaFerramenta[]
+) {
+  if (!turnoSoDeFerramenta(turno)) {
+    return false;
+  }
+
+  return Boolean(
+    turno.detalhes?.length &&
+    turno.detalhes.every((d) => indiceDaChamada(detalhesPresentes, d) >= 0)
+  );
+}
+
 function adotarFonte(
   tela: readonly TurnoDaTranscricao[],
   fonte: readonly TurnoDaTranscricao[]
 ) {
   const todosDetalhesDaTela = tela.flatMap((item) => item.detalhes ?? []);
   const base = fonte.map((turno) => {
-    const daTela = tela.find(
-      (item) => item.locutor === turno.locutor && falaDoTexto(item.texto) === falaDoTexto(turno.texto)
-    );
-    const combinados = [...(daTela?.detalhes ?? []), ...todosDetalhesDaTela];
     return {
       ...copiar(turno),
       ...(turno.detalhes?.length
-        ? { detalhes: detalhesComVereditoDaTela(combinados, turno.detalhes) }
+        ? { detalhes: detalhesComVereditoDaTela(todosDetalhesDaTela, turno.detalhes) }
         : {})
     };
   });
+
+  const detalhesDaBase = base.flatMap((item) => item.detalhes ?? []);
 
   for (const turno of tela) {
     if (falaCoberta(base, turno) || jaEstaNaTela(base, turno)) {
       continue;
     }
 
-    if (turnoSoDeFerramenta(turno)) {
-      const detalhesDaBase = base.flatMap((item) => item.detalhes ?? []);
-      const absorvido =
-        turno.detalhes?.length &&
-        turno.detalhes.every((d) => indiceDaChamada(detalhesDaBase, d) >= 0);
-      if (absorvido) {
-        continue;
-      }
+    if (turnoProvisorioAbsorvido(turno, detalhesDaBase)) {
+      continue;
     }
 
     base.push(copiar(turno));
@@ -270,14 +274,13 @@ function mesclarFragmento(
     const todosDetalhesDaTela = tela.flatMap((item) => item.detalhes ?? []);
     const meio = tela.slice(inicioNaTela, inicioNaTela + tamanho).map((turno, indice) => {
       const daFonte = fonte[indice];
-      const combinados = [...(turno.detalhes ?? []), ...todosDetalhesDaTela];
 
       if (inicioNaTela + indice === correcao) {
         return {
           ...copiar(turno),
           texto: daFonte?.texto ?? turno.texto,
           ...(daFonte?.detalhes?.length
-            ? { detalhes: detalhesComVereditoDaTela(combinados, daFonte.detalhes) }
+            ? { detalhes: detalhesComVereditoDaTela(todosDetalhesDaTela, daFonte.detalhes) }
             : {})
         };
       }
@@ -285,7 +288,7 @@ function mesclarFragmento(
       if (daFonte?.detalhes?.length) {
         return {
           ...copiar(turno),
-          detalhes: detalhesComVereditoDaTela(combinados, daFonte.detalhes)
+          detalhes: detalhesComVereditoDaTela(todosDetalhesDaTela, daFonte.detalhes)
         };
       }
 
@@ -298,15 +301,11 @@ function mesclarFragmento(
       .map(copiar);
 
     const resultadoFinal = [...base, ...novas];
-    return resultadoFinal.filter((turno) => {
-      if (turnoSoDeFerramenta(turno)) {
-        const outrosDetalhes = resultadoFinal
-          .filter((t) => t !== turno)
-          .flatMap((t) => t.detalhes ?? []);
-        return !turno.detalhes?.every((d) => indiceDaChamada(outrosDetalhes, d) >= 0);
-      }
-      return true;
-    });
+    const detalhesPresentes = resultadoFinal.flatMap((t) =>
+      turnoSoDeFerramenta(t) ? [] : t.detalhes ?? []
+    );
+
+    return resultadoFinal.filter((turno) => !turnoProvisorioAbsorvido(turno, detalhesPresentes));
   }
 
   return [...tela.map(copiar), ...fonte.filter((turno) => !jaEstaNaTela(tela, turno)).map(copiar)];
@@ -324,15 +323,11 @@ export function mesclarTranscricao(
 
   if (comFerramentas.length === 0 || transcricaoInteiraDaFonte(comFerramentas, fonte)) {
     const todosDaTela = tela.flatMap((t) => t.detalhes ?? []);
-    return fonte.map((turno, indice) => {
-      const combinados = [
-        ...(comFerramentas[indice]?.detalhes ?? []),
-        ...todosDaTela
-      ];
+    return fonte.map((turno) => {
       return {
         ...copiar(turno),
         ...(turno.detalhes?.length
-          ? { detalhes: detalhesComVereditoDaTela(combinados, turno.detalhes) }
+          ? { detalhes: detalhesComVereditoDaTela(todosDaTela, turno.detalhes) }
           : {})
       };
     });
@@ -472,8 +467,10 @@ function acrescentarChamada(
 
   const linha = textoDaChamadaDeFerramenta(detalhe.nomeDaFerramenta);
   const ultimo = turnos.at(-1);
+  const ultimoTemFalaDoAgente =
+    ultimo?.locutor === 'Agente de Voz' && Boolean(falaDoTexto(ultimo.texto));
 
-  if (emNovoTurno || ultimo?.locutor !== 'Agente de Voz') {
+  if (emNovoTurno || !ultimoTemFalaDoAgente) {
     return [
       ...turnos.map(copiar),
       {

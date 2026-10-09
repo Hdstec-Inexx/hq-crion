@@ -225,19 +225,29 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
     turnosComChamadas,
     turnosComChamadas.flatMap((turno) => turno.resultados)
   );
-  const comResultados = [...aplicacao.turnos];
+  const naoAplicadosSet = new Set(aplicacao.naoAplicados);
+  const comResultados: typeof aplicacao.turnos = [];
 
-  for (const resultado of aplicacao.naoAplicados) {
-    const detalhe = detalheDoResultado(resultado);
-    if (detalhe) {
-      comResultados.push({
-        locutor: 'Agente de Voz' as const,
-        fala: '',
-        quando: '—',
-        comTempo: false,
-        detalhes: [detalhe],
-        resultados: []
-      });
+  for (let i = 0; i < aplicacao.turnos.length; i += 1) {
+    const turnoOriginal = turnosComChamadas[i];
+    const turnoAplicado = aplicacao.turnos[i];
+    if (turnoAplicado) {
+      comResultados.push(turnoAplicado);
+    }
+    for (const resultado of turnoOriginal?.resultados ?? []) {
+      if (naoAplicadosSet.has(resultado)) {
+        const detalhe = detalheDoResultado(resultado);
+        if (detalhe) {
+          comResultados.push({
+            locutor: 'Agente de Voz' as const,
+            fala: '',
+            quando: turnoOriginal?.quando ?? '—',
+            comTempo: turnoOriginal?.comTempo ?? false,
+            detalhes: [detalhe],
+            resultados: []
+          });
+        }
+      }
     }
   }
 

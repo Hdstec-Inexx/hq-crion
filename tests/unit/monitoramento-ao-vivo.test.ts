@@ -1879,6 +1879,48 @@ test('evento repetido da mesma Chamada de Ferramenta apenas completa o detalhe',
   );
 });
 
+test('segunda chamada sem turno identificado cria outro turno sem fala', () => {
+  const primeira = aplicarEventoDaObservacao(
+    { transcricao: [{ locutor: 'Cliente', quando: '—', texto: 'Quero plano.' }], observando: true },
+    {
+      tipo: 'chamada',
+      detalhe: { tipo: 'Ferramenta', nome: 'consultar', nomeDaFerramenta: 'consultar', id: 'c1' }
+    }
+  );
+  const segunda = aplicarEventoDaObservacao(primeira, {
+    tipo: 'chamada',
+    detalhe: { tipo: 'Ferramenta', nome: 'detalhar', nomeDaFerramenta: 'detalhar', id: 'c2' }
+  });
+
+  assert.equal(segunda.transcricao.length, 3);
+  assert.equal(segunda.transcricao[1]?.texto, '[Chamada de Ferramenta: consultar]');
+  assert.equal(segunda.transcricao[2]?.texto, '[Chamada de Ferramenta: detalhar]');
+});
+
+test('chamada repetida sem id completa a mais antiga mesmo com veredito', () => {
+  const comResultado = aplicarEventoDaObservacao(
+    { transcricao: [], observando: true },
+    {
+      tipo: 'resultado',
+      resultado: { nome: 'consultar_plano', veredito: 'Sucesso', resposta: '{"p":1}' }
+    }
+  );
+  const repetida = aplicarEventoDaObservacao(comResultado, {
+    tipo: 'chamada',
+    detalhe: {
+      tipo: 'Ferramenta',
+      nome: 'consultar_plano',
+      nomeDaFerramenta: 'consultar_plano',
+      parametros: '{"cpf":"000"}'
+    }
+  });
+
+  assert.equal(repetida.transcricao.length, 1);
+  assert.equal(repetida.transcricao[0]?.detalhes?.length, 1);
+  assert.equal(repetida.transcricao[0]?.detalhes?.[0]?.veredito, 'Sucesso');
+  assert.equal(repetida.transcricao[0]?.detalhes?.[0]?.parametros, '{"cpf":"000"}');
+});
+
 test('fonte posiciona a chamada provisória no turno correto sem duplicá-la', () => {
   const reconciliada = observarTranscricao(
     {
