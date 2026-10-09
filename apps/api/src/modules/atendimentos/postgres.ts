@@ -69,21 +69,9 @@ SELECT
     SELECT 1 FROM hq_avaliacao_do_curador revisao
     WHERE revisao.atendimento_id = a.id
   ) AS tem_curadoria,
-  EXISTS (
-    SELECT 1 FROM hq_favorito fav
-    WHERE fav.atendimento_id = a.id AND ($8::text IS NOT NULL AND fav.perfil_id = $8)
-  ) AS favoritado_pelo_usuario,
-  (
-    SELECT COUNT(*)::int
-    FROM hq_favorito fav
-    WHERE fav.atendimento_id = a.id
-  ) AS favoritos_count,
-  COALESCE((
-    SELECT json_agg(p.nome ORDER BY fav.favoritado_em DESC)
-    FROM hq_favorito fav
-    JOIN hq_perfil p ON p.id = fav.perfil_id
-    WHERE fav.atendimento_id = a.id
-  ), '[]'::json) AS favoritos_perfis
+  COALESCE(fav_agg.favoritado_pelo_usuario, false) AS favoritado_pelo_usuario,
+  COALESCE(fav_agg.favoritos_count, 0) AS favoritos_count,
+  COALESCE(fav_agg.favoritos_perfis, '[]'::json) AS favoritos_perfis
 FROM hq_atendimento a
 JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
 LEFT JOIN hq_avaliacao_da_ia ia ON ia.atendimento_id = a.id
@@ -95,6 +83,15 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) vig ON true
 LEFT JOIN hq_comentario com ON com.avaliacao_id = vig.id
+LEFT JOIN LATERAL (
+  SELECT
+    BOOL_OR(fav.perfil_id = $8) AS favoritado_pelo_usuario,
+    COUNT(*)::int AS favoritos_count,
+    COALESCE(json_agg(p.nome ORDER BY fav.favoritado_em DESC), '[]'::json) AS favoritos_perfis
+  FROM hq_favorito fav
+  JOIN hq_perfil p ON p.id = fav.perfil_id
+  WHERE fav.atendimento_id = a.id
+) fav_agg ON true
 WHERE ($7::text IS NULL OR a.id = $7)
   AND ($1::text IS NULL OR ag.administradora = $1)
   AND ($2::text IS NULL OR a.agente_id = $2)
@@ -699,10 +696,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       if (ids.length === 0) {
         return new Set<string>();
       }
-
       const resultado = await pool.query(
-        `SELECT id FROM hq_atendimento
-         WHERE status = 'Concluído' AND id = ANY($1::text[])`,
+        `SELECT id FROM hq_atendimento WHERE status = 'Concluído' AND id = ANY($1::text[])`,
         [ids]
       );
       return new Set((resultado.rows as { id: string }[]).map((linha) => linha.id));
@@ -711,10 +706,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       if (ids.length === 0) {
         return new Set<string>();
       }
-
       const resultado = await pool.query(
-        `SELECT id FROM hq_atendimento
-         WHERE id = ANY($1::text[])`,
+        `SELECT id FROM hq_atendimento WHERE id = ANY($1::text[])`,
         [ids]
       );
       return new Set((resultado.rows as { id: string }[]).map((linha) => linha.id));

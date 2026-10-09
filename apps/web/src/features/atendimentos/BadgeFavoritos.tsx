@@ -24,15 +24,13 @@ export function BadgeFavoritos({
       className={`badge-favoritos${count > 0 ? ' is-ativo' : ' is-vazio'}`}
       title={descricao}
       aria-label={descricao}
-      tabIndex={count > 0 ? 0 : undefined}
+      tabIndex={0}
     >
       <span className="badge-favoritos-icone" aria-hidden="true">★</span>
       <span className="badge-favoritos-contagem">{count}</span>
-      {count > 0 && nomes ? (
-        <span className="badge-favoritos-tooltip" role="tooltip">
-          {nomes}
-        </span>
-      ) : null}
+      <span className="badge-favoritos-tooltip" role="tooltip">
+        {count > 0 && nomes ? nomes : 'Nenhum favorito registrado'}
+      </span>
     </span>
   );
 }
