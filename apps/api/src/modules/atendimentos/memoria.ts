@@ -55,6 +55,31 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
   }
 }
 
+function resolverFavoritos(
+  favoritos: Array<{ id: string; perfilId: string; atendimentoId: string; favoritadoEm: string }>,
+  atendimentoId: string,
+  perfilId: string
+): FavoritosDoAtendimento {
+  const doAtendimento = favoritos
+    .filter((fav) => fav.atendimentoId === atendimentoId)
+    .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
+
+  const perfis = doAtendimento.map((fav) => ({
+    id: fav.perfilId,
+    nome: buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
+  }));
+
+  return {
+    favoritadoPeloUsuario: perfilId
+      ? doAtendimento.some((fav) => fav.perfilId === perfilId)
+      : false,
+    favoritos: {
+      count: perfis.length,
+      perfis
+    }
+  };
+}
+
 export function repositorioEmMemoria(
   ingeridos: readonly RegistroDeAtendimento[] = []
 ): PortaDeAtendimentos {
@@ -123,26 +148,7 @@ export function repositorioEmMemoria(
         return undefined;
       }
 
-      const doAtendimento = favoritos
-        .filter((fav) => fav.atendimentoId === atendimentoId)
-        .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
-
-      const perfis = doAtendimento.map((fav) => ({
-        id: fav.perfilId,
-        nome: buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
-      }));
-
-      const favoritadoPeloUsuario = perfilId
-        ? doAtendimento.some((fav) => fav.perfilId === perfilId)
-        : false;
-
-      return {
-        favoritadoPeloUsuario,
-        favoritos: {
-          count: perfis.length,
-          perfis
-        }
-      };
+      return resolverFavoritos(favoritos, atendimentoId, perfilId);
     },
     async obterFavoritosPorAtendimentos(atendimentoIds, perfilId) {
       const mapa = new Map<string, FavoritosDoAtendimento>();
@@ -153,24 +159,7 @@ export function repositorioEmMemoria(
           continue;
         }
 
-        const doAtendimento = favoritos
-          .filter((fav) => fav.atendimentoId === id)
-          .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
-
-        const perfis = doAtendimento.map((fav) => ({
-          id: fav.perfilId,
-          nome: buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
-        }));
-
-        mapa.set(id, {
-          favoritadoPeloUsuario: perfilId
-            ? doAtendimento.some((fav) => fav.perfilId === perfilId)
-            : false,
-          favoritos: {
-            count: perfis.length,
-            perfis
-          }
-        });
+        mapa.set(id, resolverFavoritos(favoritos, id, perfilId));
       }
 
       return mapa;
@@ -275,23 +264,12 @@ export function repositorioEmMemoria(
     async consultarListagem(recorte, query, modo, perfilId) {
       const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
       return itens.map((item) => {
-        const doAtendimento = favoritos
-          .filter((fav) => fav.atendimentoId === item.id)
-          .sort((a, b) => b.favoritadoEm.localeCompare(a.favoritadoEm));
-
-        const perfis = doAtendimento.map(
-          (fav) => buscarPerfilPorId(fav.perfilId)?.nome ?? fav.perfilId
-        );
-
-        const favoritadoPeloUsuario = perfilId
-          ? doAtendimento.some((fav) => fav.perfilId === perfilId)
-          : false;
-
+        const info = resolverFavoritos(favoritos, item.id, perfilId);
         return {
           ...item,
-          favoritadoPeloUsuario,
-          favoritosCount: doAtendimento.length,
-          favoritosPerfis: perfis
+          favoritadoPeloUsuario: info.favoritadoPeloUsuario,
+          favoritosCount: info.favoritos.count,
+          favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
         };
       });
     },

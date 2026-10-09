@@ -28,7 +28,20 @@ export function MonitoramentoPage() {
   const dadosProntos = estado.status === 'ready' ? estado.data : null;
 
   useEffect(() => {
-    setFavoritosLocais({});
+    if (!dadosProntos) {
+      return;
+    }
+    setFavoritosLocais((atual) => {
+      let mudou = false;
+      const proximo = { ...atual };
+      for (const item of dadosProntos.itens) {
+        if (proximo[item.id] !== undefined && item.favoritadoPeloUsuario === proximo[item.id]) {
+          delete proximo[item.id];
+          mudou = true;
+        }
+      }
+      return mudou ? proximo : atual;
+    });
   }, [dadosProntos]);
 
   function atualizarRecorte(administradora: string, agente: string) {
