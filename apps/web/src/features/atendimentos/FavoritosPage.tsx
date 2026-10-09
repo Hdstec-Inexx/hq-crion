@@ -1,5 +1,5 @@
-import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import { custoVisivelPara, type ListagemResponse } from '@hq-crion/contracts/atendimento';
+import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
@@ -7,8 +7,8 @@ import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-ro
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { buscarAtendimentos } from './api';
-import { BarraDeFiltrosDaListagem } from './BarraDeFiltrosDaListagem';
 import { BadgeFavoritos } from './BadgeFavoritos';
+import { BarraDeFiltrosDaListagem } from './BarraDeFiltrosDaListagem';
 import { BotaoFavorito } from './BotaoFavorito';
 
 function formatarQuando(iso: string) {
@@ -39,18 +39,12 @@ function destinoDoDetalhe(id: string, search: string, lista: string) {
   return qs ? `/atendimentos/${id}?${qs}` : `/atendimentos/${id}`;
 }
 
-export function ListagemAtendimentos({
-  caminho = '/atendimentos'
-}: {
-  caminho?: string;
-}) {
+export function FavoritosPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listagem, setListagem] = useState<ListagemResponse | null>(null);
-  const [erro, setErro] = useState<'recorte-invalido' | 'periodo-invalido' | 'listagem' | null>(
-    null
-  );
+  const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | null>(null);
 
   const administradoraNaUrl = searchParams.get('administradora') ?? '';
   const agenteNaUrl = searchParams.get('agente') ?? '';
@@ -58,7 +52,7 @@ export function ListagemAtendimentos({
   useEffect(() => {
     const controller = new AbortController();
 
-    buscarAtendimentos(caminho, searchParams, controller.signal)
+    buscarAtendimentos('/favoritos', searchParams, controller.signal)
       .then((resultado) => {
         if (controller.signal.aborted) {
           return;
@@ -76,19 +70,20 @@ export function ListagemAtendimentos({
         setErro(
           error instanceof Error && error.message === 'recorte-invalido'
             ? 'recorte-invalido'
-            : error instanceof Error && error.message === 'periodo-invalido'
-              ? 'periodo-invalido'
-              : 'listagem'
+            : 'listagem'
         );
       });
 
     return () => controller.abort();
-  }, [searchParams, caminho]);
+  }, [searchParams]);
 
   function atualizarRecorte(administradora: string, agente: string) {
-    setSearchParams(escreverRecorteNaQuery(searchParams, administradora, agente, {
-      resetarPagina: true
-    }), { replace: true });
+    setSearchParams(
+      escreverRecorteNaQuery(searchParams, administradora, agente, {
+        resetarPagina: true
+      }),
+      { replace: true }
+    );
   }
 
   function irPara(pagina: number) {
@@ -97,16 +92,15 @@ export function ListagemAtendimentos({
     setSearchParams(proxima);
   }
 
-  function alternarFavorito(id: string, novoEstado: boolean) {
+  function aoDesfavoritar(id: string) {
     setListagem((atual) => {
       if (!atual) {
         return atual;
       }
       return {
         ...atual,
-        itens: atual.itens.map((it) =>
-          it.id === id ? { ...it, favoritadoPeloUsuario: novoEstado } : it
-        )
+        total: atual.total > 0 ? atual.total - 1 : 0,
+        itens: atual.itens.filter((it) => it.id !== id)
       };
     });
   }
@@ -122,18 +116,13 @@ export function ListagemAtendimentos({
         />
       </div>
       <BarraDeFiltrosDaListagem
-        caminho={caminho}
+        caminho="/favoritos"
         curadores={listagem?.curadores ?? semCuradores}
         papel={perfil.papel}
       />
       {erro === 'recorte-invalido' ? (
         <p className="listagem-erro" role="alert">
           Este Recorte não é um par válido de Administradora e Agente de Voz.
-        </p>
-      ) : null}
-      {erro === 'periodo-invalido' ? (
-        <p className="listagem-erro" role="alert">
-          O período não pôde ser analisado. Confira as datas.
         </p>
       ) : null}
       {erro === 'listagem' ? (
@@ -145,7 +134,7 @@ export function ListagemAtendimentos({
         <>
           <div className="listagem-painel">
             {listagem.itens.length === 0 ? (
-              <p>Nenhum Atendimento neste Recorte.</p>
+              <p>Nenhum Atendimento favorito encontrado.</p>
             ) : (
               listagem.itens.map((item) => (
                 <article className="listagem-linha" key={item.id}>
@@ -168,8 +157,12 @@ export function ListagemAtendimentos({
                   {perfil.papel === 'Curador' ? (
                     <BotaoFavorito
                       atendimentoId={item.id}
-                      favoritado={item.favoritadoPeloUsuario ?? false}
-                      onToggle={(novo) => alternarFavorito(item.id, novo)}
+                      favoritado={true}
+                      onToggle={(novo) => {
+                        if (!novo) {
+                          aoDesfavoritar(item.id);
+                        }
+                      }}
                     />
                   ) : (
                     <BadgeFavoritos

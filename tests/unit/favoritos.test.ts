@@ -385,6 +385,30 @@ test('repositorioPostgres implementa favoritar, desfavoritar e obterFavoritos co
     'perfil-curador-123',
     'perfilId deve ser repassado como parâmetro $8'
   );
+
+  // consultarFavoritos para Curador e para Admin/Gestão no repositório Postgres
+  consultas.length = 0;
+  await repo.consultarFavoritos(
+    { administradora: 'Affix', agente: null },
+    { conversa: 'a1' },
+    { id: 'perfil-curador-1', papel: 'Curador' }
+  );
+  const consultaFavCurador = consultas.find((c) =>
+    c.sql.includes('FROM hq_favorito meu_fav')
+  );
+  assert.ok(consultaFavCurador, 'Query de favoritos do Curador deve consultar meu_fav');
+  assert.equal(consultaFavCurador.valores?.[0], 'perfil-curador-1');
+
+  consultas.length = 0;
+  await repo.consultarFavoritos(
+    { administradora: null, agente: null },
+    { curador: 'perfil-curador-2' },
+    { id: 'perfil-admin-1', papel: 'Admin' }
+  );
+  const consultaFavAdmin = consultas.find((c) =>
+    c.sql.includes('MAX(favoritado_em)')
+  );
+  assert.ok(consultaFavAdmin, 'Query de favoritos de Admin deve agrupar por MAX(favoritado_em)');
 });
 
 test('renderização do estado de favorito no detalhe e conferência humana', async () => {
@@ -427,6 +451,19 @@ test('renderização do estado de favorito no detalhe e conferência humana', as
     /perfil\.papel === 'Curador' \?\s*\(\s*<BotaoFavorito[\s\S]*?\/>\s*\)\s*:\s*\(\s*<BadgeFavoritos[\s\S]*?\/>\s*\)/
   );
   assert.match(detalhe, /<dt>Favorito<\/dt>/);
+
+  // 4. FavoritosPage inclui RecorteCascata, BadgeAdministradora, BotaoFavorito para Curador e BadgeFavoritos para Admin/Gestao
+  const favoritosPage = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/FavoritosPage.tsx'),
+    'utf8'
+  );
+  assert.match(favoritosPage, /RecorteCascata/);
+  assert.match(favoritosPage, /BadgeAdministradora/);
+  assert.match(favoritosPage, /BarraDeFiltrosDaListagem/);
+  assert.match(favoritosPage, /perfil\.papel === 'Curador'/);
+  assert.match(favoritosPage, /aoDesfavoritar/);
+  assert.match(favoritosPage, /BotaoFavorito/);
+  assert.match(favoritosPage, /BadgeFavoritos/);
 
   // 4. FormularioConferencia permite favoritar e desfavoritar durante o preenchimento da revisão
   assert.match(detalhe, /<form className="conferencia-form"[\s\S]*<BotaoFavorito/);
@@ -605,5 +642,167 @@ test('Monitoramento ao Vivo atribui persistidoNoHq e desabilita preventivamente 
     await app.close();
     delete process.env.ELEVENLABS_API_KEY;
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('GET /favoritos suporta os três papéis, recorte, busca conversa, filtro perfilId, paginação e perfil inativo', async () => {
+  const { listagemResponseSchema } = await import(
+    '../../packages/contracts/src/atendimento.js'
+  );
+  const { criarPerfil, definirAtivo } = await import(
+    '../../apps/api/src/modules/perfil/repositorio.js'
+  );
+
+  const app = await buildApp();
+
+  try {
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    const sessaoGestao = await sessaoDe(app, 'ana.souza@crion');
+    const sessaoCuradorCarla = await sessaoDe(app, 'carla.mendes@crion');
+
+    // 1. GET /favoritos sem sessão -> 401
+    const resSemAuth = await app.inject({
+      method: 'GET',
+      url: '/favoritos'
+    });
+    assert.equal(resSemAuth.statusCode, 401);
+
+    // 2. Criar segundo curador para testar consolidação e perfil inativo
+    const curador2 = await criarPerfil({
+      nome: 'Curador Secundario',
+      email: 'curador2@crion',
+      papel: 'Curador',
+      senha: 'crion-hq'
+    });
+    const sessaoCurador2 = await sessaoDe(app, 'curador2@crion');
+
+    // Carla favorita a1
+    await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/favorito',
+      headers: { authorization: `Bearer ${sessaoCuradorCarla}` }
+    });
+    // Aguardar pequena fração de ms para garantir carimbos distintos
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // Carla favorita a2
+    await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a2/favorito',
+      headers: { authorization: `Bearer ${sessaoCuradorCarla}` }
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // Curador 2 favorita a2
+    await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a2/favorito',
+      headers: { authorization: `Bearer ${sessaoCurador2}` }
+    });
+
+    // 3. Teste para papel Curador:
+    // Retorna apenas os favoritados pelo usuário logado, ordenados pelo seu favoritado_em DESC
+    const resCurador2 = await app.inject({
+      method: 'GET',
+      url: '/favoritos',
+      headers: { authorization: `Bearer ${sessaoCurador2}` }
+    });
+    assert.equal(resCurador2.statusCode, 200);
+    const dadosCurador2 = listagemResponseSchema.parse(resCurador2.json());
+    assert.equal(dadosCurador2.itens.length, 1);
+    assert.equal(dadosCurador2.itens[0].id, 'a2');
+    assert.equal(dadosCurador2.itens[0].favoritadoPeloUsuario, true);
+
+    const resCarla = await app.inject({
+      method: 'GET',
+      url: '/favoritos',
+      headers: { authorization: `Bearer ${sessaoCuradorCarla}` }
+    });
+    assert.equal(resCarla.statusCode, 200);
+    const dadosCarla = listagemResponseSchema.parse(resCarla.json());
+    assert.equal(dadosCarla.itens.length, 2);
+    // a2 foi favoritado depois de a1, então ordem DESC coloca a2 antes de a1
+    assert.equal(dadosCarla.itens[0].id, 'a2');
+    assert.equal(dadosCarla.itens[1].id, 'a1');
+
+    // 4. Teste para papel Admin e Gestão:
+    // Retorna lista consolidada deduplicada ordenada por MAX(favoritado_em) DESC
+    const resAdmin = await app.inject({
+      method: 'GET',
+      url: '/favoritos',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resAdmin.statusCode, 200);
+    const dadosAdmin = listagemResponseSchema.parse(resAdmin.json());
+    assert.equal(dadosAdmin.itens.length, 2);
+    assert.equal(dadosAdmin.itens[0].id, 'a2'); // max favoritado_em é mais recente
+    assert.equal(dadosAdmin.itens[0].favoritosCount, 2);
+    assert.ok(dadosAdmin.itens[0].favoritosPerfis?.includes('Carla Mendes'));
+    assert.ok(dadosAdmin.itens[0].favoritosPerfis?.includes('Curador Secundario'));
+    assert.equal(dadosAdmin.itens[1].id, 'a1');
+    assert.equal(dadosAdmin.itens[1].favoritosCount, 1);
+
+    // Gestão também vê a mesma visão consolidada
+    const resGestao = await app.inject({
+      method: 'GET',
+      url: '/favoritos',
+      headers: { authorization: `Bearer ${sessaoGestao}` }
+    });
+    assert.equal(resGestao.statusCode, 200);
+    const dadosGestao = listagemResponseSchema.parse(resGestao.json());
+    assert.equal(dadosGestao.itens.length, 2);
+
+    // 5. Filtro por busca de conversa (id da conversa)
+    const resBusca = await app.inject({
+      method: 'GET',
+      url: '/favoritos?conversa=a1',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resBusca.statusCode, 200);
+    const dadosBusca = listagemResponseSchema.parse(resBusca.json());
+    assert.equal(dadosBusca.itens.length, 1);
+    assert.equal(dadosBusca.itens[0].id, 'a1');
+
+    // 6. Filtro por perfilId do curador (somente Admin/Gestão)
+    const resFiltroCurador = await app.inject({
+      method: 'GET',
+      url: `/favoritos?perfilId=${curador2.id}`,
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resFiltroCurador.statusCode, 200);
+    const dadosFiltro = listagemResponseSchema.parse(resFiltroCurador.json());
+    assert.equal(dadosFiltro.itens.length, 1);
+    assert.equal(dadosFiltro.itens[0].id, 'a2');
+
+    // 7. Desativar perfil do Curador Secundario: marcações permanecem no histórico
+    await definirAtivo(curador2.id, false);
+
+    const resAposDesativar = await app.inject({
+      method: 'GET',
+      url: '/favoritos',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resAposDesativar.statusCode, 200);
+    const dadosAposDesativar = listagemResponseSchema.parse(resAposDesativar.json());
+    const itemA2Apos = dadosAposDesativar.itens.find((it) => it.id === 'a2');
+    assert.ok(itemA2Apos);
+    assert.equal(itemA2Apos.favoritosCount, 2);
+    assert.ok(itemA2Apos.favoritosPerfis?.includes('Curador Secundario'));
+
+    // 8. Recorte em cascata e par inválido
+    const resRecorteInvalido = await app.inject({
+      method: 'GET',
+      url: '/favoritos?administradora=Affix&agente=agente-inexistente',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resRecorteInvalido.statusCode, 400);
+
+    // Recorte válido
+    const resRecorteValido = await app.inject({
+      method: 'GET',
+      url: '/favoritos?administradora=Alter',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resRecorteValido.statusCode, 200);
+  } finally {
+    await app.close();
   }
 });

@@ -1,3 +1,4 @@
+import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   camposVisiveisDaListagem,
   limparFiltrosDaQuery,
@@ -14,14 +15,16 @@ import { SliderNotaDaIaAvaliadora } from './SliderNotaDaIaAvaliadora';
 
 export function BarraDeFiltrosDaListagem({
   caminho,
-  curadores
+  curadores,
+  papel
 }: {
   caminho: string;
   curadores: { id: string; nome: string }[];
+  papel?: Papel;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [criteriosDaRegua, setCriteriosDaRegua] = useState<string[]>([]);
-  const campos = camposVisiveisDaListagem(caminho);
+  const campos = camposVisiveisDaListagem(caminho, papel);
   const campoVisivel = (campo: CampoVisivelDaListagem) => campos.includes(campo);
   const inicioNaQuery = searchParams.get('inicio') ?? '';
   const fimNaQuery = searchParams.get('fim') ?? '';
