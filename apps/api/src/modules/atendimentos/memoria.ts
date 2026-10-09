@@ -278,19 +278,15 @@ export function repositorioEmMemoria(
       const conversa = typeof query.conversa === 'string' ? query.conversa.trim() : '';
       const perfilFiltro = typeof query.curador === 'string' ? query.curador.trim() : '';
 
-      // Curadores disponíveis para filtro (Admin e Gestão)
-      const curadoresMap = new Map<string, string>();
-      for (const fav of favoritos) {
-        const p = buscarPerfilPorId(fav.perfilId);
-        if (p) {
-          curadoresMap.set(p.id, p.nome);
-        } else {
-          curadoresMap.set(fav.perfilId, fav.perfilId);
-        }
-      }
-      const curadores = Array.from(curadoresMap.entries())
-        .map(([id, nome]) => ({ id, nome }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      const mapearItem = (item: RegistroDeAtendimento) => {
+        const info = resolverFavoritos(favoritos, item.id, perfil.id);
+        return {
+          ...item,
+          favoritadoPeloUsuario: perfil.papel === 'Curador' ? true : info.favoritadoPeloUsuario,
+          favoritosCount: info.favoritos.count,
+          favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
+        };
+      };
 
       if (perfil.papel === 'Curador') {
         // Apenas favoritados por ele, ordenados por favoritadoEm DESC
@@ -305,17 +301,25 @@ export function repositorioEmMemoria(
           if (!passaNoRecorte(item, recorte)) continue;
           if (conversa && item.conversa !== conversa && item.id !== conversa) continue;
 
-          const info = resolverFavoritos(favoritos, item.id, perfil.id);
-          itens.push({
-            ...item,
-            favoritadoPeloUsuario: true,
-            favoritosCount: info.favoritos.count,
-            favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
-          });
+          itens.push(mapearItem(item));
         }
 
         return { itens, curadores: [] };
       }
+
+      // Curadores disponíveis para filtro (Admin e Gestão)
+      const curadoresMap = new Map<string, string>();
+      for (const fav of favoritos) {
+        const p = buscarPerfilPorId(fav.perfilId);
+        if (p) {
+          curadoresMap.set(p.id, p.nome);
+        } else {
+          curadoresMap.set(fav.perfilId, fav.perfilId);
+        }
+      }
+      const curadores = Array.from(curadoresMap.entries())
+        .map(([id, nome]) => ({ id, nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
       // Admin e Gestão: deduplicados que possuem ao menos 1 marcação ativa, ordenados por MAX(favoritado_em) DESC
       const agrupadosPorAtendimento = new Map<string, { maxFavoritadoEm: string; perfilIds: Set<string> }>();
@@ -350,13 +354,7 @@ export function repositorioEmMemoria(
         if (!passaNoRecorte(item, recorte)) continue;
         if (conversa && item.conversa !== conversa && item.id !== conversa) continue;
 
-        const info = resolverFavoritos(favoritos, item.id, perfil.id);
-        itens.push({
-          ...item,
-          favoritadoPeloUsuario: info.favoritadoPeloUsuario,
-          favoritosCount: info.favoritos.count,
-          favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
-        });
+        itens.push(mapearItem(item));
       }
 
       return { itens, curadores };

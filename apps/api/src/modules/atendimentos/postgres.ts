@@ -935,17 +935,20 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       const conversa = typeof query.conversa === 'string' ? query.conversa.trim() : '';
       const perfilFiltro = typeof query.curador === 'string' ? query.curador.trim() : '';
 
-      // Curadores com marcações para o filtro de Admin e Gestão
-      const curadoresRes = await pool.query(
-        `SELECT DISTINCT p.id, p.nome
-         FROM hq_favorito f
-         JOIN hq_perfil p ON p.id = f.perfil_id
-         ORDER BY p.nome ASC`
-      );
-      const curadores = curadoresRes.rows.map((r: { id: string; nome: string }) => ({
-        id: r.id,
-        nome: r.nome
-      }));
+      // Curadores com marcações para o filtro de Admin e Gestão (somente executado se não for Curador)
+      let curadores: Array<{ id: string; nome: string }> = [];
+      if (perfil.papel !== 'Curador') {
+        const curadoresRes = await pool.query(
+          `SELECT DISTINCT p.id, p.nome
+           FROM hq_favorito f
+           JOIN hq_perfil p ON p.id = f.perfil_id
+           ORDER BY p.nome ASC`
+        );
+        curadores = curadoresRes.rows.map((r: { id: string; nome: string }) => ({
+          id: r.id,
+          nome: r.nome
+        }));
+      }
 
       let sql = '';
       const params: unknown[] = [perfil.id];

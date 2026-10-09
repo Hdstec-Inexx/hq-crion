@@ -802,6 +802,27 @@ test('GET /favoritos suporta os três papéis, recorte, busca conversa, filtro p
       headers: { authorization: `Bearer ${sessaoAdmin}` }
     });
     assert.equal(resRecorteValido.statusCode, 200);
+
+    // 9. Paginação padrão (50 por página) e navegação
+    const resPagina1 = await app.inject({
+      method: 'GET',
+      url: '/favoritos?pagina=1',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resPagina1.statusCode, 200);
+    const dadosPagina1 = listagemResponseSchema.parse(resPagina1.json());
+    assert.equal(dadosPagina1.pagina, 1);
+    assert.equal(dadosPagina1.tamanho, 50);
+
+    const resPagina2 = await app.inject({
+      method: 'GET',
+      url: '/favoritos?pagina=2',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resPagina2.statusCode, 200);
+    const dadosPagina2 = listagemResponseSchema.parse(resPagina2.json());
+    // Como há 2 itens no total, a página 2 fica limitada na última página
+    assert.equal(dadosPagina2.pagina, 1);
   } finally {
     await app.close();
   }

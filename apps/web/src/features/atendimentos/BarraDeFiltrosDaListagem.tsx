@@ -173,8 +173,8 @@ export function BarraDeFiltrosDaListagem({
           Curador
           <select
             name="curador"
-            defaultValue={searchParams.get('curador') ?? ''}
-            key={`curador-${searchParams.get('curador') ?? ''}`}
+            defaultValue={searchParams.get('curador') ?? searchParams.get('perfilId') ?? ''}
+            key={`curador-${searchParams.get('curador') ?? searchParams.get('perfilId') ?? ''}`}
           >
             <option value="">Todos</option>
             {curadores.map((curador) => (
