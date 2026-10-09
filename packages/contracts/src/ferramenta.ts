@@ -153,36 +153,53 @@ function indiceDoResultado(
       }
     }
 
-    const semVeredito = primeiroSemVeredito(
-      detalhes,
-      (detalhe) => nomeDePareamento(detalhe) === resultado.nome
-    );
-    if (semVeredito >= 0) {
-      return semVeredito;
-    }
-    return detalhes.findIndex((detalhe) => nomeDePareamento(detalhe) === resultado.nome);
+    return primeiroSemVeredito(detalhes, (detalhe) => nomeDePareamento(detalhe) === resultado.nome);
   }
 
-  const semVeredito = primeiroSemVeredito(
+  return primeiroSemVeredito(
     detalhes,
     (detalhe) =>
       detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === resultado.nome
   );
-  if (semVeredito >= 0) {
-    return semVeredito;
+}
+
+export function identificacaoDoDetalhe(detalhe: DetalheDaFerramenta): IdentificacaoDaChamada {
+  if (detalhe.tipo === 'Procedimento') {
+    return {
+      ...(detalhe.id ? { id: detalhe.id } : {}),
+      nome: detalhe.nomeDaFerramenta,
+      ...(detalhe.nome !== detalhe.nomeDaFerramenta ? { nomeDoProcedimento: detalhe.nome } : {}),
+      ...(detalhe.idDoProcedimento ? { idDoProcedimento: detalhe.idDoProcedimento } : {}),
+      ...(detalhe.indiceDoProcedimento ? { indiceDoProcedimento: detalhe.indiceDoProcedimento } : {})
+    };
   }
 
-  return detalhes.findIndex(
-    (detalhe) =>
-      detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === resultado.nome
-  );
+  return {
+    ...(detalhe.id ? { id: detalhe.id } : {}),
+    nome: detalhe.nomeDaFerramenta || detalhe.nome
+  };
 }
 
 export function indiceDaChamada(
   detalhes: readonly DetalheDaFerramenta[],
   chamada: IdentificacaoDaChamada
 ) {
-  return indiceDoResultado(detalhes, chamada);
+  if (chamada.id) {
+    return detalhes.findIndex((detalhe) => detalhe.id === chamada.id);
+  }
+
+  const semVeredito = indiceDoResultado(detalhes, chamada);
+  if (semVeredito >= 0) {
+    return semVeredito;
+  }
+
+  if (resultadoDeProcedimento(chamada)) {
+    return detalhes.findIndex((detalhe) => nomeDePareamento(detalhe) === chamada.nome);
+  }
+
+  return detalhes.findIndex(
+    (detalhe) => detalhe.tipo === 'Ferramenta' && nomeDePareamento(detalhe) === chamada.nome
+  );
 }
 
 function identificadorDoProcedimento(
@@ -289,7 +306,7 @@ export function detalhesComVereditoDaTela(
 
   return daFonte.map((fonte) => {
     let correspondente: DetalheDaFerramenta | undefined;
-    const achado = detalheCorrespondente(restantes, fonte);
+    const achado = detalheCorrespondente(restantes, identificacaoDoDetalhe(fonte));
 
     if (achado) {
       correspondente = achado.detalhe;

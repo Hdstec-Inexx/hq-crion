@@ -346,6 +346,31 @@ test('transferência não executada não vira fato nem detalhe', () => {
   assert.equal(atendimento?.transcricao[0]?.detalhes, undefined);
 });
 
+test('chamada pendente que recebe resultado cancelado posterior sai da transcrição', () => {
+  const atendimento = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-cancelamento-posterior',
+    agent_id: 'affix-0800',
+    status: 'done',
+    start_time_unix_secs: 1_715_000_000,
+    transcript: [
+      {
+        role: 'agent',
+        message: 'Aguarde um instante.',
+        tool_calls: [{ tool_name: 'consultar_plano', tool_call_id: 'c1' }]
+      },
+      {
+        role: 'agent',
+        message: 'Não consegui.',
+        tool_results: [{ tool_call_id: 'c1', tool_name: 'consultar_plano', status: 'skipped' }]
+      }
+    ]
+  });
+
+  assert.equal(atendimento?.transcricao[0]?.texto, 'Aguarde um instante.');
+  assert.equal(atendimento?.transcricao[0]?.detalhes, undefined);
+  assert.equal(atendimento?.transcricao[1]?.texto, 'Não consegui.');
+});
+
 test('chamada aguardando retorno entra sem veredito', () => {
   const atendimento = atendimentoDaFonteElevenLabs({
     conversation_id: 'conv-aguardando-retorno',

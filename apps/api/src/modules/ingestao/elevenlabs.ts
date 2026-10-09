@@ -5,11 +5,14 @@ import {
 import {
   aplicarResultados,
   detalheDoResultado,
+  indiceDaChamada,
   type DetalheDaFerramenta
 } from '@hq-crion/contracts/ferramenta';
 import {
   chamadaExecutada,
+  chamadaRecusada,
   detalheDaChamada,
+  identificacaoDaChamada,
   nomeDaFerramenta,
   resultadoDaFonte,
   tempoDoLlm,
@@ -220,6 +223,30 @@ function turnosDaFonte(payload: PayloadElevenLabs) {
         .filter((resultado): resultado is NonNullable<typeof resultado> => Boolean(resultado))
     };
   });
+
+  for (const turno of payload.transcript ?? []) {
+    for (const resultado of turno.tool_results ?? []) {
+      const comNome = resultadoComNomeDaChamada(resultado, nomesPorId);
+      if (chamadaRecusada(comNome)) {
+        const cancelada = identificacaoDaChamada(comNome);
+        if (cancelada) {
+          const todos = turnosComChamadas.flatMap((t) => t.detalhes);
+          const idx = indiceDaChamada(todos, cancelada);
+          if (idx >= 0) {
+            let cursor = 0;
+            for (const t of turnosComChamadas) {
+              const q = t.detalhes.length;
+              if (idx >= cursor && idx < cursor + q) {
+                t.detalhes.splice(idx - cursor, 1);
+                break;
+              }
+              cursor += q;
+            }
+          }
+        }
+      }
+    }
+  }
 
   const aplicacao = aplicarResultados(
     turnosComChamadas,
