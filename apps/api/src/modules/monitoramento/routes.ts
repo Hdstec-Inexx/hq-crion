@@ -66,6 +66,21 @@ function itemDoMonitoramento(item: LeituraAoVivo) {
   };
 }
 
+function dadosDeFavorito(
+  persistidoNoHq: boolean,
+  favInfo?: {
+    favoritadoPeloUsuario: boolean;
+    favoritos: { count: number; perfis: Array<{ id: string; nome: string }> };
+  }
+) {
+  return {
+    persistidoNoHq,
+    favoritadoPeloUsuario: favInfo?.favoritadoPeloUsuario ?? false,
+    favoritosCount: favInfo?.favoritos.count ?? 0,
+    favoritosPerfis: (favInfo?.favoritos.perfis ?? []).map((p) => p.nome)
+  };
+}
+
 function listaVazia(recorte: Recorte, fonteConfigurada: boolean) {
   const pagina = paginaDaLista(0, undefined);
 
@@ -146,26 +161,43 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     const concluidos = await app.atendimentos.idsConcluidos(
       candidatos.map((item) => item.id)
     );
-    const abertos = candidatos
-      .filter((item) => !concluidos.has(item.id))
-      .map(itemDoMonitoramento);
-    const pagina = paginaDaLista(abertos.length, undefined);
+    const abertos = candidatos.filter((item) => !concluidos.has(item.id));
+    const persistidos = await app.atendimentos.idsPersistidos(
+      abertos.map((item) => item.id)
+    );
+    const persistidosIds = abertos
+      .filter((item) => persistidos.has(item.id))
+      .map((item) => item.id);
+    const mapaFavoritos = await app.atendimentos.obterFavoritosPorAtendimentos(
+      persistidosIds,
+      registro.id
+    );
+
+    const itens = abertos.map((item) => {
+      const persistidoNoHq = persistidos.has(item.id);
+      const favInfo = persistidoNoHq ? mapaFavoritos.get(item.id) : undefined;
+      return {
+        ...itemDoMonitoramento(item),
+        ...dadosDeFavorito(persistidoNoHq, favInfo)
+      };
+    });
+    const pagina = paginaDaLista(itens.length, undefined);
 
     return monitoramentoListagemResponseSchema.parse({
       recorte,
       pagina: pagina.pagina,
       tamanho: pagina.tamanho,
       total: pagina.total,
-      itens: abertos.slice(pagina.inicio, pagina.fim),
+      itens: itens.slice(pagina.inicio, pagina.fim),
       fonteConfigurada: true
     });
   });
 
   app.get('/monitoramento/:id', async (request, reply) => {
     semCache(reply);
-    const perfil = perfilDaAutorizacao(request.headers.authorization);
+    const registro = registroDaAutorizacao(request.headers.authorization);
 
-    if (!perfil) {
+    if (!registro) {
       return reply.code(401).send({ statusCode: 401 });
     }
 
@@ -199,9 +231,15 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ statusCode: 404 });
     }
 
+    const persistidoNoHq = Boolean(noHq);
+    const favInfo = persistidoNoHq
+      ? await app.atendimentos.obterFavoritos(id, registro.id)
+      : undefined;
+
     return monitoramentoDetalheSchema.parse({
       ...itemDoMonitoramento(atendimento),
-      transcricao: atendimento.transcricao
+      transcricao: atendimento.transcricao,
+      ...dadosDeFavorito(persistidoNoHq, favInfo)
     });
   });
 

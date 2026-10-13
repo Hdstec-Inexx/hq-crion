@@ -31,6 +31,11 @@ const camposPorRota: Record<string, readonly CampoVisivelDaListagem[]> = {
     'limpar',
     'statusAtendimento'
   ],
+  '/favoritos': [
+    'conversa',
+    'curador',
+    'limpar'
+  ],
   '/fila-de-curadoria': ['periodo', 'conversa', 'motivo', 'notaIa', 'limpar'],
   '/minhas-curadorias': ['periodo', 'conversa', 'motivo', 'criterios', 'notaIa', 'limpar'],
   '/curadorias-realizadas': [
@@ -45,7 +50,13 @@ const camposPorRota: Record<string, readonly CampoVisivelDaListagem[]> = {
   '/manutencao': ['periodo', 'conversa', 'statusComentario', 'limpar']
 };
 
-export function camposVisiveisDaListagem(rota: string): readonly CampoVisivelDaListagem[] {
+export function camposVisiveisDaListagem(
+  rota: string,
+  papel?: 'Admin' | 'Gestão' | 'Curador'
+): readonly CampoVisivelDaListagem[] {
+  if (rota === '/favoritos' && papel === 'Curador') {
+    return ['conversa', 'limpar'];
+  }
   return camposPorRota[rota] ?? ['periodo', 'limpar'];
 }
 
@@ -60,6 +71,7 @@ const chavesLimpaveis = [
   'notaIa',
   'statusCuradoria',
   'curador',
+  'perfilId',
   'criteriosAtendidos',
   'criteriosNaoAtendidos',
   'indicador',

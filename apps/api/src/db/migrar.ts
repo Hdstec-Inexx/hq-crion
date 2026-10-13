@@ -26,7 +26,7 @@ export function diretorioDeMigracoes() {
 export function listarMigracoes(diretorio = diretorioDeMigracoes()): Migracao[] {
   return readdirSync(diretorio)
     .filter((nome) => nome.endsWith('.sql'))
-    .sort((a, b) => a.localeCompare(b))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     .map((nome) => ({
       nome,
       sql: readFileSync(join(diretorio, nome), 'utf8')

@@ -179,13 +179,17 @@
 
 .listagem-linha {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 12px;
   align-items: center;
   padding: 12px 14px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 14px;
+}
+
+.listagem-linha-monitoramento {
+  grid-template-columns: 1fr auto auto;
 }
 
 .listagem-link {

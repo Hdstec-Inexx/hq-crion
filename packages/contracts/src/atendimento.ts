@@ -53,7 +53,10 @@ export const atendimentoListItemSchema = z.object({
   status: z.string().min(1),
   curadoria: z.boolean(),
   conversa: z.string().min(1),
-  custo: z.string().min(1).optional()
+  custo: z.string().min(1).optional(),
+  favoritadoPeloUsuario: z.boolean().optional(),
+  favoritosCount: z.number().int().min(0).optional(),
+  favoritosPerfis: z.array(z.string()).optional()
 });
 
 export const curadorDaListagemSchema = z.object({
@@ -261,12 +264,28 @@ export function textoSoDeFerramenta(texto: string) {
   return linhas.length > 0 && linhas.every(linhaDeFerramenta);
 }
 
+export const favoritoPerfilSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().min(1)
+});
+
+export const favoritosInfoSchema = z.object({
+  count: z.number().int().min(0),
+  perfis: z.array(favoritoPerfilSchema)
+});
+
+export const favoritoMutacaoResponseSchema = z.object({
+  favoritadoPeloUsuario: z.boolean()
+});
+
 export const atendimentoDetalheSchema = atendimentoListItemSchema.extend({
   audio: caminhoDeMidiaSchema.optional(),
   downloadDeAudio: caminhoDeMidiaSchema.optional(),
   transcricao: z.array(turnoDaTranscricaoSchema),
   avaliacaoDaIa: avaliacaoSchema.optional(),
-  avaliacaoDoCurador: avaliacaoDoCuradorSchema.optional()
+  avaliacaoDoCurador: avaliacaoDoCuradorSchema.optional(),
+  favoritadoPeloUsuario: z.boolean().optional(),
+  favoritos: favoritosInfoSchema.optional()
 });
 
 function compatibilizarItemAoVivo(bruto: unknown) {
@@ -302,7 +321,11 @@ const monitoramentoListItemObjetoSchema = z.object({
   agentId: z.string().min(1).optional(),
   iniciadoEm: z.string().min(1).optional(),
   motivo: z.string().min(1),
-  status: z.literal('Em andamento')
+  status: z.literal('Em andamento'),
+  persistidoNoHq: z.boolean().optional(),
+  favoritadoPeloUsuario: z.boolean().optional(),
+  favoritosCount: z.number().int().min(0).optional(),
+  favoritosPerfis: z.array(z.string()).optional()
 });
 
 export const monitoramentoListItemSchema = z.preprocess(
@@ -342,6 +365,9 @@ export type ConferenciaRequest = z.infer<typeof conferenciaRequestSchema>;
 export type CriterioDaConferencia = ConferenciaRequest['checklist'][number];
 export type TurnoDaTranscricao = z.infer<typeof turnoDaTranscricaoSchema>;
 export type AtendimentoDetalhe = z.infer<typeof atendimentoDetalheSchema>;
+export type FavoritoPerfil = z.infer<typeof favoritoPerfilSchema>;
+export type FavoritosInfo = z.infer<typeof favoritosInfoSchema>;
+export type FavoritoMutacaoResponse = z.infer<typeof favoritoMutacaoResponseSchema>;
 export type MonitoramentoDetalhe = z.infer<typeof monitoramentoDetalheSchema>;
 export type MonitoramentoListagemResponse = z.infer<
   typeof monitoramentoListagemResponseSchema

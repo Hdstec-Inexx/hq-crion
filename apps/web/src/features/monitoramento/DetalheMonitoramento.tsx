@@ -7,6 +7,7 @@ import { Link, useLocation, useParams, useRouteLoaderData, useSearchParams } fro
 import { CorpoDoTurno } from '../atendimentos/DetalheDaFerramenta';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { lerSessao } from '../auth/sessao';
+import { BotaoFavorito } from '../atendimentos/BotaoFavorito';
 import { buscarDetalheDoMonitoramento, lerEventoDaObservacao, urlDaObservacao } from './api';
 import {
   acompanhaOFim,
@@ -321,6 +322,23 @@ export function DetalheMonitoramento() {
               <dt>Status</dt>
               <dd>{atendimento.status}</dd>
             </div>
+            {perfil.papel === 'Curador' ? (
+              <div>
+                <dt>Favorito</dt>
+                <dd>
+                  <BotaoFavorito
+                    atendimentoId={atendimento.id}
+                    favoritado={atendimento.favoritadoPeloUsuario ?? false}
+                    disabled={!atendimento.persistidoNoHq}
+                    onToggle={(novo) => {
+                      setAtendimento((atual) =>
+                        atual ? { ...atual, favoritadoPeloUsuario: novo } : atual
+                      );
+                    }}
+                  />
+                </dd>
+              </div>
+            ) : null}
           </dl>
           <section className="transcricao" aria-label="Transcrição">
             <h2>Transcrição</h2>
