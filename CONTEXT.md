@@ -27,7 +27,7 @@ _Avoid_: password, senha padrão
 **Casca autenticada**:
 O enquadramento da UI presente só com Perfil válido: faixa **clara**, colapso em trilho de ícones, áreas do **papel**, nome da pessoa e encerrar sessão. Login e health ficam fora dela. A marca é o logotipo Crion (wordmark); não se repete o nome ao lado nem se usa logo de Administradora. No trilho recolhido a marca **não** aparece — o clique nela só existe com a faixa aberta. Não há Home de apresentação. Após o login, e ao clicar na marca, a casca abre na **primeira área** do papel (Admin e Gestão: Dashboard; Curador: Atendimentos). `/` autenticado redireciona para essa área. Deep link preserva o destino.
 
-Rótulos curtos na faixa: Dashboard, Atendimentos, Ao vivo, Fila de curadoria, Minhas curadorias / Curadorias realizadas, Manutenção, Usuários, IA Avaliadora, Régua. O `h1` da página usa o termo de domínio (ex.: **Monitoramento ao Vivo**, não “Ao vivo”).
+Rótulos curtos na faixa: Dashboard, Atendimentos, Favoritos, Ao vivo, Fila de curadoria, Minhas curadorias / Curadorias realizadas, Manutenção, Usuários, IA Avaliadora, Régua. O `h1` da página usa o termo de domínio (ex.: **Monitoramento ao Vivo**, não “Ao vivo”).
 _Avoid_: shell, sidebar, Home (página de apresentação)
 
 ### Objeto avaliado
@@ -189,3 +189,11 @@ A lista de Comentários da conferência — pendentes e resolvidos — da qual o
 
 **Comentário**:
 O insumo escrito na conferência do Curador. Entra na Fila de Manutenção como Pendente; o Admin marca Resolvido. Gestão lê o texto no detalhe do Atendimento, sem operar a fila.
+
+**Favorito**:
+A marca do Curador sobre um Atendimento já persistido no HQ, em andamento ou concluído, registrando que o Agente de Voz teve ótimo desempenho naquele contato. Não depende de nota, Aprovação ou conferência. Não altera o Atendimento nem a Avaliação, não carrega texto, não é Comentário e não entra na Fila de Manutenção. Há no máximo um por par (Curador, Atendimento). O Curador marca e desfaz apenas o seu próprio Favorito no detalhe, na Conferência humana, nas listagens (Atendimentos, Fila de Curadoria, Minhas Curadorias) e no Monitoramento ao Vivo (quando já persistido no HQ, ficando desabilitado antes disso). O Curador visualiza apenas o seu próprio estado de marcação; Gestão e Admin veem em modo somente leitura quais Perfis favoritaram (exibido como contagem com tooltip de nomes nas linhas de listagens), sem poder marcar ou apagar. A desativação de Perfil preserva seus Favoritos no histórico.
+_Avoid_: Destaque
+
+**Favoritos**:
+A lista atemporal de Atendimentos com Favorito ativo, acessível diretamente na Casca Autenticada para todos os papéis sob Recorte. O Curador vê apenas os Atendimentos que ele próprio favoritou, ordenados do mais recente ao mais antigo pelo instante da sua marcação. Gestão e Admin veem cada Atendimento uma única vez acompanhado de todos os Perfis que o favoritaram, ordenados pelo Favorito mais recente ainda vigente nele, com filtro por Perfil de Curador e busca por id da conversa. Não possui mês civil implícito e não gera métricas nem indicadores agregados no Dashboard.
+_Avoid_: Painel

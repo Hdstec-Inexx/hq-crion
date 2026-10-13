@@ -17,7 +17,7 @@ export function BadgeFavoritos({
       ? perfisProp.join(', ')
       : (favoritos?.perfis ?? []).map((p) => p.nome).join(', ');
   const descricao =
-    count > 0 ? `Favoritado por ${count} curador(es): ${nomes}` : 'Nenhum favorito registrado';
+    count > 0 ? `Favoritado por ${count} perfil(is): ${nomes}` : 'Nenhum favorito registrado';
 
   return (
     <span
