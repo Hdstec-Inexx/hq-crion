@@ -41,7 +41,11 @@ const configSchema = z
     STORAGE_ENDPOINT: optionalString,
     STORAGE_ACCESS_KEY: optionalString,
     STORAGE_SECRET_KEY: optionalString,
-    STORAGE_PUBLIC_URL: optionalString
+    STORAGE_PUBLIC_URL: optionalString,
+    R2_BUCKET: optionalString,
+    R2_ENDPOINT: optionalString,
+    R2_ACCESS_KEY_ID: optionalString,
+    R2_SECRET_ACCESS_KEY: optionalString
   })
   .superRefine((config, ctx) => {
     if (config.NODE_ENV !== 'production') {
