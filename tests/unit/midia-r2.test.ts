@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { buildApp } from '../../apps/api/src/app.js';
+import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
+import { lerMidiaLocal } from '../../apps/api/src/modules/midia/deposito.js';
 import { parseAppConfig } from '../../apps/api/src/plugins/config.js';
 import {
+  S3Client,
   buscarMidiaNoR2,
   chavesCandidatas,
   criarClienteR2,
@@ -245,3 +249,156 @@ test('descobrirCaminhoNoR2 retorna undefined quando o arquivo não existe', asyn
   const caminho = await descobrirCaminhoNoR2(mockS3 as any, 'bucket-r2', 'conv_nada');
   assert.equal(caminho, undefined);
 });
+
+test('GET /atendimentos/:id aponta caminho de áudio descoberto apenas no Cloudflare R2', async () => {
+  const envAnterior = { ...process.env };
+  process.env.R2_ENDPOINT = 'https://account-test.r2.cloudflarestorage.com';
+  process.env.R2_BUCKET = 'bucket-r2-teste';
+  process.env.R2_ACCESS_KEY_ID = 'chave-r2-teste';
+  process.env.R2_SECRET_ACCESS_KEY = 'segredo-r2-teste';
+
+  const sendOriginal = S3Client.prototype.send;
+  (S3Client.prototype as any).send = async function (command: any) {
+    if (
+      command.input?.Bucket === 'bucket-r2-teste' &&
+      command.input?.Key === 'atendimentos/conv-a2.mp3'
+    ) {
+      return { ContentType: 'audio/mpeg' };
+    }
+    const erro = new Error('NotFound');
+    (erro as any).name = 'NotFound';
+    throw erro;
+  };
+
+  try {
+    const app = await buildApp();
+    try {
+      const login = await app.inject({
+        method: 'POST',
+        url: '/login',
+        payload: { email: 'ana.souza@crion', senha: 'crion-hq' }
+      });
+      const sessao = loginResponseSchema.parse(login.json()).sessao;
+
+      const resposta = await app.inject({
+        method: 'GET',
+        url: '/atendimentos/a2',
+        headers: { authorization: `Bearer ${sessao}` }
+      });
+
+      assert.equal(resposta.statusCode, 200);
+      const corpo = resposta.json();
+      assert.equal(corpo.audio, '/media/conv-a2.mp3');
+      assert.equal(corpo.downloadDeAudio, '/media/conv-a2.mp3');
+    } finally {
+      await app.close();
+    }
+  } finally {
+    S3Client.prototype.send = sendOriginal;
+    process.env = envAnterior;
+  }
+});
+
+test('GET /media/:arquivo serve streaming do R2 sem re-hidratar o storage local', async () => {
+  const envAnterior = { ...process.env };
+  process.env.R2_ENDPOINT = 'https://account-test.r2.cloudflarestorage.com';
+  process.env.R2_BUCKET = 'bucket-r2-teste';
+  process.env.R2_ACCESS_KEY_ID = 'chave-r2-teste';
+  process.env.R2_SECRET_ACCESS_KEY = 'segredo-r2-teste';
+
+  const audioBytes = Buffer.from('conteudo-binario-do-r2');
+  const sendOriginal = S3Client.prototype.send;
+  (S3Client.prototype as any).send = async function (command: any) {
+    if (
+      command.input?.Bucket === 'bucket-r2-teste' &&
+      command.input?.Key === 'atendimentos/conv-r2-stream.mp3'
+    ) {
+      return {
+        ContentType: 'audio/mpeg',
+        Body: {
+          transformToByteArray: async () => new Uint8Array(audioBytes)
+        }
+      };
+    }
+    const erro = new Error('NoSuchKey');
+    (erro as any).name = 'NoSuchKey';
+    throw erro;
+  };
+
+  try {
+    const app = await buildApp();
+    try {
+      const login = await app.inject({
+        method: 'POST',
+        url: '/login',
+        payload: { email: 'ana.souza@crion', senha: 'crion-hq' }
+      });
+      const sessao = loginResponseSchema.parse(login.json()).sessao;
+
+      // Confirma que não está no storage local antes
+      assert.equal(lerMidiaLocal('conv-r2-stream'), undefined);
+
+      const resposta = await app.inject({
+        method: 'GET',
+        url: '/media/conv-r2-stream.mp3',
+        headers: { authorization: `Bearer ${sessao}` }
+      });
+
+      assert.equal(resposta.statusCode, 200);
+      assert.equal(resposta.headers['content-type'], 'audio/mpeg');
+      assert.deepEqual(resposta.rawPayload, audioBytes);
+
+      // Confirma que NÃO re-hidratou no storage local após a resposta
+      assert.equal(
+        lerMidiaLocal('conv-r2-stream'),
+        undefined,
+        'O streaming obtido do R2 não deve re-hidratar o banco ou storage local'
+      );
+    } finally {
+      await app.close();
+    }
+  } finally {
+    S3Client.prototype.send = sendOriginal;
+    process.env = envAnterior;
+  }
+});
+
+test('GET /atendimentos/:id segue normalmente quando R2 falha com erro de rede', async () => {
+  const envAnterior = { ...process.env };
+  process.env.R2_ENDPOINT = 'https://account-test.r2.cloudflarestorage.com';
+  process.env.R2_BUCKET = 'bucket-r2-teste';
+  process.env.R2_ACCESS_KEY_ID = 'chave-r2-teste';
+  process.env.R2_SECRET_ACCESS_KEY = 'segredo-r2-teste';
+
+  const sendOriginal = S3Client.prototype.send;
+  (S3Client.prototype as any).send = async function () {
+    throw new Error('Cloudflare R2 Connection Reset');
+  };
+
+  try {
+    const app = await buildApp();
+    try {
+      const login = await app.inject({
+        method: 'POST',
+        url: '/login',
+        payload: { email: 'ana.souza@crion', senha: 'crion-hq' }
+      });
+      const sessao = loginResponseSchema.parse(login.json()).sessao;
+
+      const resposta = await app.inject({
+        method: 'GET',
+        url: '/atendimentos/a2',
+        headers: { authorization: `Bearer ${sessao}` }
+      });
+
+      // Requisição não quebra e responde 200
+      assert.equal(resposta.statusCode, 200);
+    } finally {
+      await app.close();
+    }
+  } finally {
+    S3Client.prototype.send = sendOriginal;
+    process.env = envAnterior;
+  }
+});
+

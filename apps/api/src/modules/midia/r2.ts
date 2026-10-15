@@ -6,6 +6,8 @@ import {
 import type { AppConfig } from '../../plugins/config.js';
 import type { MidiaGuardada } from './deposito.js';
 
+export { S3Client };
+
 export const BUCKET_PADRAO_R2 = 'hq-crion';
 
 export type TipoDeMidiaAudio = 'audio/mpeg' | 'audio/wav';
