@@ -29,7 +29,7 @@ const midiaRoutes: FastifyPluginAsync = async (app) => {
 
     const limpo = path.posix.normalize(arquivo).replace(/^(\.\.(\/|$))+/, '');
 
-    if (!limpo || limpo.includes('..') || !/\.(wav|mp3)$/i.test(limpo)) {
+    if (!limpo || limpo.includes('..') || limpo.includes('\\') || !/\.(wav|mp3)$/i.test(limpo)) {
       return reply.code(404).send({ statusCode: 404 });
     }
 

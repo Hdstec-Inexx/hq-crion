@@ -231,6 +231,42 @@ test('GET /media/:arquivo sem autenticação responde 401 Unauthorized mesmo com
   }
 });
 
+test('GET /media/:arquivo rejeita path traversal e extensões não autorizadas', async () => {
+  const app = await buildApp();
+
+  try {
+    const login = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'ana.souza@crion', senha: 'crion-hq' }
+    });
+    const sessao = loginResponseSchema.parse(login.json()).sessao;
+
+    const r1 = await app.inject({
+      method: 'GET',
+      url: '/media/arquivo.txt',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    assert.equal(r1.statusCode, 404);
+
+    const r2 = await app.inject({
+      method: 'GET',
+      url: '/media/..%2Fsecret.mp3',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    assert.equal(r2.statusCode, 404);
+
+    const r3 = await app.inject({
+      method: 'GET',
+      url: '/media/sub\\secret.mp3',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    assert.equal(r3.statusCode, 404);
+  } finally {
+    await app.close();
+  }
+});
+
 test('Curador autenticado realiza streaming com Range na rota /media/:arquivo', async () => {
   const app = await buildApp();
 
