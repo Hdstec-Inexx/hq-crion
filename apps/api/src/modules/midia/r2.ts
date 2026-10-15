@@ -52,17 +52,9 @@ export function chavesCandidatas(arquivoOuId: string): string[] {
   set.add(`${convName}.wav`);
 
   // 3. Chave original se tiver extensão de áudio
-  if (limpo.endsWith('.mp3') || limpo.endsWith('.wav')) {
+  if (limpo.toLowerCase().endsWith('.mp3') || limpo.toLowerCase().endsWith('.wav')) {
     set.add(limpo);
   }
-
-  // 4. Chaves sem extensão
-  set.add(`atendimentos/${baseName}`);
-  set.add(`atendimentos/${convName}`);
-  set.add(baseName);
-  set.add(convName);
-  set.add(semExt);
-  set.add(limpo);
 
   return Array.from(set);
 }
@@ -73,27 +65,24 @@ export function criarClienteR2(
     'R2_ENDPOINT' | 'R2_ACCESS_KEY_ID' | 'R2_SECRET_ACCESS_KEY' | 'R2_BUCKET'
   >
 ): S3Client | undefined {
+  const endpoint = formatarEndpointR2(config.R2_ENDPOINT);
   if (
-    !config.R2_ENDPOINT &&
-    (!config.R2_ACCESS_KEY_ID || !config.R2_SECRET_ACCESS_KEY)
+    !endpoint ||
+    !config.R2_ACCESS_KEY_ID ||
+    !config.R2_SECRET_ACCESS_KEY
   ) {
     return undefined;
   }
 
-  const credentials =
-    config.R2_ACCESS_KEY_ID && config.R2_SECRET_ACCESS_KEY
-      ? {
-          accessKeyId: config.R2_ACCESS_KEY_ID,
-          secretAccessKey: config.R2_SECRET_ACCESS_KEY
-        }
-      : undefined;
-
-  const endpoint = formatarEndpointR2(config.R2_ENDPOINT);
+  const credentials = {
+    accessKeyId: config.R2_ACCESS_KEY_ID,
+    secretAccessKey: config.R2_SECRET_ACCESS_KEY
+  };
 
   return new S3Client({
     endpoint,
     region: 'auto',
-    ...(credentials ? { credentials } : {}),
+    credentials,
     forcePathStyle: true
   });
 }
@@ -144,7 +133,7 @@ export async function descobrirCaminhoNoR2(
   const candidatos = chavesCandidatas(id);
   const baseId = id.trim().replace(/\.[A-Za-z0-9]+$/, '').replace(/^atendimentos\//, '');
   const formatarCaminho = (chave: string) => {
-    const extensao = chave.endsWith('.mp3') ? 'mp3' : 'wav';
+    const extensao = chave.toLowerCase().endsWith('.mp3') ? 'mp3' : 'wav';
     return `/media/${baseId}.${extensao}`;
   };
 
@@ -169,6 +158,11 @@ export async function descobrirCaminhoNoR2(
         );
 
         if (getRes.Body) {
+          try {
+            (getRes.Body as any).destroy?.();
+          } catch {
+            // ignora erro ao fechar stream de probing
+          }
           return formatarCaminho(chave);
         }
       } catch {

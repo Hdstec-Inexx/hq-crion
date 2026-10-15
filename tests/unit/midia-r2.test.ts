@@ -69,6 +69,17 @@ test('criarClienteR2 retorna undefined quando credenciais e endpoint não forem 
 
   const clienteApenasBucket = criarClienteR2({ R2_BUCKET: 'bucket-isolado' });
   assert.equal(clienteApenasBucket, undefined);
+
+  const clienteSoEndpoint = criarClienteR2({
+    R2_ENDPOINT: 'https://accountid.r2.cloudflarestorage.com'
+  });
+  assert.equal(clienteSoEndpoint, undefined);
+
+  const clienteSoCredenciais = criarClienteR2({
+    R2_ACCESS_KEY_ID: 'key-id',
+    R2_SECRET_ACCESS_KEY: 'secret-key'
+  });
+  assert.equal(clienteSoCredenciais, undefined);
 });
 
 test('criarClienteR2 instancia S3Client quando endpoint e credenciais forem informados', () => {
@@ -79,17 +90,6 @@ test('criarClienteR2 instancia S3Client quando endpoint e credenciais forem info
     R2_BUCKET: 'meu-bucket'
   });
   assert.ok(cliente);
-
-  const clienteSoEndpoint = criarClienteR2({
-    R2_ENDPOINT: 'https://accountid.r2.cloudflarestorage.com'
-  });
-  assert.ok(clienteSoEndpoint);
-
-  const clienteSoCredenciais = criarClienteR2({
-    R2_ACCESS_KEY_ID: 'key-id',
-    R2_SECRET_ACCESS_KEY: 'secret-key'
-  });
-  assert.ok(clienteSoCredenciais);
 });
 
 test('tipoDeMidiaPorChave atribui audio/mpeg para .mp3 e audio/wav para .wav', () => {
@@ -108,7 +108,7 @@ test('chavesCandidatas resolve chaves planas na raiz e sob atendimentos/', () =>
   assert.ok(chaves.includes('atendimentos/conv_123.wav'));
   assert.ok(chaves.includes('conv_123.mp3'));
   assert.ok(chaves.includes('conv_123.wav'));
-  assert.ok(chaves.includes('conv_123'));
+  assert.equal(chaves.includes('conv_123'), false);
 
   const chavesPorIdSemPrefixo = chavesCandidatas('123');
   assert.ok(chavesPorIdSemPrefixo.includes('conv_123.mp3'));
@@ -119,6 +119,9 @@ test('chavesCandidatas resolve chaves planas na raiz e sob atendimentos/', () =>
   assert.ok(chavesComPrefixo.includes('atendimentos/conv_456.mp3'));
   assert.ok(chavesComPrefixo.includes('conv_456.mp3'));
   assert.ok(!chavesComPrefixo.includes('atendimentos/atendimentos/conv_456.mp3'));
+
+  const chavesMaiusculas = chavesCandidatas('conv_789.MP3');
+  assert.ok(chavesMaiusculas.includes('conv_789.MP3'));
 });
 
 test('buscarMidiaNoR2 localiza arquivo .mp3 no R2 e retorna bytes e tipo', async () => {
@@ -194,6 +197,19 @@ test('descobrirCaminhoNoR2 localiza arquivo e retorna caminho relativo /media/',
 
   const caminho = await descobrirCaminhoNoR2(mockS3 as any, 'bucket-r2', 'conv_999');
   assert.equal(caminho, '/media/conv_999.mp3');
+
+  const mockS3Upper = {
+    send: async (command: any) => {
+      if (command.input.Key === 'conv_upper.MP3') {
+        return { ContentType: 'audio/mpeg' };
+      }
+      const erro = new Error('NotFound');
+      (erro as any).name = 'NotFound';
+      throw erro;
+    }
+  };
+  const caminhoUpper = await descobrirCaminhoNoR2(mockS3Upper as any, 'bucket-r2', 'conv_upper.MP3');
+  assert.equal(caminhoUpper, '/media/conv_upper.mp3');
 });
 
 test('descobrirCaminhoNoR2 faz fallback para GetObject se HeadObject for negado por política', async () => {
