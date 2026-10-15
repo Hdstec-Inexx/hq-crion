@@ -28,6 +28,12 @@ import {
   descobrirCaminhoNoMinio
 } from '../modules/midia/minio.js';
 import {
+  buscarMidiaNoR2,
+  bucketConfiguradoR2,
+  criarClienteR2,
+  descobrirCaminhoNoR2
+} from '../modules/midia/r2.js';
+import {
   aplicarConfiguracaoDaIa,
   lerConfiguracaoDoDeposito,
   usarDepositoDaIa
@@ -87,14 +93,18 @@ export function fonteDePersistencia(env: {
   return 'memoria';
 }
 
-function montarLeitorDeMidia(
+export function montarLeitorDeMidia(
   obterLocal: (chave: string) => Promise<MidiaGuardada | undefined> | MidiaGuardada | undefined,
   gravarLocal: ((chave: string, midia: MidiaGuardada) => Promise<void> | void) | null,
   clienteMinio: ReturnType<typeof criarClienteMinio>,
   clienteS3: ReturnType<typeof criarClienteS3>,
   bucket: string,
-  elevenlabs?: { apiKey?: string; baseUrl: string }
+  elevenlabs?: { apiKey?: string; baseUrl: string },
+  clienteR2?: ReturnType<typeof criarClienteR2>,
+  bucketR2?: string
 ) {
+  const bucketFinalR2 = bucketConfiguradoR2(bucketR2);
+
   return {
     lerMidia: async (arquivoOuId: string) => {
       const local = await obterLocal(arquivoOuId);
@@ -113,6 +123,21 @@ function montarLeitorDeMidia(
         const doS3 = await buscarMidiaNoS3(clienteS3, bucket, arquivoOuId);
         if (doS3) {
           return doS3;
+        }
+      }
+
+      if (clienteR2) {
+        try {
+          const doR2 = await buscarMidiaNoR2(
+            clienteR2,
+            bucketFinalR2,
+            arquivoOuId
+          );
+          if (doR2) {
+            return doR2;
+          }
+        } catch {
+          // segue
         }
       }
 
@@ -162,6 +187,21 @@ function montarLeitorDeMidia(
         }
       }
 
+      if (clienteR2) {
+        try {
+          const doR2 = await descobrirCaminhoNoR2(
+            clienteR2,
+            bucketFinalR2,
+            id
+          );
+          if (doR2) {
+            return doR2;
+          }
+        } catch {
+          // segue
+        }
+      }
+
       if (elevenlabs?.apiKey) {
         const idLimpo = id.replace(/\.[A-Za-z0-9]+$/, '').replace(/^atendimentos\//, '');
         if (idLimpo.startsWith('conv_')) {
@@ -203,6 +243,8 @@ export default fp(
     const bucket = bucketConfigurado(
       app.config.STORAGE_BUCKET ?? app.config.S3_BUCKET
     );
+    const clienteR2 = criarClienteR2(app.config);
+    const bucketR2 = bucketConfiguradoR2(app.config.R2_BUCKET);
 
     if (fonte === 'memoria') {
       usarDepositoDePerfis(null);
@@ -218,7 +260,9 @@ export default fp(
         {
           apiKey: app.config.ELEVENLABS_API_KEY,
           baseUrl: app.config.ELEVENLABS_BASE_URL
-        }
+        },
+        clienteR2,
+        bucketR2
       );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);
@@ -267,7 +311,9 @@ export default fp(
         {
           apiKey: app.config.ELEVENLABS_API_KEY,
           baseUrl: app.config.ELEVENLABS_BASE_URL
-        }
+        },
+        clienteR2,
+        bucketR2
       );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);

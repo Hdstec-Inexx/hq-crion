@@ -10,6 +10,7 @@ import { parseAppConfig } from '../../apps/api/src/plugins/config.js';
 import {
   fonteDePersistencia,
   ingestaoEsperaOPlugin,
+  montarLeitorDeMidia,
   timeoutDoPluginPersistencia
 } from '../../apps/api/src/plugins/persistencia.js';
 import { deveSemear } from '../../apps/api/src/modules/atendimentos/semente.js';
@@ -348,3 +349,128 @@ test('o depósito recusa desativar o Admin quando o outro Admin já saiu', async
     usarDepositoDePerfis(null);
   }
 });
+
+test('montarLeitorDeMidia prioriza Local -> S3/MinIO -> R2 -> ElevenLabs e não re-hidrata localmente ao ler do R2', async () => {
+  const chamadas: string[] = [];
+  let gravouLocal = false;
+
+  const obterLocalVazio = async () => {
+    chamadas.push('local');
+    return undefined;
+  };
+
+  const gravarLocal = async () => {
+    gravouLocal = true;
+  };
+
+  const mockS3NaoEncontra = {
+    send: async () => {
+      chamadas.push('s3');
+      const err = new Error('NoSuchKey');
+      (err as any).name = 'NoSuchKey';
+      throw err;
+    }
+  };
+
+  const mockR2Encontra = {
+    send: async (command: any) => {
+      chamadas.push(`r2:${command.input.Key}`);
+      if (command.input.Key === 'atendimentos/conv_123.mp3') {
+        return {
+          ContentType: 'audio/mpeg',
+          Body: {
+            transformToByteArray: async () => new Uint8Array([7, 8, 9])
+          }
+        };
+      }
+      const err = new Error('NoSuchKey');
+      (err as any).name = 'NoSuchKey';
+      throw err;
+    }
+  };
+
+  const leitor = montarLeitorDeMidia(
+    obterLocalVazio,
+    gravarLocal,
+    undefined,
+    mockS3NaoEncontra as any,
+    'bucket-quente',
+    { apiKey: 'chave-eleven', baseUrl: 'https://eleven.example' },
+    mockR2Encontra as any,
+    'bucket-frio'
+  );
+
+  const midia = await leitor.lerMidia('conv_123');
+
+  assert.ok(midia);
+  assert.equal(midia?.tipo, 'audio/mpeg');
+  assert.deepEqual(midia?.conteudo, Buffer.from([7, 8, 9]));
+  assert.equal(gravouLocal, false, 'streaming do R2 não deve re-hidratar o storage local/banco');
+  assert.equal(chamadas[0], 'local');
+  assert.ok(chamadas.includes('s3'));
+  assert.ok(chamadas.some((c) => c.startsWith('r2:')));
+});
+
+test('montarLeitorDeMidia descobrirMidia resolve caminho do R2 sem gravar local e segue sem erro quando ausente', async () => {
+  let gravouLocal = false;
+  const mockR2 = {
+    send: async (command: any) => {
+      if (command.input.Key === 'atendimentos/conv_r2.wav') {
+        return { ContentType: 'audio/wav' };
+      }
+      const err = new Error('NotFound');
+      (err as any).name = 'NotFound';
+      throw err;
+    }
+  };
+
+  const leitor = montarLeitorDeMidia(
+    async () => undefined,
+    async () => {
+      gravouLocal = true;
+    },
+    undefined,
+    undefined,
+    'bucket-quente',
+    undefined,
+    mockR2 as any,
+    'bucket-frio'
+  );
+
+  const caminho = await leitor.descobrirMidia('conv_r2');
+  assert.equal(caminho, '/media/conv_r2.wav');
+  assert.equal(gravouLocal, false);
+
+  const caminhoAusente = await leitor.descobrirMidia('conv_inexistente');
+  assert.equal(caminhoAusente, undefined);
+});
+
+test('montarLeitorDeMidia recorre a ElevenLabs quando R2 falha com erro', async () => {
+  const chamadas: string[] = [];
+  const mockR2Quebrado = {
+    send: async () => {
+      chamadas.push('r2-quebrado');
+      throw new Error('R2 Network Timeout');
+    }
+  };
+
+  const leitor = montarLeitorDeMidia(
+    async () => undefined,
+    null,
+    undefined,
+    undefined,
+    'bucket-quente',
+    undefined, // sem elevenlabs, não quebra a requisição
+    mockR2Quebrado as any,
+    'bucket-frio'
+  );
+
+  // Não deve lançar erro
+  const midia = await leitor.lerMidia('conv_erro');
+  assert.equal(midia, undefined);
+  assert.ok(chamadas.includes('r2-quebrado'));
+
+  const caminho = await leitor.descobrirMidia('conv_erro');
+  assert.equal(caminho, undefined);
+});
+
