@@ -44,8 +44,13 @@ export async function semearEstrutura(pool: PoolDeDeposito) {
       await cliente.query(
         `INSERT INTO hq_criterio_da_regua (regua_id, ordem, nome, valor, critico, chave, admite_nao_se_aplica)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (regua_id, ordem) DO NOTHING`,
-        [
+         ON CONFLICT (regua_id, ordem) DO UPDATE SET
+           critico = EXCLUDED.critico,
+           valor = EXCLUDED.valor,
+           nome = EXCLUDED.nome,
+           chave = EXCLUDED.chave,
+           admite_nao_se_aplica = EXCLUDED.admite_nao_se_aplica`,
+         [
           idDaLinhaUnica,
           indice + 1,
           criterio.nome,

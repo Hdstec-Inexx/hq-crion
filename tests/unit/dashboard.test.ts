@@ -967,3 +967,81 @@ test('Aprovação usa o selo da IA e deixa de fora nota 9 com Critério crítico
     await app.close();
   }
 });
+
+test('Aprovação reprova Atendimento com nota 8.5 quando Resolução da demanda é Não atendido', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    const sessaoGestao = await sessaoDe(app, 'ana.souza@crion');
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const recorte = mesCivilNaQuery('administradora=Affix&agente=affix-0800');
+    const criterios = reguaUnica.criterios.map((criterio) => ({
+      nome: criterio.nome,
+      chave: criterio.chave,
+      estado:
+        criterio.chave === 'resolucao-da-demanda' || criterio.nome === 'Resolução da demanda'
+          ? ('Não atendido' as const)
+          : ('Atendido' as const),
+      pontos: criterio.valor,
+      critico: criterio.critico
+    }));
+    const veredito = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/avaliacao-da-ia',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: {
+        nota: 8.5,
+        criterios,
+        resumo: 'Cliente solicitou 2ª via e não foi atendido.',
+        falhasIdentificadas: ['Demanda não resolvida pelo Agente de Voz.']
+      }
+    });
+    const detalheGestao = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessaoGestao}` }
+    });
+    const detalheCurador = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a1',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    const dashboard = await app.inject({
+      method: 'GET',
+      url: `/dashboard?${recorte}`,
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const lista = await app.inject({
+      method: 'GET',
+      url: `/atendimentos?${recorte}&indicador=aprovacao`,
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const conferencia = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: {
+        checklist: criterios.map(({ nome, estado }) => ({ nome, estado }))
+      }
+    });
+
+    assert.equal(veredito.statusCode, 200, veredito.body);
+    assert.equal(veredito.json().avaliacaoDaIa.nota, 8.5);
+    assert.equal(veredito.json().avaliacaoDaIa.aprovacao, 'Reprovado');
+    assert.equal(detalheGestao.json().avaliacaoDaIa.aprovacao, 'Reprovado');
+    assert.equal(detalheCurador.json().avaliacaoDaIa.aprovacao, 'Reprovado');
+    assert.equal(dashboard.statusCode, 200, dashboard.body);
+    assert.equal(kpi(dashboardResponseSchema.parse(dashboard.json()), 'aprovacao').valor, 0);
+    assert.equal(
+      lista.json().itens.some((item: { id: string }) => item.id === 'a1'),
+      false
+    );
+    assert.equal(conferencia.statusCode, 200, conferencia.body);
+    assert.equal(conferencia.json().avaliacaoDoCurador.nota, 8.5);
+    assert.equal(conferencia.json().avaliacaoDoCurador.aprovacao, 'Reprovado');
+  } finally {
+    await app.close();
+  }
+});
+

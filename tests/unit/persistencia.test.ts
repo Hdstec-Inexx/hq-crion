@@ -125,9 +125,44 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '07_funcao_persistir_avaliacao_da_ia.sql',
       '08_transferencia_transfer_to_number.sql',
       '09_uma_avaliacao_do_curador.sql',
-      '010_favoritos.sql'
+      '010_favoritos.sql',
+      '011_resolucao_da_demanda_critica.sql'
     ]
   );
+});
+
+test('a migration 011_resolucao_da_demanda_critica atualiza a Régua e critérios históricos com desativação de trigger', () => {
+  const migracao = listarMigracoes().find((m) => m.nome === '011_resolucao_da_demanda_critica.sql');
+  assert.ok(migracao, 'migration 011_resolucao_da_demanda_critica.sql ausente');
+  const sql = migracao.sql;
+  assert.match(sql, /UPDATE\s+hq_criterio_da_regua\s+SET\s+critico\s*=\s*true/i);
+  assert.match(sql, /valor\s*=\s*1\.5/i);
+  assert.match(sql, /resolucao-da-demanda/i);
+  assert.match(sql, /UPDATE\s+hq_criterio_da_avaliacao_da_ia\s+SET\s+critico\s*=\s*true/i);
+  assert.match(sql, /DISABLE\s+TRIGGER\s+hq_criterio_da_avaliacao_do_curador_imutavel/i);
+  assert.match(sql, /UPDATE\s+hq_criterio_da_avaliacao_do_curador\s+SET\s+critico\s*=\s*true/i);
+  assert.match(sql, /ENABLE\s+TRIGGER\s+hq_criterio_da_avaliacao_do_curador_imutavel/i);
+});
+
+test('a migration 011_resolucao_da_demanda_critica é aplicada no fluxo de migração do banco', async () => {
+  const comandos: string[] = [];
+  const { pool } = poolDeTeste((texto) => {
+    comandos.push(texto);
+    if (texto.includes('SELECT nome FROM hq_migracao')) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  await aplicarMigracoes(pool);
+
+  const migracao011 = comandos.find(
+    (cmd) => cmd.includes('hq_criterio_da_regua') && cmd.includes('critico = true')
+  );
+  assert.ok(migracao011, 'migration 011 deve ser executada');
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_regua\s+SET\s+critico\s*=\s*true/i);
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_avaliacao_da_ia\s+SET\s+critico\s*=\s*true/i);
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_avaliacao_do_curador\s+SET\s+critico\s*=\s*true/i);
 });
 
 test('a migration 010_favoritos cria hq_favorito com chaves estrangeiras, unicidade e índices', () => {
@@ -280,6 +315,7 @@ test('segunda aplicação não repete a migration', async () => {
   assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
   assert.equal(aplicadas.has('005_boot_e_custo_ausente.sql'), true);
   assert.equal(aplicadas.has('07_funcao_persistir_avaliacao_da_ia.sql'), true);
+  assert.equal(aplicadas.has('011_resolucao_da_demanda_critica.sql'), true);
   assert.equal(
     vistos.filter((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')).length,
     1

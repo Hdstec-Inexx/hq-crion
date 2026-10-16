@@ -653,4 +653,53 @@ if (!rodaAceite) {
       assert.ok(resolucao.json().resolvidoEm);
     });
   });
+
+  test('Postgres: Resolução da demanda é crítico e reprova o Atendimento mesmo com nota alta', async () => {
+    await comApp({ skipSeed: true }, async (app) => {
+      const admin = await sessaoDe(app, 'bruno.alves@crion');
+      const curador = await sessaoDe(app, 'carla.mendes@crion');
+
+      await pool.query(`
+        INSERT INTO hq_atendimento
+          (id, agente_id, status, iniciado_em, transcricao, motivo, transferencia, custo, evento_na_fonte_em)
+        VALUES
+          ('dep-resolucao', 'affix-0800', 'Concluído', now(), '[]'::jsonb, 'Rede credenciada', false, 1.42, now())
+      `);
+
+      const listaCriterios = criterios('Atendido', {
+        nome: 'Resolução da demanda',
+        estado: 'Não atendido'
+      });
+
+      const veredito = await app.inject({
+        method: 'POST',
+        url: '/atendimentos/dep-resolucao/avaliacao-da-ia',
+        headers: { authorization: `Bearer ${admin}` },
+        payload: {
+          nota: 8.5,
+          criterios: listaCriterios,
+          resumo: 'Demanda não atendida',
+          falhasIdentificadas: ['Resolução da demanda falhou']
+        }
+      });
+      assert.equal(veredito.statusCode, 200, veredito.body);
+      assert.equal(veredito.json().avaliacaoDaIa.nota, 8.5);
+      assert.equal(veredito.json().avaliacaoDaIa.aprovacao, 'Reprovado');
+
+      const conferencia = await app.inject({
+        method: 'POST',
+        url: '/atendimentos/dep-resolucao/conferencia',
+        headers: { authorization: `Bearer ${curador}` },
+        payload: {
+          checklist: estados('Atendido', {
+            nome: 'Resolução da demanda',
+            estado: 'Não atendido'
+          })
+        }
+      });
+      assert.equal(conferencia.statusCode, 200, conferencia.body);
+      assert.equal(conferencia.json().avaliacaoDoCurador.nota, 8.5);
+      assert.equal(conferencia.json().avaliacaoDoCurador.aprovacao, 'Reprovado');
+    });
+  });
 }

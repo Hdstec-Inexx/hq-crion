@@ -1,6 +1,7 @@
-import type {
-  AtendimentoListItem,
-  EstadoDoCriterio
+import {
+  seloDaAvaliacao,
+  type AtendimentoListItem,
+  type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
 import { periodoMesCivil } from '@hq-crion/contracts/recorte';
 import { reguaUnica } from '../regua/regua-unica.js';
@@ -119,12 +120,11 @@ function criteriosDaAvaliacao(conferida: boolean) {
 }
 
 function avaliacaoDe(nota: number, conferida: boolean) {
+  const criterios = criteriosDaAvaliacao(conferida);
   return {
     nota,
-    aprovacao: (nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado') as
-      | 'Aprovado'
-      | 'Reprovado',
-    criterios: criteriosDaAvaliacao(conferida),
+    aprovacao: seloDaAvaliacao(nota, reguaUnica.limiarDeAprovacao, criterios),
+    criterios,
     resumo: 'O cliente solicitou informações sobre o atendimento e obteve orientação conforme o procedimento operacional padrão.',
     falhasIdentificadas: conferida ? ['Informação de Protocolo não confirmada verbalmente no início do contato.'] : []
   };
