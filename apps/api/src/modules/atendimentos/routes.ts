@@ -30,6 +30,7 @@ import {
   aprovacaoDaAvaliacao,
   detalhePublico,
   montarConferencia,
+  notasDoAtendimento,
   recusaDaConferencia,
   recusaNaoSeAplica,
   type RegistroDeAtendimento
@@ -85,11 +86,7 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
 }
 
 function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
-  const notaIa = detalhe.notaIa ?? detalhe.avaliacaoDaIa?.nota ?? detalhe.nota;
-  const notaCurador =
-    detalhe.notaCurador !== undefined
-      ? detalhe.notaCurador
-      : (detalhe.avaliacaoDoCurador?.nota ?? null);
+  const { notaIa, notaCurador } = notasDoAtendimento(detalhe);
 
   return {
     id: detalhe.id,

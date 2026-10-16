@@ -178,7 +178,7 @@ export function ListagemAtendimentos({
                     />
                   )}
                   <div className="listagem-notas">
-                    <span className="listagem-nota">IA: {formatarNota(item.notaIa ?? item.nota)}</span>
+                    <span className="listagem-nota">IA: {formatarNota(item.notaIa)}</span>
                     {item.curadoria && item.notaCurador !== null && item.notaCurador !== undefined ? (
                       <span className="listagem-nota">Curador: {formatarNota(item.notaCurador)}</span>
                     ) : null}

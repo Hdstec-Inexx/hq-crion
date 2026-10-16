@@ -13,6 +13,7 @@ import {
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
   criteriosComChave,
+  notasDoAtendimento,
   recusaDaAvaliacao,
   recusaDaConferencia,
   type RegistroDeAtendimento
@@ -275,10 +276,10 @@ export function repositorioEmMemoria(
       const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
       return itens.map((item) => {
         const info = resolverFavoritos(favoritos, item.id, perfilId);
+        const notas = notasDoAtendimento(item);
         return {
           ...item,
-          notaIa: item.avaliacaoDaIa?.nota ?? item.notaIa ?? item.nota,
-          notaCurador: item.avaliacaoDoCurador?.nota ?? item.notaCurador ?? null,
+          ...notas,
           favoritadoPeloUsuario: info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
@@ -292,10 +293,10 @@ export function repositorioEmMemoria(
 
       const mapearItem = (item: RegistroDeAtendimento) => {
         const info = resolverFavoritos(favoritos, item.id, perfil.id);
+        const notas = notasDoAtendimento(item);
         return {
           ...item,
-          notaIa: item.avaliacaoDaIa?.nota ?? item.notaIa ?? item.nota,
-          notaCurador: item.avaliacaoDoCurador?.nota ?? item.notaCurador ?? null,
+          ...notas,
           favoritadoPeloUsuario: perfil.papel === 'Curador' ? true : info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
