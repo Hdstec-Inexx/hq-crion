@@ -70,6 +70,8 @@ function comentarioDoPercurso(entrada: {
     iniciadoEm: entrada.iniciadoEm,
     motivo: 'Boleto',
     nota: 6,
+    notaIa: 6,
+    notaCurador: 6,
     status: 'Concluído',
     curadoria: true,
     conversa: 'conv-a2',

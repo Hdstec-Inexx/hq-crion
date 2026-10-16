@@ -195,6 +195,13 @@ export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe 
     ...publico
   } = item;
 
-  return publico;
+  return {
+    ...publico,
+    notaIa: item.notaIa ?? item.avaliacaoDaIa?.nota ?? item.nota,
+    notaCurador:
+      item.notaCurador !== undefined
+        ? item.notaCurador
+        : (item.avaliacaoDoCurador?.nota ?? null)
+  };
 }
 

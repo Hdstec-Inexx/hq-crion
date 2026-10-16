@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import {
+  atendimentoListItemSchema,
   caminhoDeMidiaPermitido,
   custoVisivelPara,
   downloadVisivelPara,
@@ -36,6 +39,115 @@ async function sessaoDe(
 
   return loginResponseSchema.parse(login.json()).sessao;
 }
+
+test('linha da listagem exibe notas rotuladas de IA e Curador e listagens.css acomoda o container', () => {
+  const raiz = join(process.cwd());
+  const listagemTsx = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/ListagemAtendimentos.tsx'),
+    'utf8'
+  );
+
+  // Deve exibir IA: X,X
+  assert.match(listagemTsx, /IA:\s*\{formatarNota\(/);
+  // Deve exibir Curador: Y,Y condicionalmente à curadoria
+  assert.match(listagemTsx, /Curador:\s*\{formatarNota\(/);
+  assert.match(listagemTsx, /item\.curadoria/);
+
+  // CSS acomoda as notas rotuladas sem quebrar o grid
+  const listagensCss = readFileSync(
+    join(raiz, 'apps/web/src/styles/listagens.css'),
+    'utf8'
+  );
+  assert.match(listagensCss, /\.listagem-notas/);
+});
+
+test('GET /atendimentos retorna notaIa e notaCurador conforme o estado da curadoria', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = response.json();
+    assert.ok(body.itens.length > 0);
+
+    const a1 = body.itens.find((it: { id: string }) => it.id === 'a1');
+    assert.ok(a1);
+    assert.equal(typeof a1.notaIa, 'number');
+    assert.equal(a1.notaIa, 8.5);
+    assert.equal(a1.notaCurador, null);
+    assert.equal(a1.curadoria, false);
+
+    const a2 = body.itens.find((it: { id: string }) => it.id === 'a2');
+    assert.ok(a2);
+    assert.equal(typeof a2.notaIa, 'number');
+    assert.equal(a2.notaIa, 6.0);
+    assert.equal(typeof a2.notaCurador, 'number');
+    assert.equal(a2.notaCurador, 6.0);
+    assert.equal(a2.curadoria, true);
+
+    for (const item of body.itens) {
+      assert.equal(typeof item.notaIa, 'number');
+      assert.equal(typeof item.nota, 'number');
+      if (item.curadoria) {
+        assert.equal(typeof item.notaCurador, 'number');
+      } else {
+        assert.equal(item.notaCurador, null);
+      }
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+test('atendimentoListItemSchema inclui notaIa, notaCurador e preserva nota', () => {
+  const itemValidoComCurador = {
+    id: 'a1',
+    administradora: 'Affix',
+    agente: 'Clara Affix',
+    agenteId: 'affix-0800',
+    iniciadoEm: '2026-10-10T10:00:00-03:00',
+    motivo: 'Boleto',
+    nota: 8.5,
+    notaIa: 8.5,
+    notaCurador: 9.0,
+    status: 'Concluído',
+    curadoria: true,
+    conversa: 'conv-1'
+  };
+  const parseadoComCurador = atendimentoListItemSchema.parse(itemValidoComCurador);
+  assert.equal(parseadoComCurador.nota, 8.5);
+  assert.equal(parseadoComCurador.notaIa, 8.5);
+  assert.equal(parseadoComCurador.notaCurador, 9.0);
+
+  const itemValidoSemCurador = {
+    ...itemValidoComCurador,
+    notaCurador: null,
+    curadoria: false
+  };
+  const parseadoSemCurador = atendimentoListItemSchema.parse(itemValidoSemCurador);
+  assert.equal(parseadoSemCurador.notaIa, 8.5);
+  assert.equal(parseadoSemCurador.notaCurador, null);
+
+  const itemSemNotaIa = {
+    id: 'a1',
+    administradora: 'Affix',
+    agente: 'Clara Affix',
+    agenteId: 'affix-0800',
+    iniciadoEm: '2026-10-10T10:00:00-03:00',
+    motivo: 'Boleto',
+    nota: 8.5,
+    status: 'Concluído',
+    curadoria: false,
+    conversa: 'conv-1'
+  };
+  assert.throws(() => atendimentoListItemSchema.parse(itemSemNotaIa));
+});
 
 test('mapa GEAP de filtros por página e motivo fechado', () => {
   assert.ok(motivosDeContato.includes('Não informado'));

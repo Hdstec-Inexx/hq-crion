@@ -177,7 +177,12 @@ export function ListagemAtendimentos({
                       perfis={item.favoritosPerfis}
                     />
                   )}
-                  <strong>{formatarNota(item.nota)}</strong>
+                  <div className="listagem-notas">
+                    <span className="listagem-nota">IA: {formatarNota(item.notaIa ?? item.nota)}</span>
+                    {item.curadoria && item.notaCurador !== null && item.notaCurador !== undefined ? (
+                      <span className="listagem-nota">Curador: {formatarNota(item.notaCurador)}</span>
+                    ) : null}
+                  </div>
                 </article>
               ))
             )}

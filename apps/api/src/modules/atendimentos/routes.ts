@@ -85,6 +85,12 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
 }
 
 function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
+  const notaIa = detalhe.notaIa ?? detalhe.avaliacaoDaIa?.nota ?? detalhe.nota;
+  const notaCurador =
+    detalhe.notaCurador !== undefined
+      ? detalhe.notaCurador
+      : (detalhe.avaliacaoDoCurador?.nota ?? null);
+
   return {
     id: detalhe.id,
     administradora: detalhe.administradora,
@@ -93,6 +99,8 @@ function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
     iniciadoEm: detalhe.iniciadoEm,
     motivo: detalhe.motivo,
     nota: detalhe.nota,
+    notaIa,
+    notaCurador,
     status: detalhe.status,
     curadoria: detalhe.curadoria,
     conversa: detalhe.conversa,

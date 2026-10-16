@@ -50,6 +50,14 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
     atual.custo = novo.custo;
   }
 
+  if (novo.notaIa !== undefined) {
+    atual.notaIa = novo.notaIa;
+  }
+
+  if (novo.notaCurador !== undefined) {
+    atual.notaCurador = novo.notaCurador;
+  }
+
   if (novo.audio) {
     Object.assign(atual, camposDeMidia(novo.audio));
   }
@@ -205,6 +213,7 @@ export function repositorioEmMemoria(
       }
 
       item.nota = entrada.nota;
+      item.notaIa = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
       item.avaliacaoDaIa = {
         nota: entrada.nota,
@@ -226,6 +235,7 @@ export function repositorioEmMemoria(
 
       item.curadoria = true;
       item.curadorDaRevisao = entrada.curador;
+      item.notaCurador = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
@@ -267,6 +277,8 @@ export function repositorioEmMemoria(
         const info = resolverFavoritos(favoritos, item.id, perfilId);
         return {
           ...item,
+          notaIa: item.avaliacaoDaIa?.nota ?? item.notaIa ?? item.nota,
+          notaCurador: item.avaliacaoDoCurador?.nota ?? item.notaCurador ?? null,
           favoritadoPeloUsuario: info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
@@ -282,6 +294,8 @@ export function repositorioEmMemoria(
         const info = resolverFavoritos(favoritos, item.id, perfil.id);
         return {
           ...item,
+          notaIa: item.avaliacaoDaIa?.nota ?? item.notaIa ?? item.nota,
+          notaCurador: item.avaliacaoDoCurador?.nota ?? item.notaCurador ?? null,
           favoritadoPeloUsuario: perfil.papel === 'Curador' ? true : info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
