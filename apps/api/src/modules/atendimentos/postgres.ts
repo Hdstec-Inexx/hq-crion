@@ -417,7 +417,7 @@ function registroDoComentario(linha: {
     motivo: linha.motivo,
     nota: 0,
     notaIa: 0,
-    notaCurador: 0,
+    notaCurador: null,
     status: linha.status_atendimento,
     curadoria: true,
     conversa: linha.id,

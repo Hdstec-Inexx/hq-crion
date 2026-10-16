@@ -187,8 +187,7 @@ export function notasDoAtendimento(item: {
   avaliacaoDoCurador?: { nota?: number | null };
 }): { notaIa: number; notaCurador: number | null } {
   const notaIa = item.avaliacaoDaIa?.nota ?? item.notaIa ?? item.nota ?? 0;
-  const notaCurador =
-    item.avaliacaoDoCurador?.nota ?? (item.notaCurador !== undefined ? item.notaCurador : null);
+  const notaCurador = item.avaliacaoDoCurador?.nota ?? item.notaCurador ?? null;
   return { notaIa, notaCurador };
 }
 
