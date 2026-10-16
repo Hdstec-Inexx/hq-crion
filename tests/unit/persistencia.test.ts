@@ -144,6 +144,27 @@ test('a migration 011_resolucao_da_demanda_critica atualiza a Régua e critério
   assert.match(sql, /ENABLE\s+TRIGGER\s+hq_criterio_da_avaliacao_do_curador_imutavel/i);
 });
 
+test('a migration 011_resolucao_da_demanda_critica é aplicada no fluxo de migração do banco', async () => {
+  const comandos: string[] = [];
+  const { pool } = poolDeTeste((texto) => {
+    comandos.push(texto);
+    if (texto.includes('SELECT nome FROM hq_migracao')) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  await aplicarMigracoes(pool);
+
+  const migracao011 = comandos.find(
+    (cmd) => cmd.includes('hq_criterio_da_regua') && cmd.includes('critico = true')
+  );
+  assert.ok(migracao011, 'migration 011 deve ser executada');
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_regua\s+SET\s+critico\s*=\s*true/i);
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_avaliacao_da_ia\s+SET\s+critico\s*=\s*true/i);
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_avaliacao_do_curador\s+SET\s+critico\s*=\s*true/i);
+});
+
 test('a migration 010_favoritos cria hq_favorito com chaves estrangeiras, unicidade e índices', () => {
   const migracao = listarMigracoes().find((m) => m.nome === '010_favoritos.sql');
   assert.ok(migracao, 'migration 010_favoritos.sql ausente');
