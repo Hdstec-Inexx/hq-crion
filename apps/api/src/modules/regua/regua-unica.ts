@@ -47,7 +47,7 @@ export const reguaUnica: ReguaDeAvaliacao = reguaDeAvaliacaoSchema.parse({
       chave: 'resolucao-da-demanda',
       nome: 'Resolução da demanda',
       valor: 1.5,
-      critico: false,
+      critico: true,
       admiteNaoSeAplica: false
     },
     {

@@ -133,7 +133,9 @@ function criterioDaRegua(criterio: { chave?: string; nome: string }) {
 export function criteriosComChave(criterios: readonly CriterioAvaliado[]): CriterioAvaliado[] {
   return criterios.map((criterio) => {
     const daRegua = criterioDaRegua(criterio);
-    return daRegua ? { ...criterio, chave: daRegua.chave, nome: daRegua.nome } : criterio;
+    return daRegua
+      ? { ...criterio, chave: daRegua.chave, nome: daRegua.nome, critico: daRegua.critico }
+      : criterio;
   });
 }
 

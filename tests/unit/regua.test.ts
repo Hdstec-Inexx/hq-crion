@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../../apps/api/src/app.js';
+import { seloDaAvaliacao } from '../../packages/contracts/src/atendimento.js';
 import { areasDaCasca } from '../../packages/contracts/src/casca.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import { reguaDeAvaliacaoSchema } from '../../packages/contracts/src/regua.js';
+import { reguaUnica } from '../../apps/api/src/modules/regua/regua-unica.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -79,6 +81,12 @@ test('Gestão autenticada consulta a Régua única: critérios somam 10, com cr�
     assert.equal(typeof protocolo?.chave, 'string');
     assert.equal(protocolo && protocolo.chave.length > 0, true);
     assert.equal(protocolo?.admiteNaoSeAplica, false);
+    const resolucao = regua.criterios.find(
+      (criterio) => criterio.chave === 'resolucao-da-demanda' || criterio.nome === 'Resolução da demanda'
+    );
+    assert.equal(resolucao?.valor, 1.5);
+    assert.equal(resolucao?.critico, true);
+    assert.equal(resolucao?.admiteNaoSeAplica, false);
     const validacao = regua.criterios.find(
       (criterio) => criterio.nome === 'Validação de e-mail'
     );
@@ -209,4 +217,25 @@ test('preflight de GET /regua autoriza Authorization e Cache-Control', async () 
     await app.close();
   }
 });
+
+test('critério Resolução da demanda é crítico, vale 1.5 e reprova quando Não atendido', () => {
+  const resolucao = reguaUnica.criterios.find(
+    (criterio) => criterio.chave === 'resolucao-da-demanda' || criterio.nome === 'Resolução da demanda'
+  );
+  assert.ok(resolucao, 'critério Resolução da demanda deve existir');
+  assert.equal(resolucao.valor, 1.5);
+  assert.equal(resolucao.critico, true);
+  assert.equal(resolucao.admiteNaoSeAplica, false);
+
+  const criterios = reguaUnica.criterios.map((criterio) => ({
+    estado:
+      criterio.chave === 'resolucao-da-demanda'
+        ? ('Não atendido' as const)
+        : ('Atendido' as const),
+    critico: criterio.critico
+  }));
+  const selo = seloDaAvaliacao(8.5, reguaUnica.limiarDeAprovacao, criterios);
+  assert.equal(selo, 'Reprovado');
+});
+
 
