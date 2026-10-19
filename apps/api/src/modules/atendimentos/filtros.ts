@@ -1,8 +1,8 @@
 import {
-  motivosDeContato,
   notaIaDaQuery,
   statusDaCuradoria
 } from '@hq-crion/contracts/filtros-listagem';
+import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   lerRecorte,
   periodoDaListagem,
@@ -10,6 +10,8 @@ import {
   type PeriodoFechado
 } from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
+import { buscarPorId as buscarPerfilPorId } from '../perfil/repositorio.js';
+import { chaveCanonicaDoMotivo } from './catalogo-motivos.js';
 import {
   avaliacaoDaIaTemVeredito,
   iaEstaAprovada,
@@ -97,10 +99,17 @@ export function passaNosFiltros(
   recorte: ReturnType<typeof lerRecorte>,
   query: Record<string, string | undefined>,
   modo: ModoDaListagem,
-  perfilId: string
+  perfilId: string,
+  papel?: Papel
 ) {
   if (modo === 'monitoramento') {
     return passaNoRecorte(item, recorte) && item.status === 'Em andamento';
+  }
+
+  const papelEfetivo = papel ?? (perfilId ? buscarPerfilPorId(perfilId)?.papel : undefined);
+
+  if (modo === 'todos' && papelEfetivo === 'Curador' && item.curadoria) {
+    return false;
   }
 
   const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
@@ -119,10 +128,15 @@ export function passaNosFiltros(
     return false;
   }
 
-  const motivo = motivosDeContato.find((opcao) => opcao === query.motivo);
+  if (query.motivo && query.motivo.trim() !== '') {
+    const chaveQuery = chaveCanonicaDoMotivo(query.motivo);
+    const chaveItem = chaveCanonicaDoMotivo(item.motivo);
+    const coincide =
+      item.motivo === query.motivo || (chaveQuery !== '' && chaveQuery === chaveItem);
 
-  if (motivo && item.motivo !== motivo) {
-    return false;
+    if (!coincide) {
+      return false;
+    }
   }
 
   if (query.conversa && item.conversa !== query.conversa) {
