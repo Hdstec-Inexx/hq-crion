@@ -1,4 +1,5 @@
 import {
+  motivosDeContato,
   notaIaDaQuery,
   statusDaCuradoria
 } from '@hq-crion/contracts/filtros-listagem';
@@ -10,7 +11,10 @@ import {
   type PeriodoFechado
 } from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
-import { chaveCanonicaDoMotivo } from './catalogo-motivos.js';
+import {
+  chaveCanonicaDoMotivo,
+  motivosOficiaisDaClara
+} from './catalogo-motivos.js';
 import {
   avaliacaoDaIaTemVeredito,
   iaEstaAprovada,
@@ -127,12 +131,24 @@ export function passaNosFiltros(
 
   if (query.motivo && query.motivo.trim() !== '') {
     const chaveQuery = chaveCanonicaDoMotivo(query.motivo);
-    const chaveItem = chaveCanonicaDoMotivo(item.motivo);
-    const coincide =
-      item.motivo === query.motivo || (chaveQuery !== '' && chaveQuery === chaveItem);
+    const motivoCanonico =
+      motivosOficiaisDaClara.find(
+        (opcao) =>
+          opcao === query.motivo ||
+          (chaveCanonicaDoMotivo(opcao) !== '' && chaveCanonicaDoMotivo(opcao) === chaveQuery)
+      ) ??
+      motivosDeContato.find(
+        (opcao) =>
+          opcao === query.motivo ||
+          (chaveCanonicaDoMotivo(opcao) !== '' && chaveCanonicaDoMotivo(opcao) === chaveQuery)
+      );
 
-    if (!coincide) {
-      return false;
+    if (motivoCanonico) {
+      const chaveCanonica = chaveCanonicaDoMotivo(motivoCanonico);
+      const chaveItem = chaveCanonicaDoMotivo(item.motivo);
+      if (item.motivo !== motivoCanonico && chaveItem !== chaveCanonica) {
+        return false;
+      }
     }
   }
 
