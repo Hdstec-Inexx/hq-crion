@@ -50,6 +50,8 @@ export const atendimentoListItemSchema = z.object({
   iniciadoEm: z.string().min(1),
   motivo: z.string().min(1),
   nota: z.number(),
+  notaIa: z.number(),
+  notaCurador: z.number().nullable().optional(),
   status: z.string().min(1),
   curadoria: z.boolean(),
   conversa: z.string().min(1),
@@ -70,7 +72,8 @@ export const listagemResponseSchema = z.object({
   tamanho: z.literal(50),
   total: z.number().int().min(0),
   itens: z.array(atendimentoListItemSchema),
-  curadores: z.array(curadorDaListagemSchema)
+  curadores: z.array(curadorDaListagemSchema),
+  motivos: z.array(z.string())
 });
 
 export const statusDoComentarioSchema = z.enum(['Pendente', 'Resolvido']);

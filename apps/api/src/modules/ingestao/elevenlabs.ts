@@ -478,6 +478,8 @@ export function atendimentoDaFonteElevenLabs(
     iniciadoEm,
     motivo: 'Não informado',
     nota: 0,
+    notaIa: 0,
+    notaCurador: null,
     status: concluido ? 'Concluído' : 'Em andamento',
     curadoria: false,
     conversa: payload.conversation_id,

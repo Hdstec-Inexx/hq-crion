@@ -10,6 +10,7 @@ import { buscarAtendimentos } from './api';
 import { BarraDeFiltrosDaListagem } from './BarraDeFiltrosDaListagem';
 import { BadgeFavoritos } from './BadgeFavoritos';
 import { BotaoFavorito } from './BotaoFavorito';
+import { PaginacaoCompacta } from './PaginacaoCompacta';
 
 function formatarQuando(iso: string) {
   const parts = new Intl.DateTimeFormat('pt-BR', {
@@ -30,6 +31,7 @@ function formatarNota(nota: number) {
 }
 
 const semCuradores: { id: string; nome: string }[] = [];
+const semMotivos: string[] = [];
 
 function destinoDoDetalhe(id: string, search: string, lista: string) {
   const params = new URLSearchParams(search);
@@ -124,6 +126,7 @@ export function ListagemAtendimentos({
       <BarraDeFiltrosDaListagem
         caminho={caminho}
         curadores={listagem?.curadores ?? semCuradores}
+        motivos={listagem?.motivos ?? semMotivos}
         papel={perfil.papel}
       />
       {erro === 'recorte-invalido' ? (
@@ -177,31 +180,22 @@ export function ListagemAtendimentos({
                       perfis={item.favoritosPerfis}
                     />
                   )}
-                  <strong>{formatarNota(item.nota)}</strong>
+                  <div className="listagem-notas">
+                    <span className="listagem-nota">IA: {formatarNota(item.notaIa)}</span>
+                    {item.curadoria && item.notaCurador !== null && item.notaCurador !== undefined ? (
+                      <span className="listagem-nota">Curador: {formatarNota(item.notaCurador)}</span>
+                    ) : null}
+                  </div>
                 </article>
               ))
             )}
           </div>
           {listagem.total > listagem.tamanho ? (
-            <div className="listagem-paginacao">
-              <button
-                type="button"
-                disabled={listagem.pagina <= 1}
-                onClick={() => irPara(listagem.pagina - 1)}
-              >
-                Anterior
-              </button>
-              <span>
-                Página {listagem.pagina} de {Math.ceil(listagem.total / listagem.tamanho)}
-              </span>
-              <button
-                type="button"
-                disabled={listagem.pagina * listagem.tamanho >= listagem.total}
-                onClick={() => irPara(listagem.pagina + 1)}
-              >
-                Próxima
-              </button>
-            </div>
+            <PaginacaoCompacta
+              pagina={listagem.pagina}
+              totalPaginas={Math.ceil(listagem.total / listagem.tamanho)}
+              irPara={irPara}
+            />
           ) : null}
         </>
       ) : null}

@@ -24,8 +24,8 @@ test('Gestão entra na primeira área Dashboard', () => {
   assert.equal(destinoInicial('Gestão'), '/dashboard');
 });
 
-test('Curador entra na primeira área Atendimentos', () => {
-  assert.equal(destinoInicial('Curador'), '/atendimentos');
+test('Curador entra na primeira área Fila de curadoria', () => {
+  assert.equal(destinoInicial('Curador'), '/fila-de-curadoria');
 });
 
 test('Admin entra na primeira área Dashboard', () => {
@@ -72,7 +72,7 @@ test('login com Perfil válido abre a primeira área', () => {
       perfil: { papel: 'Curador' },
       pathname: '/login'
     }),
-    '/atendimentos'
+    '/fila-de-curadoria'
   );
 });
 
@@ -171,7 +171,7 @@ test('sessão válida devolve o Perfil autenticado', async () => {
   }
 });
 
-test('Curador autentica e o destino inicial é Atendimentos', async () => {
+test('Curador autentica e o destino inicial é Fila de curadoria', async () => {
   const app = await buildApp();
 
   try {
@@ -185,7 +185,7 @@ test('Curador autentica e o destino inicial é Atendimentos', async () => {
     const body = loginResponseSchema.parse(response.json());
     assert.equal(body.perfil.nome, 'Carla Mendes');
     assert.equal(body.perfil.papel, 'Curador');
-    assert.equal(destinoInicial(body.perfil.papel), '/atendimentos');
+    assert.equal(destinoInicial(body.perfil.papel), '/fila-de-curadoria');
   } finally {
     await app.close();
   }
@@ -266,10 +266,10 @@ test('casca libera as áreas do papel com rótulos curtos', () => {
   assert.deepEqual(
     areasDaCasca('Curador').map((area) => area.rotulo),
     [
+      'Fila de curadoria',
       'Atendimentos',
       'Favoritos',
       'Ao vivo',
-      'Fila de curadoria',
       'Minhas curadorias',
       'Régua'
     ]
@@ -322,6 +322,6 @@ test('papel não permanece em área que a casca não libera', () => {
       perfil: { papel: 'Curador' },
       pathname: '/dashboard'
     }),
-    '/atendimentos'
+    '/fila-de-curadoria'
   );
 });

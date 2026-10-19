@@ -435,7 +435,7 @@ test('só Admin acede a Usuários na casca; o h1 usa Perfis', () => {
       perfil: { papel: 'Curador' },
       pathname: '/usuarios'
     }),
-    '/atendimentos'
+    '/fila-de-curadoria'
   );
   assert.equal(
     destinoDaNavegacao({

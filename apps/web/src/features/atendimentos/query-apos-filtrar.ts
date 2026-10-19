@@ -1,6 +1,10 @@
 import { motivosDeContato, notaIaDaQuery } from '@hq-crion/contracts/filtros-listagem';
 
-export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
+export function queryAposFiltrar(
+  atual: URLSearchParams,
+  data: FormData,
+  opcoesMotivo?: readonly string[]
+) {
   const proxima = new URLSearchParams(atual);
   const filtrosDeValorUnico = [
     'inicio',
@@ -29,12 +33,21 @@ export function queryAposFiltrar(atual: URLSearchParams, data: FormData) {
     }
 
     if (campo === 'motivo') {
-      const motivo = motivosDeContato.find((opcao) => opcao === valor);
-
-      if (motivo) {
-        proxima.set(campo, motivo);
+      if (opcoesMotivo && opcoesMotivo.length > 0) {
+        const aceito = opcoesMotivo.find((opcao) => opcao === valor);
+        if (aceito) {
+          proxima.set(campo, aceito);
+        } else {
+          proxima.delete(campo);
+        }
       } else {
-        proxima.delete(campo);
+        const motivo = motivosDeContato.find((opcao) => opcao === valor);
+
+        if (motivo) {
+          proxima.set(campo, motivo);
+        } else {
+          proxima.delete(campo);
+        }
       }
 
       continue;

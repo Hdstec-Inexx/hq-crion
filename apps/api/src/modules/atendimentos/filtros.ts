@@ -3,6 +3,7 @@ import {
   notaIaDaQuery,
   statusDaCuradoria
 } from '@hq-crion/contracts/filtros-listagem';
+import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   lerRecorte,
   periodoDaListagem,
@@ -10,6 +11,10 @@ import {
   type PeriodoFechado
 } from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
+import {
+  chaveCanonicaDoMotivo,
+  motivosOficiaisDaClara
+} from './catalogo-motivos.js';
 import {
   avaliacaoDaIaTemVeredito,
   iaEstaAprovada,
@@ -92,15 +97,62 @@ export function passaNoRecorteEPeriodo(
   return passaNoRecorte(item, recorte);
 }
 
+export function resolverMotivoDaQuery(
+  motivoQuery: string | undefined,
+  motivosDisponiveis: readonly string[] = []
+): string | undefined {
+  if (!motivoQuery || typeof motivoQuery !== 'string' || motivoQuery.trim() === '') {
+    return undefined;
+  }
+
+  const termo = motivoQuery.trim();
+  const chaveTermo = chaveCanonicaDoMotivo(termo);
+
+  const oficial = motivosOficiaisDaClara.find(
+    (opcao) =>
+      opcao === termo ||
+      (chaveCanonicaDoMotivo(opcao) !== '' && chaveCanonicaDoMotivo(opcao) === chaveTermo)
+  );
+  if (oficial) {
+    return oficial;
+  }
+
+  const legado = motivosDeContato.find(
+    (opcao) =>
+      opcao === termo ||
+      (chaveCanonicaDoMotivo(opcao) !== '' && chaveCanonicaDoMotivo(opcao) === chaveTermo)
+  );
+  if (legado) {
+    return legado;
+  }
+
+  const existente = motivosDisponiveis.find(
+    (opcao) =>
+      opcao === termo ||
+      (chaveCanonicaDoMotivo(opcao) !== '' && chaveCanonicaDoMotivo(opcao) === chaveTermo)
+  );
+  if (existente) {
+    return existente;
+  }
+
+  return undefined;
+}
+
 export function passaNosFiltros(
   item: RegistroDeAtendimento,
   recorte: ReturnType<typeof lerRecorte>,
   query: Record<string, string | undefined>,
   modo: ModoDaListagem,
-  perfilId: string
+  perfilId: string,
+  papel?: Papel,
+  motivoFiltroResolvido?: string
 ) {
   if (modo === 'monitoramento') {
     return passaNoRecorte(item, recorte) && item.status === 'Em andamento';
+  }
+
+  if (modo === 'todos' && papel === 'Curador' && item.curadoria) {
+    return false;
   }
 
   const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
@@ -119,10 +171,19 @@ export function passaNosFiltros(
     return false;
   }
 
-  const motivo = motivosDeContato.find((opcao) => opcao === query.motivo);
+  if (query.motivo && query.motivo.trim() !== '') {
+    const motivoCanonico =
+      motivoFiltroResolvido !== undefined
+        ? motivoFiltroResolvido
+        : resolverMotivoDaQuery(query.motivo, [item.motivo]);
 
-  if (motivo && item.motivo !== motivo) {
-    return false;
+    if (motivoCanonico) {
+      const chaveCanonica = chaveCanonicaDoMotivo(motivoCanonico);
+      const chaveItem = chaveCanonicaDoMotivo(item.motivo);
+      if (item.motivo !== motivoCanonico && chaveItem !== chaveCanonica) {
+        return false;
+      }
+    }
   }
 
   if (query.conversa && item.conversa !== query.conversa) {

@@ -10,6 +10,7 @@ import { parseAppConfig } from '../../apps/api/src/plugins/config.js';
 import {
   fonteDePersistencia,
   ingestaoEsperaOPlugin,
+  montarLeitorDeMidia,
   timeoutDoPluginPersistencia
 } from '../../apps/api/src/plugins/persistencia.js';
 import { deveSemear } from '../../apps/api/src/modules/atendimentos/semente.js';
@@ -124,9 +125,45 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '07_funcao_persistir_avaliacao_da_ia.sql',
       '08_transferencia_transfer_to_number.sql',
       '09_uma_avaliacao_do_curador.sql',
-      '010_favoritos.sql'
+      '010_favoritos.sql',
+      '011_resolucao_da_demanda_critica.sql',
+      '014_canonicalizar_motivos.sql'
     ]
   );
+});
+
+test('a migration 011_resolucao_da_demanda_critica atualiza a Régua e critérios históricos com desativação de trigger', () => {
+  const migracao = listarMigracoes().find((m) => m.nome === '011_resolucao_da_demanda_critica.sql');
+  assert.ok(migracao, 'migration 011_resolucao_da_demanda_critica.sql ausente');
+  const sql = migracao.sql;
+  assert.match(sql, /UPDATE\s+hq_criterio_da_regua\s+SET\s+critico\s*=\s*true/i);
+  assert.match(sql, /valor\s*=\s*1\.5/i);
+  assert.match(sql, /resolucao-da-demanda/i);
+  assert.match(sql, /UPDATE\s+hq_criterio_da_avaliacao_da_ia\s+SET\s+critico\s*=\s*true/i);
+  assert.match(sql, /DISABLE\s+TRIGGER\s+hq_criterio_da_avaliacao_do_curador_imutavel/i);
+  assert.match(sql, /UPDATE\s+hq_criterio_da_avaliacao_do_curador\s+SET\s+critico\s*=\s*true/i);
+  assert.match(sql, /ENABLE\s+TRIGGER\s+hq_criterio_da_avaliacao_do_curador_imutavel/i);
+});
+
+test('a migration 011_resolucao_da_demanda_critica é aplicada no fluxo de migração do banco', async () => {
+  const comandos: string[] = [];
+  const { pool } = poolDeTeste((texto) => {
+    comandos.push(texto);
+    if (texto.includes('SELECT nome FROM hq_migracao')) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  await aplicarMigracoes(pool);
+
+  const migracao011 = comandos.find(
+    (cmd) => cmd.includes('hq_criterio_da_regua') && cmd.includes('critico = true')
+  );
+  assert.ok(migracao011, 'migration 011 deve ser executada');
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_regua\s+SET\s+critico\s*=\s*true/i);
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_avaliacao_da_ia\s+SET\s+critico\s*=\s*true/i);
+  assert.match(migracao011, /UPDATE\s+hq_criterio_da_avaliacao_do_curador\s+SET\s+critico\s*=\s*true/i);
 });
 
 test('a migration 010_favoritos cria hq_favorito com chaves estrangeiras, unicidade e índices', () => {
@@ -279,6 +316,7 @@ test('segunda aplicação não repete a migration', async () => {
   assert.equal(aplicadas.has('002_fatos_do_dominio.sql'), true);
   assert.equal(aplicadas.has('005_boot_e_custo_ausente.sql'), true);
   assert.equal(aplicadas.has('07_funcao_persistir_avaliacao_da_ia.sql'), true);
+  assert.equal(aplicadas.has('011_resolucao_da_demanda_critica.sql'), true);
   assert.equal(
     vistos.filter((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')).length,
     1
@@ -348,3 +386,128 @@ test('o depósito recusa desativar o Admin quando o outro Admin já saiu', async
     usarDepositoDePerfis(null);
   }
 });
+
+test('montarLeitorDeMidia prioriza Local -> S3/MinIO -> R2 -> ElevenLabs e não re-hidrata localmente ao ler do R2', async () => {
+  const chamadas: string[] = [];
+  let gravouLocal = false;
+
+  const obterLocalVazio = async () => {
+    chamadas.push('local');
+    return undefined;
+  };
+
+  const gravarLocal = async () => {
+    gravouLocal = true;
+  };
+
+  const mockS3NaoEncontra = {
+    send: async () => {
+      chamadas.push('s3');
+      const err = new Error('NoSuchKey');
+      (err as any).name = 'NoSuchKey';
+      throw err;
+    }
+  };
+
+  const mockR2Encontra = {
+    send: async (command: any) => {
+      chamadas.push(`r2:${command.input.Key}`);
+      if (command.input.Key === 'atendimentos/conv_123.mp3') {
+        return {
+          ContentType: 'audio/mpeg',
+          Body: {
+            transformToByteArray: async () => new Uint8Array([7, 8, 9])
+          }
+        };
+      }
+      const err = new Error('NoSuchKey');
+      (err as any).name = 'NoSuchKey';
+      throw err;
+    }
+  };
+
+  const leitor = montarLeitorDeMidia(
+    obterLocalVazio,
+    gravarLocal,
+    undefined,
+    mockS3NaoEncontra as any,
+    'bucket-quente',
+    { apiKey: 'chave-eleven', baseUrl: 'https://eleven.example' },
+    mockR2Encontra as any,
+    'bucket-frio'
+  );
+
+  const midia = await leitor.lerMidia('conv_123');
+
+  assert.ok(midia);
+  assert.equal(midia?.tipo, 'audio/mpeg');
+  assert.deepEqual(midia?.conteudo, Buffer.from([7, 8, 9]));
+  assert.equal(gravouLocal, false, 'streaming do R2 não deve re-hidratar o storage local/banco');
+  assert.equal(chamadas[0], 'local');
+  assert.ok(chamadas.includes('s3'));
+  assert.ok(chamadas.some((c) => c.startsWith('r2:')));
+});
+
+test('montarLeitorDeMidia descobrirMidia resolve caminho do R2 sem gravar local e segue sem erro quando ausente', async () => {
+  let gravouLocal = false;
+  const mockR2 = {
+    send: async (command: any) => {
+      if (command.input.Key === 'atendimentos/conv_r2.wav') {
+        return { ContentType: 'audio/wav' };
+      }
+      const err = new Error('NotFound');
+      (err as any).name = 'NotFound';
+      throw err;
+    }
+  };
+
+  const leitor = montarLeitorDeMidia(
+    async () => undefined,
+    async () => {
+      gravouLocal = true;
+    },
+    undefined,
+    undefined,
+    'bucket-quente',
+    undefined,
+    mockR2 as any,
+    'bucket-frio'
+  );
+
+  const caminho = await leitor.descobrirMidia('conv_r2');
+  assert.equal(caminho, '/media/conv_r2.wav');
+  assert.equal(gravouLocal, false);
+
+  const caminhoAusente = await leitor.descobrirMidia('conv_inexistente');
+  assert.equal(caminhoAusente, undefined);
+});
+
+test('montarLeitorDeMidia recorre a ElevenLabs quando R2 falha com erro', async () => {
+  const chamadas: string[] = [];
+  const mockR2Quebrado = {
+    send: async () => {
+      chamadas.push('r2-quebrado');
+      throw new Error('R2 Network Timeout');
+    }
+  };
+
+  const leitor = montarLeitorDeMidia(
+    async () => undefined,
+    null,
+    undefined,
+    undefined,
+    'bucket-quente',
+    undefined, // sem elevenlabs, não quebra a requisição
+    mockR2Quebrado as any,
+    'bucket-frio'
+  );
+
+  // Não deve lançar erro
+  const midia = await leitor.lerMidia('conv_erro');
+  assert.equal(midia, undefined);
+  assert.ok(chamadas.includes('r2-quebrado'));
+
+  const caminho = await leitor.descobrirMidia('conv_erro');
+  assert.equal(caminho, undefined);
+});
+

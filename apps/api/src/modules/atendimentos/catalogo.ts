@@ -1,6 +1,7 @@
-import type {
-  AtendimentoListItem,
-  EstadoDoCriterio
+import {
+  seloDaAvaliacao,
+  type AtendimentoListItem,
+  type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
 import { periodoMesCivil } from '@hq-crion/contracts/recorte';
 import { reguaUnica } from '../regua/regua-unica.js';
@@ -22,6 +23,8 @@ const catalogoBase: AtendimentoListItem[] = [
     iniciadoEm: iniciadoNoMesCorrente(11, '09:12:00'),
     motivo: 'Rede credenciada',
     nota: 8.5,
+    notaIa: 8.5,
+    notaCurador: null,
     status: 'Concluído',
     curadoria: false,
     conversa: 'conv-a1',
@@ -35,6 +38,8 @@ const catalogoBase: AtendimentoListItem[] = [
     iniciadoEm: iniciadoNoMesCorrente(11, '10:03:00'),
     motivo: 'Boleto',
     nota: 6.0,
+    notaIa: 6.0,
+    notaCurador: 6.0,
     status: 'Concluído',
     curadoria: true,
     conversa: 'conv-a2',
@@ -48,6 +53,8 @@ const catalogoBase: AtendimentoListItem[] = [
     iniciadoEm: iniciadoNoMesCorrente(11, '11:40:00'),
     motivo: 'Não informado',
     nota: 9.0,
+    notaIa: 9.0,
+    notaCurador: null,
     status: 'Concluído',
     curadoria: false,
     conversa: 'conv-a3',
@@ -61,6 +68,8 @@ const catalogoBase: AtendimentoListItem[] = [
     iniciadoEm: iniciadoNoMesCorrente(11, '12:15:00'),
     motivo: 'Carência',
     nota: 7.5,
+    notaIa: 7.5,
+    notaCurador: null,
     status: 'Em andamento',
     curadoria: false,
     conversa: 'conv-a4',
@@ -74,6 +83,8 @@ const catalogoBase: AtendimentoListItem[] = [
     iniciadoEm: '2020-01-15T10:00:00-03:00',
     motivo: 'Carência',
     nota: 5,
+    notaIa: 5,
+    notaCurador: null,
     status: 'Concluído',
     curadoria: false,
     conversa: 'conv-fora',
@@ -91,6 +102,8 @@ const extrasDoMes: AtendimentoListItem[] = Array.from({ length: 47 }, (_, index)
     iniciadoEm: `${inicioDoMes}T08:00:00-03:00`,
     motivo: 'Extra',
     nota: 8,
+    notaIa: 8,
+    notaCurador: null,
     status: 'Concluído',
     curadoria: false,
     conversa: `conv-extra-${index + 1}`,
@@ -119,12 +132,11 @@ function criteriosDaAvaliacao(conferida: boolean) {
 }
 
 function avaliacaoDe(nota: number, conferida: boolean) {
+  const criterios = criteriosDaAvaliacao(conferida);
   return {
     nota,
-    aprovacao: (nota >= reguaUnica.limiarDeAprovacao ? 'Aprovado' : 'Reprovado') as
-      | 'Aprovado'
-      | 'Reprovado',
-    criterios: criteriosDaAvaliacao(conferida),
+    aprovacao: seloDaAvaliacao(nota, reguaUnica.limiarDeAprovacao, criterios),
+    criterios,
     resumo: 'O cliente solicitou informações sobre o atendimento e obteve orientação conforme o procedimento operacional padrão.',
     falhasIdentificadas: conferida ? ['Informação de Protocolo não confirmada verbalmente no início do contato.'] : []
   };

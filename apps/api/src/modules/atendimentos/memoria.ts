@@ -1,29 +1,41 @@
 import { randomUUID } from 'node:crypto';
 import { buscarPorId as buscarPerfilPorId } from '../perfil/repositorio.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
+import { canonicalizarMotivo } from './catalogo-motivos.js';
 import {
   aplicarConsultaDaListagem,
   aplicarConsultaDaManutencao,
   aplicarConsultaDoDashboard,
   consultaDoPercurso
 } from './consulta.js';
+import { passaNoRecorte } from './filtros.js';
 import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
   criteriosComChave,
+  notasDoAtendimento,
   recusaDaAvaliacao,
   recusaDaConferencia,
   type RegistroDeAtendimento
 } from './registro.js';
 
 function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendimento) {
+  const motivosExistentes = registros.map((registro) => registro.motivo).filter(Boolean);
+  const motivoCanonico = canonicalizarMotivo(novo.motivo, motivosExistentes);
   const atual = registros.find((registro) => registro.id === novo.id);
 
   if (!atual) {
-    registros.push(novo);
+    registros.push({
+      ...novo,
+      motivo: motivoCanonico
+    });
     return;
+  }
+
+  if (novo.motivo !== undefined) {
+    atual.motivo = motivoCanonico;
   }
 
   if (novo.transcricao.length > 0) {
@@ -48,6 +60,14 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
 
   if (novo.custo) {
     atual.custo = novo.custo;
+  }
+
+  if (novo.notaIa !== undefined) {
+    atual.notaIa = novo.notaIa;
+  }
+
+  if (novo.notaCurador !== undefined) {
+    atual.notaCurador = novo.notaCurador;
   }
 
   if (novo.audio) {
@@ -83,7 +103,17 @@ function resolverFavoritos(
 export function repositorioEmMemoria(
   ingeridos: readonly RegistroDeAtendimento[] = []
 ): PortaDeAtendimentos {
-  const registros = catalogoDeAtendimentos();
+  const base = catalogoDeAtendimentos();
+  const registros: RegistroDeAtendimento[] = [];
+
+  for (const item of base) {
+    const motivosExistentes = registros.map((r) => r.motivo).filter(Boolean);
+    registros.push({
+      ...item,
+      motivo: canonicalizarMotivo(item.motivo, motivosExistentes)
+    });
+  }
+
   const favoritos: Array<{
     id: string;
     perfilId: string;
@@ -98,6 +128,19 @@ export function repositorioEmMemoria(
   return {
     async listar() {
       return registros;
+    },
+    async listarMotivos(recorte) {
+      const filtrados = recorte
+        ? registros.filter((item) => passaNoRecorte(item, recorte))
+        : registros;
+      const motivos = Array.from(
+        new Set(
+          filtrados
+            .map((item) => item.motivo)
+            .filter((motivo): motivo is string => Boolean(motivo && motivo.trim()))
+        )
+      );
+      return motivos.sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
     async buscarPorId(id) {
       return registros.find((registro) => registro.id === id);
@@ -205,6 +248,7 @@ export function repositorioEmMemoria(
       }
 
       item.nota = entrada.nota;
+      item.notaIa = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
       item.avaliacaoDaIa = {
         nota: entrada.nota,
@@ -226,6 +270,7 @@ export function repositorioEmMemoria(
 
       item.curadoria = true;
       item.curadorDaRevisao = entrada.curador;
+      item.notaCurador = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
@@ -261,12 +306,14 @@ export function repositorioEmMemoria(
       item.comentarioResolvidoEm = new Date().toISOString();
       return item;
     },
-    async consultarListagem(recorte, query, modo, perfilId) {
-      const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
+    async consultarListagem(recorte, query, modo, perfilId, papel) {
+      const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId, papel);
       return itens.map((item) => {
         const info = resolverFavoritos(favoritos, item.id, perfilId);
+        const notas = notasDoAtendimento(item);
         return {
           ...item,
+          ...notas,
           favoritadoPeloUsuario: info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
@@ -280,8 +327,10 @@ export function repositorioEmMemoria(
 
       const mapearItem = (item: RegistroDeAtendimento) => {
         const info = resolverFavoritos(favoritos, item.id, perfil.id);
+        const notas = notasDoAtendimento(item);
         return {
           ...item,
+          ...notas,
           favoritadoPeloUsuario: perfil.papel === 'Curador' ? true : info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)

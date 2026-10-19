@@ -40,6 +40,7 @@ export type ResultadoFavoritos = {
 
 export type PortaDeAtendimentos = {
   listar(): Promise<readonly RegistroDeAtendimento[]>;
+  listarMotivos(recorte?: Recorte): Promise<string[]>;
   buscarPorId(id: string): Promise<RegistroDeAtendimento | undefined>;
   gravarTranscricao(id: string, transcricao: readonly TurnoDaTranscricao[]): Promise<void>;
   gravarAvaliacaoDaIa(
@@ -61,7 +62,8 @@ export type PortaDeAtendimentos = {
     recorte: Recorte,
     query: Record<string, string | undefined>,
     modo: ModoDaListagem,
-    perfilId: string
+    perfilId: string,
+    papel?: Papel
   ): Promise<RegistroDeAtendimento[]>;
   consultarFavoritos(
     recorte: Recorte,

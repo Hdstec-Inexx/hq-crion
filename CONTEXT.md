@@ -25,7 +25,7 @@ A credencial do Perfil. O Admin a define na criação e pode substituí-la depoi
 _Avoid_: password, senha padrão
 
 **Casca autenticada**:
-O enquadramento da UI presente só com Perfil válido: faixa **clara**, colapso em trilho de ícones, áreas do **papel**, nome da pessoa e encerrar sessão. Login e health ficam fora dela. A marca é o logotipo Crion (wordmark); não se repete o nome ao lado nem se usa logo de Administradora. No trilho recolhido a marca **não** aparece — o clique nela só existe com a faixa aberta. Não há Home de apresentação. Após o login, e ao clicar na marca, a casca abre na **primeira área** do papel (Admin e Gestão: Dashboard; Curador: Atendimentos). `/` autenticado redireciona para essa área. Deep link preserva o destino.
+O enquadramento da UI presente só com Perfil válido: faixa **clara**, colapso em trilho de ícones, áreas do **papel**, nome da pessoa e encerrar sessão. Login e health ficam fora dela. A marca é o logotipo Crion (wordmark); não se repete o nome ao lado nem se usa logo de Administradora. No trilho recolhido a marca **não** aparece — o clique nela só existe com a faixa aberta. Não há Home de apresentação. Após o login, e ao clicar na marca, a casca abre na **primeira área** do papel (Admin e Gestão: Dashboard; Curador: Fila de curadoria). `/` autenticado redireciona para essa área. Deep link preserva o destino.
 
 Rótulos curtos na faixa: Dashboard, Atendimentos, Favoritos, Ao vivo, Fila de curadoria, Minhas curadorias / Curadorias realizadas, Manutenção, Usuários, IA Avaliadora, Régua. O `h1` da página usa o termo de domínio (ex.: **Monitoramento ao Vivo**, não “Ao vivo”).
 _Avoid_: shell, sidebar, Home (página de apresentação)
@@ -179,7 +179,10 @@ _Avoid_: Nota mínima, limiar ≥, passo 0,1, Nota da Avaliação da IA (conceit
 A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador escolhe quais revisar (modelo pull). Na casca: “Fila de curadoria”. O Período é o termo **Período**; a lista vai do mais antigo ao mais novo. Filtros: Recorte, período, id da conversa, motivo, **Filtro de Nota da IA**, Limpar — o mesmo recorte operacional da fila GEAP, sem critérios nem curador.
 
 **Listagem de Atendimentos**:
-A lista operacional de Atendimentos. O Período é o termo **Período**: campos vazios até submeter; final em branco significa o dia da inicial. Recorte no header. Filtros da página: período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos** (dois multi-selects compactos da Régua), status da curadoria (realizada/pendente), curador, **Filtro de Nota da IA**, Limpar — e **Status** do Atendimento (Concluído / Em andamento). Não usa o booleano “Curadoria feita”.
+A lista operacional de Atendimentos. O Período é o termo **Período**: campos vazios até submeter; final em branco significa o dia da inicial. Recorte no header. Filtros da página: período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos** (dois multi-selects compactos da Régua), status da curadoria (realizada/pendente; omitido para o Curador, cujos atendimentos já curados são ocultados nesta tela), curador, **Filtro de Nota da IA**, Limpar — e **Status** do Atendimento (Concluído / Em andamento). Não usa o booleano “Curadoria feita”.
+
+**Motivo**:
+A classificação temática da demanda do Atendimento. Normalizado a partir do catálogo oficial dos 16 motivos da Clara e consolidado com novos termos da base via chave canônica por regex (remoção de acentos, ordinais, pontuação e espaços múltiplos). O filtro por motivo consome dinamicamente as opções existentes no banco.
 
 **Minhas Curadorias / Curadorias realizadas**:
 Listas de Atendimentos já conferidos. Filtros como no GEAP: Recorte, período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos**, **Filtro de Nota da IA**, Limpar; curador só em Curadorias realizadas (não em Minhas).

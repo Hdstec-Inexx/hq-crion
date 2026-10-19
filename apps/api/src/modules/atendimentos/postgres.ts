@@ -299,6 +299,8 @@ function montarRegistro(
     iniciadoEm: iso(linha.iniciado_em),
     motivo: linha.motivo,
     nota: notaIa ?? 0,
+    notaIa: notaIa ?? 0,
+    notaCurador: notaCurador ?? null,
     status: linha.status,
     curadoria: Boolean(linha.tem_curadoria),
     conversa: linha.id,
@@ -414,6 +416,8 @@ function registroDoComentario(linha: {
     iniciadoEm: iso(linha.iniciado_em),
     motivo: linha.motivo,
     nota: 0,
+    notaIa: 0,
+    notaCurador: null,
     status: linha.status_atendimento,
     curadoria: true,
     conversa: linha.id,
@@ -682,6 +686,22 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
     async listar() {
       return lerRegistros(pool, {});
     },
+    async listarMotivos(recorte) {
+      const administradora = recorte?.administradora ?? null;
+      const agente = recorte?.agente ?? null;
+      const resultado = await pool.query(
+        `SELECT DISTINCT a.motivo
+         FROM hq_atendimento a
+         JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
+         WHERE a.motivo IS NOT NULL
+           AND a.motivo <> ''
+           AND ($1::text IS NULL OR ag.administradora = $1)
+           AND ($2::text IS NULL OR a.agente_id = $2)
+         ORDER BY a.motivo ASC`,
+        [administradora, agente]
+      );
+      return resultado.rows.map((linha: { motivo: string }) => linha.motivo);
+    },
     async buscarPorId(id) {
       const registros = await lerRegistros(pool, { id });
       return registros[0];
@@ -927,9 +947,9 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
 
       return mapa;
     },
-    async consultarListagem(recorte, query, modo, perfilId) {
+    async consultarListagem(recorte, query, modo, perfilId, papel) {
       const registros = await lerRegistros(pool, { recorte, query, modo, perfilId });
-      return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
+      return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId, papel);
     },
     async consultarFavoritos(recorte, query, perfil) {
       const conversa = typeof query.conversa === 'string' ? query.conversa.trim() : '';

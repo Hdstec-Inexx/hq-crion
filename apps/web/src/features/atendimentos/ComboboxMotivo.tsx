@@ -1,9 +1,17 @@
-import { motivosDeContato } from '@hq-crion/contracts/filtros-listagem';
+// Combobox dinâmico de motivos: recebe opcoes via props em vez da lista estática motivosDeContato.
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { filtrarMotivosDeContato, motivoAceitoNoFiltro } from './motivo-combobox-logic';
 import { useFecharAoClicarFora } from './useFecharAoClicarFora';
 
-export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
+const semOpcoes: readonly string[] = [];
+
+export function ComboboxMotivo({
+  valorSubmetido,
+  opcoes = semOpcoes
+}: {
+  valorSubmetido: string;
+  opcoes?: readonly string[];
+}) {
   const idBase = useId();
   const listboxId = `motivo-listbox-${idBase}`;
   const [valor, setValor] = useState(valorSubmetido);
@@ -11,8 +19,11 @@ export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
   const [destaque, setDestaque] = useState(-1);
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
-  const opcoes = filtrarMotivosDeContato(motivosDeContato, valor);
-  const motivoDoFormulario = motivoAceitoNoFiltro(valor, motivosDeContato);
+  const opcoesFiltradas = filtrarMotivosDeContato(opcoes, valor);
+  const motivoDoFormulario =
+    opcoes.length === 0 && valor === valorSubmetido
+      ? valorSubmetido
+      : motivoAceitoNoFiltro(valor, opcoes);
 
   useEffect(() => {
     setValor(valorSubmetido);
@@ -33,21 +44,21 @@ export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (opcoes.length === 0) {
+      if (opcoesFiltradas.length === 0) {
         return;
       }
       setAberto(true);
-      setDestaque((atual) => (atual < opcoes.length - 1 ? atual + 1 : 0));
+      setDestaque((atual) => (atual < opcoesFiltradas.length - 1 ? atual + 1 : 0));
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (opcoes.length === 0) {
+      if (opcoesFiltradas.length === 0) {
         return;
       }
       setAberto(true);
-      setDestaque((atual) => (atual > 0 ? atual - 1 : opcoes.length - 1));
-    } else if (event.key === 'Enter' && aberto && destaque >= 0 && opcoes[destaque]) {
+      setDestaque((atual) => (atual > 0 ? atual - 1 : opcoesFiltradas.length - 1));
+    } else if (event.key === 'Enter' && aberto && destaque >= 0 && opcoesFiltradas[destaque]) {
       event.preventDefault();
-      escolher(opcoes[destaque]);
+      escolher(opcoesFiltradas[destaque]);
     } else if (event.key === 'Escape' || event.key === 'Tab') {
       setAberto(false);
       setDestaque(-1);
@@ -82,14 +93,14 @@ export function ComboboxMotivo({ valorSubmetido }: { valorSubmetido: string }) {
           onKeyDown={onKeyDown}
         />
       </label>
-      {aberto && opcoes.length > 0 ? (
+      {aberto && opcoesFiltradas.length > 0 ? (
         <ul
           id={listboxId}
           role="listbox"
           aria-label="Motivo"
           className="listagem-combobox-motivo-lista"
         >
-          {opcoes.map((opcao, indice) => (
+          {opcoesFiltradas.map((opcao, indice) => (
             <li
               id={`motivo-opt-${idBase}-${indice}`}
               key={opcao}
