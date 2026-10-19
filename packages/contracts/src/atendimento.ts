@@ -50,6 +50,8 @@ export const atendimentoListItemSchema = z.object({
   iniciadoEm: z.string().min(1),
   motivo: z.string().min(1),
   nota: z.number(),
+  notaIa: z.number(),
+  notaCurador: z.number().nullable().optional(),
   status: z.string().min(1),
   curadoria: z.boolean(),
   conversa: z.string().min(1),

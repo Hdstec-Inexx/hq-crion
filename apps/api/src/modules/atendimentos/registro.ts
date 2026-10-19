@@ -179,6 +179,18 @@ export function avaliacaoDaIaTemVeredito(
   );
 }
 
+export function notasDoAtendimento(item: {
+  nota?: number;
+  notaIa?: number;
+  avaliacaoDaIa?: { nota?: number | null };
+  notaCurador?: number | null;
+  avaliacaoDoCurador?: { nota?: number | null };
+}): { notaIa: number; notaCurador: number | null } {
+  const notaIa = item.avaliacaoDaIa?.nota ?? item.notaIa ?? item.nota ?? 0;
+  const notaCurador = item.avaliacaoDoCurador?.nota ?? item.notaCurador ?? null;
+  return { notaIa, notaCurador };
+}
+
 export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe {
   const {
     curadorDaRevisao: _curadorDaRevisao,
@@ -195,6 +207,11 @@ export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe 
     ...publico
   } = item;
 
-  return publico;
+  const notas = notasDoAtendimento(item);
+
+  return {
+    ...publico,
+    ...notas
+  };
 }
 

@@ -13,6 +13,7 @@ import {
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
   criteriosComChave,
+  notasDoAtendimento,
   recusaDaAvaliacao,
   recusaDaConferencia,
   type RegistroDeAtendimento
@@ -48,6 +49,14 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
 
   if (novo.custo) {
     atual.custo = novo.custo;
+  }
+
+  if (novo.notaIa !== undefined) {
+    atual.notaIa = novo.notaIa;
+  }
+
+  if (novo.notaCurador !== undefined) {
+    atual.notaCurador = novo.notaCurador;
   }
 
   if (novo.audio) {
@@ -205,6 +214,7 @@ export function repositorioEmMemoria(
       }
 
       item.nota = entrada.nota;
+      item.notaIa = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
       item.avaliacaoDaIa = {
         nota: entrada.nota,
@@ -226,6 +236,7 @@ export function repositorioEmMemoria(
 
       item.curadoria = true;
       item.curadorDaRevisao = entrada.curador;
+      item.notaCurador = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
@@ -265,8 +276,10 @@ export function repositorioEmMemoria(
       const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
       return itens.map((item) => {
         const info = resolverFavoritos(favoritos, item.id, perfilId);
+        const notas = notasDoAtendimento(item);
         return {
           ...item,
+          ...notas,
           favoritadoPeloUsuario: info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
@@ -280,8 +293,10 @@ export function repositorioEmMemoria(
 
       const mapearItem = (item: RegistroDeAtendimento) => {
         const info = resolverFavoritos(favoritos, item.id, perfil.id);
+        const notas = notasDoAtendimento(item);
         return {
           ...item,
+          ...notas,
           favoritadoPeloUsuario: perfil.papel === 'Curador' ? true : info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
