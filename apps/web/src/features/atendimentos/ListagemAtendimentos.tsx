@@ -10,6 +10,7 @@ import { buscarAtendimentos } from './api';
 import { BarraDeFiltrosDaListagem } from './BarraDeFiltrosDaListagem';
 import { BadgeFavoritos } from './BadgeFavoritos';
 import { BotaoFavorito } from './BotaoFavorito';
+import { PaginacaoCompacta } from './PaginacaoCompacta';
 
 function formatarQuando(iso: string) {
   const parts = new Intl.DateTimeFormat('pt-BR', {
@@ -188,25 +189,11 @@ export function ListagemAtendimentos({
             )}
           </div>
           {listagem.total > listagem.tamanho ? (
-            <div className="listagem-paginacao">
-              <button
-                type="button"
-                disabled={listagem.pagina <= 1}
-                onClick={() => irPara(listagem.pagina - 1)}
-              >
-                Anterior
-              </button>
-              <span>
-                Página {listagem.pagina} de {Math.ceil(listagem.total / listagem.tamanho)}
-              </span>
-              <button
-                type="button"
-                disabled={listagem.pagina * listagem.tamanho >= listagem.total}
-                onClick={() => irPara(listagem.pagina + 1)}
-              >
-                Próxima
-              </button>
-            </div>
+            <PaginacaoCompacta
+              pagina={listagem.pagina}
+              totalPaginas={Math.ceil(listagem.total / listagem.tamanho)}
+              irPara={irPara}
+            />
           ) : null}
         </>
       ) : null}

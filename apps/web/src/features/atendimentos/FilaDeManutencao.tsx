@@ -8,6 +8,7 @@ import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-ro
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { buscarFilaDeManutencao, marcarComentarioResolvido } from './api';
+import { PaginacaoCompacta } from './PaginacaoCompacta';
 
 function formatarQuando(iso: string) {
   const parts = new Intl.DateTimeFormat('pt-BR', {
@@ -281,25 +282,11 @@ export function FilaDeManutencao() {
             )}
           </div>
           {listagem.total > listagem.tamanho ? (
-            <div className="listagem-paginacao">
-              <button
-                type="button"
-                disabled={listagem.pagina <= 1}
-                onClick={() => irPara(listagem.pagina - 1)}
-              >
-                Anterior
-              </button>
-              <span>
-                Página {listagem.pagina} de {Math.ceil(listagem.total / listagem.tamanho)}
-              </span>
-              <button
-                type="button"
-                disabled={listagem.pagina * listagem.tamanho >= listagem.total}
-                onClick={() => irPara(listagem.pagina + 1)}
-              >
-                Próxima
-              </button>
-            </div>
+            <PaginacaoCompacta
+              pagina={listagem.pagina}
+              totalPaginas={Math.ceil(listagem.total / listagem.tamanho)}
+              irPara={irPara}
+            />
           ) : null}
         </>
       ) : null}
