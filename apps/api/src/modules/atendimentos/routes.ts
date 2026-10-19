@@ -217,8 +217,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
         recorte,
         query,
         modo,
-        registro.id,
-        registro.papel
+        registro.id
       ),
       app.atendimentos.listarMotivos(recorte)
     ]);

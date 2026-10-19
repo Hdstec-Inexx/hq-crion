@@ -4,6 +4,7 @@ CREATE OR REPLACE FUNCTION hq_chave_canonica_motivo(texto text)
 RETURNS text
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   resultado text;
@@ -29,6 +30,7 @@ $$;
 CREATE OR REPLACE FUNCTION hq_canonicalizar_motivo(novo_motivo text)
 RETURNS text
 LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_chave text;
@@ -85,6 +87,7 @@ $$;
 CREATE OR REPLACE FUNCTION hq_gatilho_canonicalizar_motivo()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
   IF NEW.motivo IS NOT NULL THEN
@@ -100,6 +103,12 @@ CREATE TRIGGER hq_atendimento_canonicalizar_motivo
   BEFORE INSERT OR UPDATE OF motivo ON hq_atendimento
   FOR EACH ROW
   EXECUTE FUNCTION hq_gatilho_canonicalizar_motivo();
+
+CREATE INDEX IF NOT EXISTS hq_atendimento_chave_canonica_motivo
+  ON hq_atendimento (hq_chave_canonica_motivo(motivo));
+
+CREATE INDEX IF NOT EXISTS hq_atendimento_motivo
+  ON hq_atendimento (motivo);
 
 UPDATE hq_atendimento
 SET motivo = hq_canonicalizar_motivo(motivo)

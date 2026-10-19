@@ -62,8 +62,7 @@ export type PortaDeAtendimentos = {
     recorte: Recorte,
     query: Record<string, string | undefined>,
     modo: ModoDaListagem,
-    perfilId: string,
-    papel?: Papel
+    perfilId: string
   ): Promise<RegistroDeAtendimento[]>;
   consultarFavoritos(
     recorte: Recorte,

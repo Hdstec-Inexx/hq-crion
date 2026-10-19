@@ -947,13 +947,9 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
 
       return mapa;
     },
-    async consultarListagem(recorte, query, modo, perfilId, papel) {
+    async consultarListagem(recorte, query, modo, perfilId) {
       const registros = await lerRegistros(pool, { recorte, query, modo, perfilId });
-      let itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
-      if (modo === 'todos' && papel === 'Curador') {
-        itens = itens.filter((item) => !item.curadoria);
-      }
-      return itens;
+      return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
     },
     async consultarFavoritos(recorte, query, perfil) {
       const conversa = typeof query.conversa === 'string' ? query.conversa.trim() : '';
