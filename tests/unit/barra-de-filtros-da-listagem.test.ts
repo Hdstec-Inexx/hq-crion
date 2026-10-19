@@ -205,6 +205,14 @@ test('combobox de Motivo valida e filtra listas dinâmicas de opções reais', a
 });
 
 test('submissão e limpeza de filtros aceita e limpa motivos reais', () => {
+  const barra = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/BarraDeFiltrosDaListagem.tsx'),
+    'utf8'
+  );
+  assert.match(barra, /const motivo = dados\.get\('motivo'\)/);
+  assert.match(barra, /proxima\.set\('motivo', motivo\.trim\(\)\)/);
+  assert.match(barra, /proxima\.delete\('motivo'\)/);
+
   // Submissão com motivo real ("2 via de boleto")
   const dados = new FormData();
   dados.set('motivo', '2 via de boleto');
@@ -232,6 +240,12 @@ test('submissão e limpeza de filtros aceita e limpa motivos reais', () => {
 });
 
 test('BarraDeFiltrosDaListagem omite statusCuradoria para Curador na listagem de atendimentos', () => {
+  const barra = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/BarraDeFiltrosDaListagem.tsx'),
+    'utf8'
+  );
+  assert.match(barra, /campoVisivel\('statusCuradoria'\)/);
+
   const camposCurador = camposVisiveisDaListagem('/atendimentos', 'Curador');
   assert.equal(camposCurador.includes('statusCuradoria'), false);
   assert.equal(camposCurador.includes('motivo'), true);

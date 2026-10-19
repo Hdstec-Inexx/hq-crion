@@ -467,8 +467,9 @@ test('GET /atendimentos combina Recorte, período e indicador do pulso', async (
   }
 });
 
-test("destinoInicial('Curador') é /fila-de-curadoria", () => {
+test('destino inicial do Curador prioriza a Fila de Curadoria em relação a Atendimentos', () => {
   assert.equal(destinoInicial('Curador'), '/fila-de-curadoria');
+  assert.notEqual(destinoInicial('Curador'), '/atendimentos');
 });
 
 test('GET /atendimentos inclui o array motivos com valores canônicos distintos ordenados', async () => {
