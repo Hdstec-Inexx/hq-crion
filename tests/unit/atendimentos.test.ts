@@ -24,6 +24,7 @@ import {
   motivosDeContato,
   notaIaDaQuery
 } from '../../packages/contracts/src/filtros-listagem.js';
+import { destinoInicial } from '../../packages/contracts/src/casca.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -466,20 +467,59 @@ test('GET /atendimentos combina Recorte, período e indicador do pulso', async (
   }
 });
 
-test('GET /atendimentos filtra por motivo', async () => {
+test('destino inicial do Curador prioriza a Fila de Curadoria em relação a Atendimentos', () => {
+  assert.equal(destinoInicial('Curador'), '/fila-de-curadoria');
+  assert.notEqual(destinoInicial('Curador'), '/atendimentos');
+});
+
+test('GET /atendimentos inclui o array motivos com valores canônicos distintos ordenados', async () => {
   const app = await buildApp();
 
   try {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
     const response = await app.inject({
       method: 'GET',
-      url: '/atendimentos?motivo=Car%C3%AAncia',
+      url: '/atendimentos',
       headers: { authorization: `Bearer ${sessao}` }
     });
 
     assert.equal(response.statusCode, 200);
+    const body = response.json() as { motivos: string[] };
+    assert.ok(Array.isArray(body.motivos));
+    assert.ok(body.motivos.length > 0);
+    const ordenado = [...body.motivos].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    assert.deepEqual(body.motivos, ordenado);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos filtra por motivo canônico exato e por variação ortográfica', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const exato = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?motivo=Car%C3%AAncia',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(exato.statusCode, 200);
     assert.deepEqual(
-      response.json().itens.map((item: { id: string }) => item.id),
+      exato.json().itens.map((item: { id: string }) => item.id),
+      ['a4']
+    );
+
+    const variacaoSemAcento = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?motivo=carencia',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(variacaoSemAcento.statusCode, 200);
+    assert.deepEqual(
+      variacaoSemAcento.json().itens.map((item: { id: string }) => item.id),
       ['a4']
     );
   } finally {
@@ -816,6 +856,72 @@ test('Curador não recebe Custo na listagem', async () => {
     for (const item of itens) {
       assert.equal('custo' in item, false);
     }
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /atendimentos autenticado como Curador nunca retorna itens com curadoria realizada', async () => {
+  const app = await buildApp();
+
+  try {
+    const curadorSessao = await sessaoDe(app, 'carla.mendes@crion');
+    const gestaoSessao = await sessaoDe(app, 'ana.souza@crion');
+
+    const listaCurador = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${curadorSessao}` }
+    });
+    const listaGestao = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${gestaoSessao}` }
+    });
+
+    assert.equal(listaCurador.statusCode, 200);
+    assert.equal(listaGestao.statusCode, 200);
+
+    const itensCurador = listaCurador.json().itens as Array<{ id: string; curadoria: boolean }>;
+    const itensGestao = listaGestao.json().itens as Array<{ id: string; curadoria: boolean }>;
+
+    // No catálogo geral, a2 possui curadoria realizada
+    assert.ok(itensGestao.some((item) => item.id === 'a2' && item.curadoria === true));
+
+    // Para o Curador, itens com curadoria realizada são compulsoriamente ocultados
+    assert.equal(itensCurador.some((item) => item.id === 'a2'), false);
+    assert.ok(itensCurador.every((item) => item.curadoria === false));
+  } finally {
+    await app.close();
+  }
+});
+
+test('itens com curadoria realizada aparecem em /minhas-curadorias e são excluídos de /atendimentos para o Curador', async () => {
+  const app = await buildApp();
+
+  try {
+    const curadorSessao = await sessaoDe(app, 'carla.mendes@crion');
+
+    const atendimentos = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${curadorSessao}` }
+    });
+    const minhas = await app.inject({
+      method: 'GET',
+      url: '/minhas-curadorias',
+      headers: { authorization: `Bearer ${curadorSessao}` }
+    });
+
+    assert.equal(atendimentos.statusCode, 200);
+    assert.equal(minhas.statusCode, 200);
+
+    const idsAtendimentos = (atendimentos.json().itens as Array<{ id: string }>).map((i) => i.id);
+    const itensMinhas = minhas.json().itens as Array<{ id: string; curadoria: boolean }>;
+
+    // a2 foi curado por Carla Mendes e deve aparecer em minhas curadorias, mas não em /atendimentos
+    assert.equal(idsAtendimentos.includes('a2'), false);
+    assert.ok(itensMinhas.some((item) => item.id === 'a2' && item.curadoria === true));
   } finally {
     await app.close();
   }

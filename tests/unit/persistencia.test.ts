@@ -126,7 +126,8 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '08_transferencia_transfer_to_number.sql',
       '09_uma_avaliacao_do_curador.sql',
       '010_favoritos.sql',
-      '011_resolucao_da_demanda_critica.sql'
+      '011_resolucao_da_demanda_critica.sql',
+      '014_canonicalizar_motivos.sql'
     ]
   );
 });
