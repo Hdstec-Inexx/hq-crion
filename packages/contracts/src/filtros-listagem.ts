@@ -5,6 +5,8 @@ export const motivosDeContato = [
   'Rede credenciada'
 ] as const;
 
+export type MotivoDeContato = string;
+
 export const statusDaCuradoria = ['pendente', 'feita'] as const;
 
 export type CampoVisivelDaListagem =
@@ -57,7 +59,11 @@ export function camposVisiveisDaListagem(
   if (rota === '/favoritos' && papel === 'Curador') {
     return ['conversa', 'limpar'];
   }
-  return camposPorRota[rota] ?? ['periodo', 'limpar'];
+  const campos = camposPorRota[rota] ?? ['periodo', 'limpar'];
+  if (rota === '/atendimentos' && papel === 'Curador') {
+    return campos.filter((campo) => campo !== 'statusCuradoria');
+  }
+  return campos;
 }
 
 const chavesLimpaveis = [

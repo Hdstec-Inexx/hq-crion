@@ -72,7 +72,8 @@ export const listagemResponseSchema = z.object({
   tamanho: z.literal(50),
   total: z.number().int().min(0),
   itens: z.array(atendimentoListItemSchema),
-  curadores: z.array(curadorDaListagemSchema)
+  curadores: z.array(curadorDaListagemSchema),
+  motivos: z.array(z.string())
 });
 
 export const statusDoComentarioSchema = z.enum(['Pendente', 'Resolvido']);
