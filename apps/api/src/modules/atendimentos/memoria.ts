@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { buscarPorId as buscarPerfilPorId } from '../perfil/repositorio.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
-import { canonicalizarMotivo } from './catalogo-motivos.js';
+import {
+  canonicalizarMotivo,
+  chaveCanonicaDoMotivo,
+  pontuacaoDeAcentos
+} from './catalogo-motivos.js';
 import {
   aplicarConsultaDaListagem,
   aplicarConsultaDaManutencao,
@@ -133,14 +137,34 @@ export function repositorioEmMemoria(
       const filtrados = recorte
         ? registros.filter((item) => passaNoRecorte(item, recorte))
         : registros;
-      const motivos = Array.from(
-        new Set(
-          filtrados
-            .map((item) => item.motivo)
-            .filter((motivo): motivo is string => Boolean(motivo && motivo.trim()))
-        )
-      );
-      return motivos.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      const melhoresPorChave = new Map<string, string>();
+
+      for (const item of filtrados) {
+        if (!item.motivo || !item.motivo.trim()) {
+          continue;
+        }
+        const motivo = item.motivo.trim();
+        const chave = chaveCanonicaDoMotivo(motivo);
+        const atual = melhoresPorChave.get(chave);
+
+        if (!atual) {
+          melhoresPorChave.set(chave, motivo);
+        } else {
+          const scoreAtual = pontuacaoDeAcentos(atual);
+          const scoreNovo = pontuacaoDeAcentos(motivo);
+          if (
+            scoreNovo > scoreAtual ||
+            (scoreNovo === scoreAtual && motivo.length > atual.length) ||
+            (scoreNovo === scoreAtual &&
+              motivo.length === atual.length &&
+              motivo.localeCompare(atual) > 0)
+          ) {
+            melhoresPorChave.set(chave, motivo);
+          }
+        }
+      }
+
+      return Array.from(melhoresPorChave.values()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
     async buscarPorId(id) {
       return registros.find((registro) => registro.id === id);

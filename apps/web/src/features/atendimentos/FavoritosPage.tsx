@@ -31,6 +31,7 @@ function formatarNota(nota: number) {
 }
 
 const semCuradores: { id: string; nome: string }[] = [];
+const semMotivos: string[] = [];
 
 function destinoDoDetalhe(id: string, search: string, lista: string) {
   const params = new URLSearchParams(search);
@@ -119,6 +120,7 @@ export function FavoritosPage() {
       <BarraDeFiltrosDaListagem
         caminho="/favoritos"
         curadores={listagem?.curadores ?? semCuradores}
+        motivos={listagem?.motivos ?? semMotivos}
         papel={perfil.papel}
       />
       {erro === 'recorte-invalido' ? (
@@ -171,7 +173,12 @@ export function FavoritosPage() {
                       perfis={item.favoritosPerfis}
                     />
                   )}
-                  <strong>{formatarNota(item.nota)}</strong>
+                  <div className="listagem-notas">
+                    <span className="listagem-nota">IA: {formatarNota(item.notaIa)}</span>
+                    {item.curadoria && item.notaCurador !== null && item.notaCurador !== undefined ? (
+                      <span className="listagem-nota">Curador: {formatarNota(item.notaCurador)}</span>
+                    ) : null}
+                  </div>
                 </article>
               ))
             )}

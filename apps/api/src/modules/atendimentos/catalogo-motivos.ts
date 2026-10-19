@@ -36,6 +36,14 @@ export function chaveCanonicaDoMotivo(texto: string): string {
     .trim();
 }
 
+export function pontuacaoDeAcentos(texto: string): number {
+  if (!texto || typeof texto !== 'string') {
+    return 0;
+  }
+  const acentuados = texto.match(/[áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ]/g);
+  return acentuados ? acentuados.length : 0;
+}
+
 export function canonicalizarMotivo(
   novoMotivo: string,
   motivosExistentes: readonly string[] = []
@@ -55,10 +63,31 @@ export function canonicalizarMotivo(
     }
   }
 
-  for (const existente of motivosExistentes) {
-    if (existente && typeof existente === 'string' && chaveCanonicaDoMotivo(existente) === chaveNova) {
-      return existente;
+  const candidatos = motivosExistentes.filter(
+    (existente): existente is string =>
+      Boolean(
+        existente &&
+          typeof existente === 'string' &&
+          chaveCanonicaDoMotivo(existente) === chaveNova
+      )
+  );
+
+  if (candidatos.length > 0) {
+    const melhorExistente = candidatos.reduce((melhor, atual) => {
+      const pontuacaoAtual = pontuacaoDeAcentos(atual);
+      const pontuacaoMelhor = pontuacaoDeAcentos(melhor);
+      if (pontuacaoAtual > pontuacaoMelhor) return atual;
+      if (pontuacaoAtual === pontuacaoMelhor && atual.length > melhor.length) return atual;
+      return melhor;
+    });
+
+    const pontuacaoNova = pontuacaoDeAcentos(novoMotivo.trim());
+    const pontuacaoExistente = pontuacaoDeAcentos(melhorExistente);
+
+    if (pontuacaoNova > pontuacaoExistente) {
+      return novoMotivo.trim();
     }
+    return melhorExistente;
   }
 
   return novoMotivo.trim();

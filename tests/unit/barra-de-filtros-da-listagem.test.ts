@@ -182,7 +182,7 @@ test('Fila de Manutenção não herda a barra compacta do pulso GEAP', () => {
 });
 
 test('combobox de Motivo valida e filtra listas dinâmicas de opções reais', async () => {
-  const { filtrarMotivosDeContato, motivoAceitoNoFiltro } = await import(
+  const { desduplicarMotivos, filtrarMotivosDeContato, motivoAceitoNoFiltro } = await import(
     '../../apps/web/src/features/atendimentos/motivo-combobox-logic.js'
   );
   const opcoesReais = [
@@ -197,6 +197,19 @@ test('combobox de Motivo valida e filtra listas dinâmicas de opções reais', a
   assert.deepEqual(filtrarMotivosDeContato(opcoesReais, 'pagamento'), ['Confirmação de pagamento']);
   assert.deepEqual(filtrarMotivosDeContato(opcoesReais, 'cadastral'), ['Alteração cadastral de endereço']);
   assert.deepEqual(filtrarMotivosDeContato(opcoesReais, 'inexistente'), []);
+
+  // Desduplica variações ortográficas mantendo a forma original com acentos
+  const opcoesDuplicadas = [
+    'Transferencia Sac/Cobranca Duplicada',
+    'Transferencia Sac/Cobrança Duplicada',
+    'Transferência Sac/Cobrança Duplicada'
+  ];
+  assert.deepEqual(desduplicarMotivos(opcoesDuplicadas), [
+    'Transferência Sac/Cobrança Duplicada'
+  ]);
+  assert.deepEqual(filtrarMotivosDeContato(opcoesDuplicadas, 'cobranca'), [
+    'Transferência Sac/Cobrança Duplicada'
+  ]);
 
   assert.equal(motivoAceitoNoFiltro('2ª via de boleto', opcoesReais), '2 via de boleto');
   assert.equal(motivoAceitoNoFiltro('confirmacao de pagamento', opcoesReais), 'Confirmação de pagamento');

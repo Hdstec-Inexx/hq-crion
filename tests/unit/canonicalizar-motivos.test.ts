@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import {
   canonicalizarMotivo,
   chaveCanonicaDoMotivo,
-  motivosOficiaisDaClara
+  motivosOficiaisDaClara,
+  pontuacaoDeAcentos
 } from '../../apps/api/src/modules/atendimentos/catalogo-motivos.js';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -141,4 +142,46 @@ test('migração 014_canonicalizar_motivos.sql define funções canônicas e tri
   for (const oficial of motivosOficiaisDaClara) {
     assert.ok(sql.includes(oficial), `SQL da migração deve conter o motivo oficial "${oficial}"`);
   }
+});
+
+test('pontuacaoDeAcentos conta corretamente caracteres acentuados e cedilhas', () => {
+  assert.equal(pontuacaoDeAcentos('Transferencia Sac/Cobranca Duplicada'), 0);
+  assert.equal(pontuacaoDeAcentos('Transferencia Sac/Cobrança Duplicada'), 1);
+  assert.equal(pontuacaoDeAcentos('Transferência Sac/Cobrança Duplicada'), 2);
+  assert.equal(pontuacaoDeAcentos('Cancelamento de elegibilidade'), 0);
+  assert.equal(pontuacaoDeAcentos('Liberação de atendimento'), 2); // ã, ç
+});
+
+test('canonicalizarMotivo prioriza a variante com acentos e caracteres especiais', () => {
+  const motivosComVariacoes = [
+    'Transferencia Sac/Cobranca Duplicada',
+    'Transferencia Sac/Cobrança Duplicada',
+    'Transferência Sac/Cobrança Duplicada'
+  ];
+
+  // Chegando forma sem acento, mapeia para a mais rica com acentos
+  assert.equal(
+    canonicalizarMotivo('Transferencia Sac/Cobranca Duplicada', motivosComVariacoes),
+    'Transferência Sac/Cobrança Duplicada'
+  );
+
+  // Chegando forma com acento inédita quando no banco só havia sem acento
+  const bancoLegadoSemAcento = ['Transferencia Sac/Cancelamento'];
+  assert.equal(
+    canonicalizarMotivo('Transferência Sac/Cancelamento', bancoLegadoSemAcento),
+    'Transferência Sac/Cancelamento'
+  );
+});
+
+test('migração 015_canonicalizar_motivos_acentuados.sql define hq_pontuacao_acentos e consolidação com CTE', () => {
+  const sql = readFileSync(
+    join(raiz, 'db/migrations/015_canonicalizar_motivos_acentuados.sql'),
+    'utf8'
+  );
+
+  assert.match(sql, /CREATE OR REPLACE FUNCTION hq_pontuacao_acentos/i);
+  assert.match(sql, /CREATE OR REPLACE FUNCTION hq_canonicalizar_motivo/i);
+  assert.match(sql, /hq_pontuacao_acentos\(motivo\)\s+DESC/i);
+  assert.match(sql, /WITH melhores_motivos AS/i);
+  assert.match(sql, /UPDATE hq_atendimento a/i);
 });
