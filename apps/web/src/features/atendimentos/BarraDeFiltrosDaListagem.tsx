@@ -13,13 +13,17 @@ import { MultiselectCriterios } from './MultiselectCriterios';
 import { queryAposFiltrar } from './query-apos-filtrar';
 import { SliderNotaDaIaAvaliadora } from './SliderNotaDaIaAvaliadora';
 
+const semMotivos: readonly string[] = [];
+
 export function BarraDeFiltrosDaListagem({
   caminho,
   curadores,
+  motivos = semMotivos,
   papel
 }: {
   caminho: string;
   curadores: { id: string; nome: string }[];
+  motivos?: readonly string[];
   papel?: Papel;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -65,7 +69,15 @@ export function BarraDeFiltrosDaListagem({
 
   function onFiltrar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSearchParams(queryAposFiltrar(searchParams, new FormData(event.currentTarget)));
+    const dados = new FormData(event.currentTarget);
+    const proxima = queryAposFiltrar(searchParams, dados);
+    const motivo = dados.get('motivo');
+    if (typeof motivo === 'string' && motivo.trim() !== '') {
+      proxima.set('motivo', motivo.trim());
+    } else {
+      proxima.delete('motivo');
+    }
+    setSearchParams(proxima);
   }
 
   function limparFiltros() {
@@ -125,7 +137,10 @@ export function BarraDeFiltrosDaListagem({
         <SliderNotaDaIaAvaliadora notaIaNaQuery={searchParams.get('notaIa') ?? ''} />
       ) : null}
       {campoVisivel('motivo') ? (
-        <ComboboxMotivo valorSubmetido={searchParams.get('motivo') ?? ''} />
+        <ComboboxMotivo
+          valorSubmetido={searchParams.get('motivo') ?? ''}
+          opcoes={motivos}
+        />
       ) : null}
       {campoVisivel('conversa') ? (
         <label>

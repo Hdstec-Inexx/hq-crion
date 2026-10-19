@@ -31,6 +31,7 @@ function formatarNota(nota: number) {
 }
 
 const semCuradores: { id: string; nome: string }[] = [];
+const semMotivos: string[] = [];
 
 function destinoDoDetalhe(id: string, search: string, lista: string) {
   const params = new URLSearchParams(search);
@@ -125,6 +126,7 @@ export function ListagemAtendimentos({
       <BarraDeFiltrosDaListagem
         caminho={caminho}
         curadores={listagem?.curadores ?? semCuradores}
+        motivos={listagem?.motivos ?? semMotivos}
         papel={perfil.papel}
       />
       {erro === 'recorte-invalido' ? (
