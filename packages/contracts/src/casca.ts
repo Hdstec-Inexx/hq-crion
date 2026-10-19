@@ -83,10 +83,10 @@ const areasPorPapel: Record<Papel, AreaDaCasca[]> = {
     regua
   ],
   Curador: [
+    filaDeCuradoria,
     atendimentos,
     favoritos,
     aoVivo,
-    filaDeCuradoria,
     minhasCuradorias,
     regua
   ],
