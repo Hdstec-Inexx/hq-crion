@@ -24,6 +24,7 @@ export function PaginacaoCompacta({
       <button
         type="button"
         className="listagem-paginacao-prev"
+        aria-label="Página anterior"
         disabled={pagina <= 1}
         onClick={() => irPara(pagina - 1)}
       >
@@ -44,6 +45,7 @@ export function PaginacaoCompacta({
               key={item}
               type="button"
               className={`listagem-paginacao-item${item === pagina ? ' ativo' : ''}`}
+              aria-label={`Página ${item}`}
               aria-current={item === pagina ? 'page' : undefined}
               onClick={() => irPara(item)}
             >
@@ -55,6 +57,7 @@ export function PaginacaoCompacta({
       <button
         type="button"
         className="listagem-paginacao-next"
+        aria-label="Próxima página"
         disabled={pagina >= totalPaginas}
         onClick={() => irPara(pagina + 1)}
       >

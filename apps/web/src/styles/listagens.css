@@ -282,7 +282,7 @@
 
 .listagem-paginacao button {
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--paper, #fff);
   color: var(--ink);
   border-radius: 999px;
   padding: 6px 12px;

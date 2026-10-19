@@ -109,6 +109,9 @@ test('PaginacaoCompacta define aria-current="page", botões de extremidade e ite
   );
 
   assert.match(tsx, /aria-current=\{item === pagina \? 'page' : undefined\}/);
+  assert.match(tsx, /aria-label=\{`Página \$\{item\}`\}/);
+  assert.match(tsx, /aria-label="Página anterior"/);
+  assert.match(tsx, /aria-label="Próxima página"/);
   assert.match(tsx, /disabled=\{pagina <= 1\}/);
   assert.match(tsx, /disabled=\{pagina >= totalPaginas\}/);
   assert.match(tsx, /onClick=\{\(\) => irPara\(item\)\}/);
