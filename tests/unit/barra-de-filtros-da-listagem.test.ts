@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import {
+  camposVisiveisDaListagem,
+  limparFiltrosDaQuery
+} from '../../packages/contracts/src/filtros-listagem.js';
 import { queryAposFiltrar } from '../../apps/web/src/features/atendimentos/query-apos-filtrar.js';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -116,7 +120,7 @@ test('Limpar remonta rascunhos de conversa, status e curador a partir da query',
   assert.match(barra, /key=\{`curador-\$\{searchParams\.get\('curador'\)/);
 });
 
-test('Motivo da barra é combobox do conjunto fechado, não um select cru', () => {
+test('Motivo da barra é combobox com opções dinâmicas, não um select cru', () => {
   const barra = readFileSync(
     join(raiz, 'apps/web/src/features/atendimentos/BarraDeFiltrosDaListagem.tsx'),
     'utf8'
@@ -127,9 +131,10 @@ test('Motivo da barra é combobox do conjunto fechado, não um select cru', () =
   );
 
   assert.match(barra, /<ComboboxMotivo/);
+  assert.match(barra, /opcoes=\{motivos\}/);
   assert.doesNotMatch(barra, /<select name="motivo"/);
   assert.match(combobox, /role="combobox"/);
-  assert.match(combobox, /motivosDeContato/);
+  assert.doesNotMatch(combobox, /import\s+{[^}]*motivosDeContato[^}]*}\s+from/);
   assert.match(combobox, /filtrarMotivosDeContato/);
   assert.match(combobox, /motivoAceitoNoFiltro/);
   assert.match(combobox, /type="hidden"/);
@@ -176,19 +181,68 @@ test('Fila de Manutenção não herda a barra compacta do pulso GEAP', () => {
   assert.match(css, /\.listagem-filtros-pulso :focus-visible/);
 });
 
-test('combobox de Motivo filtra o conjunto fechado sem acento', async () => {
+test('combobox de Motivo valida e filtra listas dinâmicas de opções reais', async () => {
   const { filtrarMotivosDeContato, motivoAceitoNoFiltro } = await import(
     '../../apps/web/src/features/atendimentos/motivo-combobox-logic.js'
   );
-  const opcoes = ['Boleto', 'Carência', 'Não informado', 'Rede credenciada'];
+  const opcoesReais = [
+    '2 via de boleto',
+    'Confirmação de pagamento',
+    'Alteração cadastral de endereço',
+    'Boleto'
+  ];
 
-  assert.deepEqual(filtrarMotivosDeContato(opcoes, ''), opcoes);
-  assert.deepEqual(filtrarMotivosDeContato(opcoes, 'nao'), ['Não informado']);
-  assert.deepEqual(filtrarMotivosDeContato(opcoes, 'rede'), ['Rede credenciada']);
-  assert.deepEqual(filtrarMotivosDeContato(opcoes, 'inexistente'), []);
-  assert.equal(motivoAceitoNoFiltro('Boleto', opcoes), 'Boleto');
-  assert.equal(motivoAceitoNoFiltro('nao', opcoes), '');
-  assert.equal(motivoAceitoNoFiltro('Nao informado', opcoes), 'Não informado');
+  assert.deepEqual(filtrarMotivosDeContato(opcoesReais, ''), opcoesReais);
+  assert.deepEqual(filtrarMotivosDeContato(opcoesReais, '2ª via'), ['2 via de boleto']);
+  assert.deepEqual(filtrarMotivosDeContato(opcoesReais, 'pagamento'), ['Confirmação de pagamento']);
+  assert.deepEqual(filtrarMotivosDeContato(opcoesReais, 'cadastral'), ['Alteração cadastral de endereço']);
+  assert.deepEqual(filtrarMotivosDeContato(opcoesReais, 'inexistente'), []);
+
+  assert.equal(motivoAceitoNoFiltro('2ª via de boleto', opcoesReais), '2 via de boleto');
+  assert.equal(motivoAceitoNoFiltro('confirmacao de pagamento', opcoesReais), 'Confirmação de pagamento');
+  assert.equal(motivoAceitoNoFiltro('Boleto', opcoesReais), 'Boleto');
+  assert.equal(motivoAceitoNoFiltro('desconhecido', opcoesReais), '');
+});
+
+test('submissão e limpeza de filtros aceita e limpa motivos reais', () => {
+  // Submissão com motivo real ("2 via de boleto")
+  const dados = new FormData();
+  dados.set('motivo', '2 via de boleto');
+  dados.set('conversa', 'conv-123');
+
+  const atual = new URLSearchParams('administradora=Affix&agente=affix-0800');
+  const proxima = queryAposFiltrar(atual, dados);
+  // Simula a lógica de onFiltrar da BarraDeFiltrosDaListagem
+  const motivo = dados.get('motivo');
+  if (typeof motivo === 'string' && motivo.trim() !== '') {
+    proxima.set('motivo', motivo.trim());
+  }
+
+  assert.equal(proxima.get('administradora'), 'Affix');
+  assert.equal(proxima.get('agente'), 'affix-0800');
+  assert.equal(proxima.get('motivo'), '2 via de boleto');
+  assert.equal(proxima.get('conversa'), 'conv-123');
+
+  // Limpeza de filtros remove o motivo e preserva o Recorte
+  const limpa = limparFiltrosDaQuery(proxima);
+  assert.equal(limpa.has('motivo'), false);
+  assert.equal(limpa.has('conversa'), false);
+  assert.equal(limpa.get('administradora'), 'Affix');
+  assert.equal(limpa.get('agente'), 'affix-0800');
+});
+
+test('BarraDeFiltrosDaListagem omite statusCuradoria para Curador na listagem de atendimentos', () => {
+  const camposCurador = camposVisiveisDaListagem('/atendimentos', 'Curador');
+  assert.equal(camposCurador.includes('statusCuradoria'), false);
+  assert.equal(camposCurador.includes('motivo'), true);
+
+  const camposGestao = camposVisiveisDaListagem('/atendimentos', 'Gestão');
+  assert.equal(camposGestao.includes('statusCuradoria'), true);
+  assert.equal(camposGestao.includes('motivo'), true);
+
+  const camposAdmin = camposVisiveisDaListagem('/atendimentos', 'Admin');
+  assert.equal(camposAdmin.includes('statusCuradoria'), true);
+  assert.equal(camposAdmin.includes('motivo'), true);
 });
 
 test('rótulo compacto de Critérios mostra placeholder, um nome ou a contagem', async () => {

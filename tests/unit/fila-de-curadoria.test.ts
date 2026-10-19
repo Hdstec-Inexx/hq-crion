@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import { destinoDaLista, periodoMesCivil } from '../../packages/contracts/src/recorte.js';
-import { areasDaCasca } from '../../packages/contracts/src/casca.js';
+import { areasDaCasca, destinoInicial } from '../../packages/contracts/src/casca.js';
 import { reguaUnica } from '../../apps/api/src/modules/regua/regua-unica.js';
 
 process.env.NODE_ENV = 'test';
@@ -44,6 +44,32 @@ test('voltar à Fila de Curadoria preserva Recorte na URL', () => {
     ),
     '/fila-de-curadoria?administradora=Affix&agente=affix-0800'
   );
+});
+
+test("destinoInicial('Curador') é /fila-de-curadoria", () => {
+  assert.equal(destinoInicial('Curador'), '/fila-de-curadoria');
+});
+
+test('GET /fila-de-curadoria inclui o array motivos na resposta', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessao = await sessaoDe(app, 'carla.mendes@crion');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/fila-de-curadoria',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = response.json() as { motivos: string[] };
+    assert.ok(Array.isArray(body.motivos));
+    assert.ok(body.motivos.length > 0);
+    const ordenados = [...body.motivos].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    assert.deepEqual(body.motivos, ordenados);
+  } finally {
+    await app.close();
+  }
 });
 
 test('casca do Curador tem Minhas Curadorias e a da Gestão tem Curadorias Realizadas', () => {

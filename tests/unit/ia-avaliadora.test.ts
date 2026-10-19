@@ -48,7 +48,7 @@ test('só o Admin vê IA Avaliadora na casca; o h1 usa o termo de domínio', () 
       perfil: { papel: 'Curador' },
       pathname: '/ia-avaliadora'
     }),
-    '/atendimentos'
+    '/fila-de-curadoria'
   );
 });
 

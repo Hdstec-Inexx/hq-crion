@@ -131,7 +131,7 @@ test('Curador não tem Dashboard na casca e é recusado na rota', () => {
   );
   assert.equal(
     destinoDaNavegacao({ perfil: { papel: 'Curador' }, pathname: '/dashboard' }),
-    '/atendimentos'
+    '/fila-de-curadoria'
   );
 });
 
