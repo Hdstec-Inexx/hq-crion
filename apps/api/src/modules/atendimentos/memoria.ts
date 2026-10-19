@@ -306,8 +306,8 @@ export function repositorioEmMemoria(
       item.comentarioResolvidoEm = new Date().toISOString();
       return item;
     },
-    async consultarListagem(recorte, query, modo, perfilId) {
-      const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
+    async consultarListagem(recorte, query, modo, perfilId, papel) {
+      const itens = aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId, papel);
       return itens.map((item) => {
         const info = resolverFavoritos(favoritos, item.id, perfilId);
         const notas = notasDoAtendimento(item);

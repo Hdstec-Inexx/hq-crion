@@ -947,9 +947,9 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
 
       return mapa;
     },
-    async consultarListagem(recorte, query, modo, perfilId) {
+    async consultarListagem(recorte, query, modo, perfilId, papel) {
       const registros = await lerRegistros(pool, { recorte, query, modo, perfilId });
-      return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId);
+      return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId, papel);
     },
     async consultarFavoritos(recorte, query, perfil) {
       const conversa = typeof query.conversa === 'string' ? query.conversa.trim() : '';

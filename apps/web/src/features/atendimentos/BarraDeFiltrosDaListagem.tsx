@@ -70,7 +70,7 @@ export function BarraDeFiltrosDaListagem({
   function onFiltrar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const dados = new FormData(event.currentTarget);
-    const proxima = queryAposFiltrar(searchParams, dados);
+    const proxima = queryAposFiltrar(searchParams, dados, motivos);
     const motivo = dados.get('motivo');
     if (typeof motivo === 'string' && motivo.trim() !== '') {
       proxima.set('motivo', motivo.trim());

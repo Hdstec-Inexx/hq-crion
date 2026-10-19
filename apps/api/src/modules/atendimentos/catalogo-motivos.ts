@@ -24,7 +24,9 @@ export function chaveCanonicaDoMotivo(texto: string): string {
     return '';
   }
 
-  return texto
+  const seguro = texto.length > 200 ? texto.slice(0, 200) : texto;
+
+  return seguro
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[ªº]/g, '')

@@ -522,6 +522,18 @@ test('GET /atendimentos filtra por motivo canônico exato e por variação ortog
       variacaoSemAcento.json().itens.map((item: { id: string }) => item.id),
       ['a4']
     );
+
+    const dinamico = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?motivo=Extra',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(dinamico.statusCode, 200);
+    const itensDinamicos = dinamico.json().itens as Array<{ id: string; motivo: string }>;
+    assert.ok(itensDinamicos.length > 0);
+    assert.ok(itensDinamicos.every((item) => item.motivo === 'Extra'));
+    assert.equal(itensDinamicos.some((item) => item.id === 'a1' || item.id === 'a2'), false);
   } finally {
     await app.close();
   }

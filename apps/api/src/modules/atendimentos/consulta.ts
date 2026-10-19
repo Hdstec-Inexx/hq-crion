@@ -1,3 +1,4 @@
+import type { Papel } from '@hq-crion/contracts/perfil';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import {
   aplicarIndicador,
@@ -6,6 +7,7 @@ import {
   passaNoRecorte,
   passaNosFiltros,
   periodoDaQuery,
+  resolverMotivoDaQuery,
   type ModoDaListagem
 } from './filtros.js';
 import type { RegistroDeAtendimento } from './registro.js';
@@ -15,10 +17,16 @@ export function aplicarConsultaDaListagem(
   recorte: Recorte,
   query: Record<string, string | undefined>,
   modo: ModoDaListagem,
-  perfilId: string
+  perfilId: string,
+  papel?: Papel
 ) {
+  const motivosDisponiveis = query.motivo
+    ? Array.from(new Set(registros.map((r) => r.motivo).filter((m): m is string => Boolean(m))))
+    : [];
+  const motivoFiltro = resolverMotivoDaQuery(query.motivo, motivosDisponiveis);
+
   const filtrados = registros.filter((item) =>
-    passaNosFiltros(item, recorte, query, modo, perfilId)
+    passaNosFiltros(item, recorte, query, modo, perfilId, papel, motivoFiltro)
   );
 
   return modo === 'todos' ? aplicarIndicador(filtrados, query.indicador) : filtrados;

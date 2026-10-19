@@ -97,6 +97,10 @@ BEGIN
 END;
 $$;
 
+UPDATE hq_atendimento
+SET motivo = hq_canonicalizar_motivo(motivo)
+WHERE motivo IS NOT NULL AND trim(motivo) <> '';
+
 DROP TRIGGER IF EXISTS hq_atendimento_canonicalizar_motivo ON hq_atendimento;
 
 CREATE TRIGGER hq_atendimento_canonicalizar_motivo
@@ -107,6 +111,6 @@ CREATE TRIGGER hq_atendimento_canonicalizar_motivo
 CREATE INDEX IF NOT EXISTS hq_atendimento_chave_canonica_motivo
   ON hq_atendimento (hq_chave_canonica_motivo(motivo));
 
-UPDATE hq_atendimento
-SET motivo = hq_canonicalizar_motivo(motivo)
-WHERE motivo IS NOT NULL AND trim(motivo) <> '';
+CREATE INDEX IF NOT EXISTS hq_atendimento_motivo_idx
+  ON hq_atendimento (motivo)
+  WHERE motivo IS NOT NULL AND motivo <> '';
