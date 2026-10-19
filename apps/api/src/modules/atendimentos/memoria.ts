@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { buscarPorId as buscarPerfilPorId } from '../perfil/repositorio.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
+import { canonicalizarMotivo } from './catalogo-motivos.js';
 import {
   aplicarConsultaDaListagem,
   aplicarConsultaDaManutencao,
   aplicarConsultaDoDashboard,
   consultaDoPercurso
 } from './consulta.js';
+import { passaNoRecorte } from './filtros.js';
 import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
@@ -20,11 +22,20 @@ import {
 } from './registro.js';
 
 function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendimento) {
+  const motivosExistentes = registros.map((registro) => registro.motivo).filter(Boolean);
+  const motivoCanonico = canonicalizarMotivo(novo.motivo, motivosExistentes);
   const atual = registros.find((registro) => registro.id === novo.id);
 
   if (!atual) {
-    registros.push(novo);
+    registros.push({
+      ...novo,
+      motivo: motivoCanonico
+    });
     return;
+  }
+
+  if (novo.motivo !== undefined) {
+    atual.motivo = motivoCanonico;
   }
 
   if (novo.transcricao.length > 0) {
@@ -92,7 +103,17 @@ function resolverFavoritos(
 export function repositorioEmMemoria(
   ingeridos: readonly RegistroDeAtendimento[] = []
 ): PortaDeAtendimentos {
-  const registros = catalogoDeAtendimentos();
+  const base = catalogoDeAtendimentos();
+  const registros: RegistroDeAtendimento[] = [];
+
+  for (const item of base) {
+    const motivosExistentes = registros.map((r) => r.motivo).filter(Boolean);
+    registros.push({
+      ...item,
+      motivo: canonicalizarMotivo(item.motivo, motivosExistentes)
+    });
+  }
+
   const favoritos: Array<{
     id: string;
     perfilId: string;
@@ -107,6 +128,19 @@ export function repositorioEmMemoria(
   return {
     async listar() {
       return registros;
+    },
+    async listarMotivos(recorte) {
+      const filtrados = recorte
+        ? registros.filter((item) => passaNoRecorte(item, recorte))
+        : registros;
+      const motivos = Array.from(
+        new Set(
+          filtrados
+            .map((item) => item.motivo)
+            .filter((motivo): motivo is string => Boolean(motivo && motivo.trim()))
+        )
+      );
+      return motivos.sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
     async buscarPorId(id) {
       return registros.find((registro) => registro.id === id);

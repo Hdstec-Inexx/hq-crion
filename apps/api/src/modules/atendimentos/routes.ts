@@ -212,13 +212,20 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const comIndicador = await app.atendimentos.consultarListagem(
-      recorte,
-      query,
-      modo,
-      registro.id
-    );
-    const itens = modo === 'fila' ? ordenarFila(comIndicador) : comIndicador;
+    const [comIndicador, motivos] = await Promise.all([
+      app.atendimentos.consultarListagem(
+        recorte,
+        query,
+        modo,
+        registro.id
+      ),
+      app.atendimentos.listarMotivos(recorte)
+    ]);
+    const filtradosPorCurador =
+      modo === 'todos' && registro.papel === 'Curador'
+        ? comIndicador.filter((item) => !item.curadoria)
+        : comIndicador;
+    const itens = modo === 'fila' ? ordenarFila(filtradosPorCurador) : filtradosPorCurador;
     const pagina = paginaDaLista(itens.length, query.pagina);
 
     return listagemResponseSchema.parse({
@@ -237,7 +244,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
         return semCusto;
       }),
       curadores:
-        modo === 'todos' || modo === 'realizadas' ? curadoresDaListagem(itens) : []
+        modo === 'todos' || modo === 'realizadas' ? curadoresDaListagem(itens) : [],
+      motivos
     });
   }
 
@@ -269,11 +277,14 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       curador: registro.papel === 'Curador' ? undefined : (query.perfilId ?? query.curador)
     };
 
-    const resultado = await app.atendimentos.consultarFavoritos(
-      recorte,
-      queryParaFavoritos,
-      registro
-    );
+    const [resultado, motivos] = await Promise.all([
+      app.atendimentos.consultarFavoritos(
+        recorte,
+        queryParaFavoritos,
+        registro
+      ),
+      app.atendimentos.listarMotivos(recorte)
+    ]);
 
     const pagina = paginaDaLista(resultado.itens.length, query.pagina);
 
@@ -292,7 +303,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
         const { custo: _custo, ...semCusto } = listagem;
         return semCusto;
       }) : [],
-      curadores: resultado.curadores
+      curadores: resultado.curadores,
+      motivos
     });
   });
 
