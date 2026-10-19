@@ -17,7 +17,6 @@ export const motivosOficiaisDaClara = [
   'Atraso na liberação do código da carteirinha'
 ] as const;
 
-export const MOTIVOS_OFICIAIS = motivosOficiaisDaClara;
 export type MotivoOficialDaClara = (typeof motivosOficiaisDaClara)[number];
 
 export function chaveCanonicaDoMotivo(texto: string): string {

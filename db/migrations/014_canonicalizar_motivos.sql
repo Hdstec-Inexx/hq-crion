@@ -107,9 +107,6 @@ CREATE TRIGGER hq_atendimento_canonicalizar_motivo
 CREATE INDEX IF NOT EXISTS hq_atendimento_chave_canonica_motivo
   ON hq_atendimento (hq_chave_canonica_motivo(motivo));
 
-CREATE INDEX IF NOT EXISTS hq_atendimento_motivo
-  ON hq_atendimento (motivo);
-
 UPDATE hq_atendimento
 SET motivo = hq_canonicalizar_motivo(motivo)
 WHERE motivo IS NOT NULL AND trim(motivo) <> '';

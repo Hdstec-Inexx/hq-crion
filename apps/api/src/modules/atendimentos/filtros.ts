@@ -1,5 +1,4 @@
 import {
-  motivosDeContato,
   notaIaDaQuery,
   statusDaCuradoria
 } from '@hq-crion/contracts/filtros-listagem';
@@ -11,11 +10,7 @@ import {
   type PeriodoFechado
 } from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
-import { buscarPorId as buscarPerfilPorId } from '../perfil/repositorio.js';
-import {
-  chaveCanonicaDoMotivo,
-  motivosOficiaisDaClara
-} from './catalogo-motivos.js';
+import { chaveCanonicaDoMotivo } from './catalogo-motivos.js';
 import {
   avaliacaoDaIaTemVeredito,
   iaEstaAprovada,
@@ -110,9 +105,7 @@ export function passaNosFiltros(
     return passaNoRecorte(item, recorte) && item.status === 'Em andamento';
   }
 
-  const papelEfetivo = papel ?? (perfilId ? buscarPerfilPorId(perfilId)?.papel : undefined);
-
-  if (modo === 'todos' && papelEfetivo === 'Curador' && item.curadoria) {
+  if (modo === 'todos' && papel === 'Curador' && item.curadoria) {
     return false;
   }
 
@@ -134,24 +127,12 @@ export function passaNosFiltros(
 
   if (query.motivo && query.motivo.trim() !== '') {
     const chaveQuery = chaveCanonicaDoMotivo(query.motivo);
-    const motivoCanonico =
-      motivosOficiaisDaClara.find(
-        (opcao) =>
-          opcao === query.motivo ||
-          (chaveCanonicaDoMotivo(opcao) !== '' && chaveCanonicaDoMotivo(opcao) === chaveQuery)
-      ) ??
-      motivosDeContato.find(
-        (opcao) =>
-          opcao === query.motivo ||
-          (chaveCanonicaDoMotivo(opcao) !== '' && chaveCanonicaDoMotivo(opcao) === chaveQuery)
-      );
+    const chaveItem = chaveCanonicaDoMotivo(item.motivo);
+    const coincide =
+      item.motivo === query.motivo || (chaveQuery !== '' && chaveQuery === chaveItem);
 
-    if (motivoCanonico) {
-      const chaveCanonica = chaveCanonicaDoMotivo(motivoCanonico);
-      const chaveItem = chaveCanonicaDoMotivo(item.motivo);
-      if (item.motivo !== motivoCanonico && chaveItem !== chaveCanonica) {
-        return false;
-      }
+    if (!coincide) {
+      return false;
     }
   }
 
