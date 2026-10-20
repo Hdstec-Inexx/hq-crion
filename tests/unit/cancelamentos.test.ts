@@ -11,8 +11,15 @@ import {
   atendimentoDetalheSchema
 } from '../../packages/contracts/src/atendimento.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
-import { periodoMesCivil } from '../../packages/contracts/src/recorte.js';
+import {
+  destinoDaLista,
+  destinoDoBadge,
+  periodoAteHoje,
+  periodoMesCivil
+} from '../../packages/contracts/src/recorte.js';
 import { extrairDiagnosticoDeCancelamento } from '../../apps/api/src/modules/cancelamentos/heuristica.js';
+import { classificarAtendimentoComIa } from '../../apps/api/src/modules/cancelamentos/openrouter.js';
+import { parseAppConfig } from '../../apps/api/src/plugins/config.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -540,7 +547,161 @@ test('Persistência e detalhe do Atendimento com Diagnóstico de Cancelamento', 
       'O corretor disse que o hospital cobria tudo, cancelei e fui para a Hapvida.'
     );
     assert.equal(diagLido.origem, 'ia');
+
+    // Quando a IA persiste houveIntencaoCancelamento: false, a heurística não sobrescreve o veredito da IA
+    const gravacaoFalsa = await app.inject({
+      method: 'PUT',
+      url: '/api/atendimentos/a1/avaliacao-ia',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: {
+        nota: 8.5,
+        criterios: [
+          { nome: 'Resolução da demanda', estado: 'Atendido', pontos: 1.5, critico: true }
+        ],
+        resumo: 'Cliente mencionou Hapvida mas decidiu permanecer no plano após esclarecimento.',
+        falhasIdentificadas: [],
+        diagnosticoCancelamento: {
+          houveIntencaoCancelamento: false,
+          origem: 'ia'
+        }
+      }
+    });
+    assert.equal(gravacaoFalsa.statusCode, 200);
+    const detalheSemCancelamento = atendimentoDetalheSchema.parse(gravacaoFalsa.json());
+    assert.equal(
+      detalheSemCancelamento.avaliacaoDaIa?.diagnosticoCancelamento,
+      undefined,
+      'Veredito negativo da IA deve ter precedência sobre a heurística'
+    );
   } finally {
     await app.close();
+  }
+});
+
+test('Recorte, período do Dashboard, idempotência do passivo e validação de categoria LLM em cancelamentos', async () => {
+  // 1. /cancelamentos preserva Recorte no badge e no voltar à lista
+  assert.equal(
+    destinoDaLista({ administradora: 'Affix', agente: 'affix-0800' }, '/cancelamentos'),
+    '/cancelamentos?administradora=Affix&agente=affix-0800'
+  );
+  assert.equal(
+    destinoDoBadge('Affix', '/cancelamentos'),
+    '/cancelamentos?administradora=Affix'
+  );
+
+  const app = await buildApp();
+  try {
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+
+    // 2. Sem datas informadas, GET /api/cancelamentos aplica o período do Dashboard (dia 1 até hoje)
+    const semDatas = await app.inject({
+      method: 'GET',
+      url: '/api/cancelamentos?administradora=Affix',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(semDatas.statusCode, 200);
+    const painelSemDatas = painelDeCancelamentosResponseSchema.parse(semDatas.json());
+    assert.deepEqual(painelSemDatas.periodo, periodoAteHoje(new Date()));
+    // a4 está 'Em andamento' em Affix; apenas concluídos entram em totalAtendimentos (a1)
+    assert.equal(
+      painelSemDatas.itens.every((item) => item.status === 'Concluído'),
+      true
+    );
+
+    // 3. Período inválido retorna 400 com erro: 'periodo' nos três endpoints
+    const getPeriodoInvalido = await app.inject({
+      method: 'GET',
+      url: '/api/cancelamentos?inicio=2026-10-20&fim=2026-10-01',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(getPeriodoInvalido.statusCode, 400);
+    assert.equal(getPeriodoInvalido.json().erro, 'periodo');
+
+    const postPesquisaInvalida = await app.inject({
+      method: 'POST',
+      url: '/api/cancelamentos/pesquisa-ia',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: {
+        pergunta: 'Qual o padrão?',
+        inicio: '2026-10-20',
+        fim: '2026-10-01'
+      }
+    });
+    assert.equal(postPesquisaInvalida.statusCode, 400);
+    assert.equal(postPesquisaInvalida.json().erro, 'periodo');
+
+    // 4. Analisar passivo processa registros ainda sem diagnóstico IA e não reprocessa na segunda chamada
+    const { inicio, fim } = periodoMesCivil(new Date());
+    const passivo1 = await app.inject({
+      method: 'POST',
+      url: '/api/cancelamentos/analisar-passivo',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: { administradora: 'Affix', agente: 'affix-0800', inicio, fim }
+    });
+    assert.equal(passivo1.statusCode, 200);
+    assert.equal(passivo1.json().analisados, 1);
+
+    const passivo2 = await app.inject({
+      method: 'POST',
+      url: '/api/cancelamentos/analisar-passivo',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: { administradora: 'Affix', agente: 'affix-0800', inicio, fim }
+    });
+    assert.equal(passivo2.statusCode, 200);
+    assert.equal(passivo2.json().analisados, 0);
+  } finally {
+    await app.close();
+  }
+
+  // 5. classificarAtendimentoComIa sanitiza categoriaCausa fora do enum canônico para 'Outros'
+  const fetchOriginal = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  houveIntencaoCancelamento: true,
+                  categoriaCausa: 'Categoria inventada pelo LLM',
+                  vendaMalFeita: true,
+                  concorrenteCitado: 'Hapvida',
+                  diagnostico: 'Cancelou e foi para a Hapvida.',
+                  evidenciaTrecho: 'Vou para a Hapvida'
+                })
+              }
+            }
+          ]
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )) as typeof fetch;
+
+    const classificado = await classificarAtendimentoComIa({
+      atendimento: {
+        id: 'x1',
+        administradora: 'Affix',
+        agente: 'Clara Affix 0800',
+        agenteId: 'affix-0800',
+        iniciadoEm: '2026-10-11T09:00:00-03:00',
+        motivo: 'Carência',
+        nota: 8,
+        notaIa: 8,
+        notaCurador: null,
+        status: 'Concluído',
+        curadoria: false,
+        conversa: 'conv-x1',
+        transcricao: [{ locutor: 'Cliente', quando: '0:05', texto: 'Vou para a Hapvida' }]
+      },
+      config: parseAppConfig({
+        NODE_ENV: 'test',
+        OPENROUTER_API_KEY: 'sk-or-test'
+      })
+    });
+
+    assert.equal(classificado.categoriaCausa, 'Outros');
+    assert.equal(classificado.origem, 'ia');
+  } finally {
+    globalThis.fetch = fetchOriginal;
   }
 });

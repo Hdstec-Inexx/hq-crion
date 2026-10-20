@@ -14,7 +14,7 @@ import {
 } from './consulta.js';
 import { passaNoRecorte } from './filtros.js';
 import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
-import { extrairDiagnosticoDeCancelamento } from '../cancelamentos/heuristica.js';
+import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
 import {
   aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
@@ -170,8 +170,8 @@ export function repositorioEmMemoria(
     async buscarPorId(id) {
       const registro = registros.find((item) => item.id === id);
       if (registro?.avaliacaoDaIa && !registro.avaliacaoDaIa.diagnosticoCancelamento) {
-        const diag = extrairDiagnosticoDeCancelamento(registro);
-        if (diag.houveIntencaoCancelamento) {
+        const diag = resolverDiagnosticoParaAvaliacao(registro);
+        if (diag) {
           registro.avaliacaoDaIa.diagnosticoCancelamento = diag;
         }
       }
@@ -283,23 +283,22 @@ export function repositorioEmMemoria(
       item.notaIa = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
 
-      let diagnosticoCancelamento = entrada.diagnosticoCancelamento;
-      if (!diagnosticoCancelamento) {
-        const diag = extrairDiagnosticoDeCancelamento({
-          motivo: item.motivo,
-          transcricao: item.transcricao,
-          avaliacaoDaIa: {
-            nota: entrada.nota,
-            aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
-            criterios,
-            resumo: entrada.resumo ?? undefined,
-            falhasIdentificadas: entrada.falhasIdentificadas ?? []
+      const diagnosticoCancelamento = entrada.diagnosticoCancelamento
+        ? {
+            ...entrada.diagnosticoCancelamento,
+            origem: entrada.diagnosticoCancelamento.origem ?? ('ia' as const)
           }
-        });
-        if (diag.houveIntencaoCancelamento) {
-          diagnosticoCancelamento = diag;
-        }
-      }
+        : resolverDiagnosticoParaAvaliacao({
+            motivo: item.motivo,
+            transcricao: item.transcricao,
+            avaliacaoDaIa: {
+              nota: entrada.nota,
+              aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
+              criterios,
+              resumo: entrada.resumo ?? undefined,
+              falhasIdentificadas: entrada.falhasIdentificadas ?? []
+            }
+          });
 
       item.avaliacaoDaIa = {
         nota: entrada.nota,
@@ -307,7 +306,7 @@ export function repositorioEmMemoria(
         criterios,
         resumo: entrada.resumo ?? undefined,
         falhasIdentificadas: entrada.falhasIdentificadas ?? [],
-        ...(diagnosticoCancelamento?.houveIntencaoCancelamento ? { diagnosticoCancelamento } : {})
+        ...(diagnosticoCancelamento ? { diagnosticoCancelamento } : {})
       };
 
       return 'ok';

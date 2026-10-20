@@ -1,11 +1,14 @@
-import type {
-  DiagnosticoCancelamento,
-  EvidenciaPesquisaIa,
-  PesquisaIaCancelamentoResponse
+import {
+  categoriaCausaCancelamentoSchema,
+  type DiagnosticoCancelamento,
+  type EvidenciaPesquisaIa,
+  type PesquisaIaCancelamentoResponse
 } from '@hq-crion/contracts/cancelamento';
 import type { AppConfig } from '../../plugins/config.js';
 import type { RegistroDeAtendimento } from '../atendimentos/registro.js';
 import { extrairDiagnosticoDeCancelamento } from './heuristica.js';
+
+const OPENROUTER_TIMEOUT_MS = 15_000;
 
 export type AtendimentoParaPesquisa = RegistroDeAtendimento & {
   diagnosticoCancelamento: DiagnosticoCancelamento;
@@ -153,6 +156,7 @@ ${JSON.stringify(dadosContexto, null, 2)}`;
     const url = `${config.OPENROUTER_BASE_URL.replace(/\/+$/, '')}/chat/completions`;
     const response = await fetch(url, {
       method: 'POST',
+      signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.OPENROUTER_API_KEY}`,
@@ -228,7 +232,10 @@ export async function classificarAtendimentoComIa(params: {
   const { atendimento, config } = params;
 
   if (!config.OPENROUTER_API_KEY) {
-    return extrairDiagnosticoDeCancelamento(atendimento);
+    return {
+      ...extrairDiagnosticoDeCancelamento(atendimento),
+      origem: 'ia'
+    };
   }
 
   const modelo = config.OPENROUTER_MODEL || 'deepseek/deepseek-v4.1-flash';
@@ -250,6 +257,7 @@ Analise a transcrição e motivo do atendimento e responda EXCLUSIVAMENTE em for
   try {
     const response = await fetch(url, {
       method: 'POST',
+      signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.OPENROUTER_API_KEY}`
@@ -269,7 +277,10 @@ Analise a transcrição e motivo do atendimento e responda EXCLUSIVAMENTE em for
     });
 
     if (!response.ok) {
-      return extrairDiagnosticoDeCancelamento(atendimento);
+      return {
+        ...extrairDiagnosticoDeCancelamento(atendimento),
+        origem: 'ia'
+      };
     }
 
     const payload = (await response.json()) as {
@@ -277,20 +288,43 @@ Analise a transcrição e motivo do atendimento e responda EXCLUSIVAMENTE em for
     };
     const conteudo = payload.choices?.[0]?.message?.content;
     if (!conteudo) {
-      return extrairDiagnosticoDeCancelamento(atendimento);
+      return {
+        ...extrairDiagnosticoDeCancelamento(atendimento),
+        origem: 'ia'
+      };
     }
 
     const parsed = JSON.parse(conteudo);
+    const houveIntencao = Boolean(parsed.houveIntencaoCancelamento);
+    const parsedCausa = categoriaCausaCancelamentoSchema.safeParse(parsed.categoriaCausa);
+    const categoriaCausa = parsedCausa.success
+      ? parsedCausa.data
+      : houveIntencao
+        ? 'Outros'
+        : null;
+
     return {
-      houveIntencaoCancelamento: Boolean(parsed.houveIntencaoCancelamento),
-      categoriaCausa: parsed.categoriaCausa ?? null,
+      houveIntencaoCancelamento: houveIntencao,
+      categoriaCausa,
       vendaMalFeita: Boolean(parsed.vendaMalFeita),
-      concorrenteCitado: parsed.concorrenteCitado ?? null,
-      diagnostico: parsed.diagnostico ?? null,
-      evidenciaTrecho: parsed.evidenciaTrecho ?? null,
+      concorrenteCitado:
+        typeof parsed.concorrenteCitado === 'string' && parsed.concorrenteCitado.trim()
+          ? parsed.concorrenteCitado.trim()
+          : null,
+      diagnostico:
+        typeof parsed.diagnostico === 'string' && parsed.diagnostico.trim()
+          ? parsed.diagnostico.trim()
+          : null,
+      evidenciaTrecho:
+        typeof parsed.evidenciaTrecho === 'string' && parsed.evidenciaTrecho.trim()
+          ? parsed.evidenciaTrecho.trim()
+          : null,
       origem: 'ia'
     };
   } catch {
-    return extrairDiagnosticoDeCancelamento(atendimento);
+    return {
+      ...extrairDiagnosticoDeCancelamento(atendimento),
+      origem: 'ia'
+    };
   }
 }

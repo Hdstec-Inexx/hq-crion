@@ -110,11 +110,15 @@ export type PainelDeCancelamentosResponse = z.infer<
   typeof painelDeCancelamentosResponseSchema
 >;
 
-export const filtrosCancelamentoQuerySchema = z.object({
+const recorteEPeriodoFiltroFields = {
   administradora: administradoraSchema.nullable().optional(),
   agente: z.string().nullable().optional(),
   inicio: z.string().nullable().optional(),
-  fim: z.string().nullable().optional(),
+  fim: z.string().nullable().optional()
+};
+
+export const filtrosCancelamentoQuerySchema = z.object({
+  ...recorteEPeriodoFiltroFields,
   causa: categoriaCausaCancelamentoSchema.optional(),
   vendaMalFeita: z.enum(['sim', 'nao', 'todos']).optional(),
   concorrente: z.string().trim().max(200).optional(),
@@ -127,10 +131,7 @@ export type FiltrosCancelamentoQuery = z.infer<
 
 export const pesquisaIaCancelamentoRequestSchema = z.object({
   pergunta: z.string().trim().min(2).max(500),
-  administradora: administradoraSchema.nullable().optional(),
-  agente: z.string().nullable().optional(),
-  inicio: z.string().nullable().optional(),
-  fim: z.string().nullable().optional()
+  ...recorteEPeriodoFiltroFields
 });
 
 export type PesquisaIaCancelamentoRequest = z.infer<
@@ -169,11 +170,8 @@ export type PesquisaIaCancelamentoResponse = z.infer<
 
 export const analisarPassivoRequestSchema = z
   .object({
-    administradora: administradoraSchema.nullable().optional(),
-    agente: z.string().nullable().optional(),
-    inicio: z.string().nullable().optional(),
-    fim: z.string().nullable().optional(),
-    limite: z.number().int().positive().max(10_000).optional()
+    ...recorteEPeriodoFiltroFields,
+    limite: z.number().int().positive().max(200).optional()
   })
   .optional()
   .default({});

@@ -11,10 +11,11 @@ import {
   type CancelamentoPorConcorrente,
   type CategoriaCausaCancelamento
 } from '@hq-crion/contracts/cancelamento';
-import { periodoMesCivil, type Recorte } from '@hq-crion/contracts/recorte';
+import type { Recorte } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { registroDaAutorizacao } from '../perfil/sessoes.js';
 import { periodoDaQuery, recorteDaQuery } from '../atendimentos/filtros.js';
+import { itemDaListagem } from '../atendimentos/routes.js';
 import { extrairDiagnosticoDeCancelamento } from './heuristica.js';
 import {
   executarPesquisaIa,
@@ -34,7 +35,9 @@ function resolverRecorteEPeriodo(
     fim?: string | null;
   },
   query: Record<string, string | undefined>
-): { recorte: Recorte; periodo: { inicio: string; fim: string } } | null {
+):
+  | { ok: true; recorte: Recorte; periodo: { inicio: string; fim: string } }
+  | { ok: false; erro: 'recorte' | 'periodo' } {
   const queryMesclada: Record<string, string | undefined> = {
     ...query,
     ...(dados.administradora !== undefined ? { administradora: dados.administradora ?? undefined } : {}),
@@ -45,17 +48,15 @@ function resolverRecorteEPeriodo(
 
   const recorte = recorteDaQuery(queryMesclada);
   if (!recorte) {
-    return null;
+    return { ok: false, erro: 'recorte' };
   }
 
-  let periodo = periodoDaQuery(queryMesclada);
+  const periodo = periodoDaQuery(queryMesclada, 'dashboard');
   if (!periodo) {
-    // Fallback para o mês civil corrente se não informado
-    const mesCivil = periodoMesCivil(new Date());
-    periodo = { inicio: mesCivil.inicio, fim: mesCivil.fim };
+    return { ok: false, erro: 'periodo' };
   }
 
-  return { recorte, periodo };
+  return { ok: true, recorte, periodo };
 }
 
 const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
@@ -74,19 +75,19 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
 
     const query = request.query as Record<string, string | undefined>;
     const recorte = recorteDaQuery(query);
-    const periodo = periodoDaQuery(query);
+    const periodo = periodoDaQuery(query, 'dashboard');
 
     if (!recorte || !periodo) {
       return reply.code(400).send({
         statusCode: 400,
-        ...(!periodo ? { erro: 'periodo' } : {})
+        ...(recorte && !periodo ? { erro: 'periodo' } : {})
       });
     }
 
     const filtrosQuery = filtrosCancelamentoQuerySchema.safeParse(query);
     const filtros = filtrosQuery.success ? filtrosQuery.data : {};
 
-    // Consulta atendimentos no recorte e período
+    // Consulta atendimentos concluídos no recorte e período
     const itensBase = await app.atendimentos.consultarListagem(
       recorte,
       { inicio: periodo.inicio, fim: periodo.fim },
@@ -95,7 +96,9 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
       registro.papel
     );
 
-    const atendimentosComDiag: AtendimentoParaPesquisa[] = itensBase.map((item) => ({
+    const concluidos = itensBase.filter((item) => item.status === 'Concluído');
+
+    const atendimentosComDiag: AtendimentoParaPesquisa[] = concluidos.map((item) => ({
       ...item,
       diagnosticoCancelamento: extrairDiagnosticoDeCancelamento(item)
     }));
@@ -245,22 +248,7 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     itensFiltrados.sort((a, b) => b.iniciadoEm.localeCompare(a.iniciadoEm));
 
     const itens: CancelamentoItem[] = itensFiltrados.map((item) => ({
-      id: item.id,
-      administradora: item.administradora,
-      agente: item.agente,
-      agenteId: item.agenteId,
-      iniciadoEm: item.iniciadoEm,
-      motivo: item.motivo,
-      nota: item.nota,
-      notaIa: item.notaIa,
-      notaCurador: item.notaCurador ?? null,
-      status: item.status,
-      curadoria: item.curadoria,
-      conversa: item.conversa,
-      ...(item.custo ? { custo: item.custo } : {}),
-      favoritadoPeloUsuario: item.favoritadoPeloUsuario ?? false,
-      favoritosCount: item.favoritosCount ?? 0,
-      favoritosPerfis: item.favoritosPerfis ?? [],
+      ...itemDaListagem(item),
       diagnosticoCancelamento: item.diagnosticoCancelamento
     }));
 
@@ -298,8 +286,11 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     const query = request.query as Record<string, string | undefined>;
     const resolvido = resolverRecorteEPeriodo(lido.data, query);
 
-    if (!resolvido) {
-      return reply.code(400).send({ statusCode: 400 });
+    if (!resolvido.ok) {
+      return reply.code(400).send({
+        statusCode: 400,
+        ...(resolvido.erro === 'periodo' ? { erro: 'periodo' } : {})
+      });
     }
 
     const { recorte, periodo } = resolvido;
@@ -312,7 +303,9 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
       registro.papel
     );
 
-    const atendimentosComDiag: AtendimentoParaPesquisa[] = itensBase.map((item) => ({
+    const concluidos = itensBase.filter((item) => item.status === 'Concluído');
+
+    const atendimentosComDiag: AtendimentoParaPesquisa[] = concluidos.map((item) => ({
       ...item,
       diagnosticoCancelamento: extrairDiagnosticoDeCancelamento(item)
     }));
@@ -350,8 +343,11 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     const query = request.query as Record<string, string | undefined>;
     const resolvido = resolverRecorteEPeriodo(lido.data, query);
 
-    if (!resolvido) {
-      return reply.code(400).send({ statusCode: 400 });
+    if (!resolvido.ok) {
+      return reply.code(400).send({
+        statusCode: 400,
+        ...(resolvido.erro === 'periodo' ? { erro: 'periodo' } : {})
+      });
     }
 
     const { recorte, periodo } = resolvido;
@@ -364,14 +360,20 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
       registro.papel
     );
 
-    const limite = lido.data.limite ?? 10_000;
-    const concluidos = itensBase
-      .filter((item) => item.status === 'Concluído')
+    const limite = Math.min(lido.data.limite ?? 50, 200);
+    const pendentesPassivo = itensBase
+      .filter(
+        (item) =>
+          item.status === 'Concluído' &&
+          Boolean(item.avaliacaoDaIa) &&
+          item.avaliacaoDaIa?.diagnosticoCancelamento?.origem !== 'ia'
+      )
       .slice(0, limite);
 
     let cancelamentosDetectados = 0;
 
-    for (const item of concluidos) {
+    for (const item of pendentesPassivo) {
+      const avaliacaoExistente = item.avaliacaoDaIa!;
       const diag = await classificarAtendimentoComIa({
         atendimento: item,
         config: app.config
@@ -381,27 +383,19 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
         cancelamentosDetectados += 1;
       }
 
-      const criterios =
-        item.avaliacaoDaIa?.criterios.map((c) => ({
-          chave: c.chave,
-          nome: c.nome,
-          estado: c.estado,
-          pontos: c.pontos,
-          critico: c.critico
-        })) ?? [
-          {
-            nome: 'Resolução da demanda',
-            estado: 'Atendido' as const,
-            pontos: 1.5,
-            critico: true
-          }
-        ];
+      const criterios = avaliacaoExistente.criterios.map((c) => ({
+        chave: c.chave,
+        nome: c.nome,
+        estado: c.estado,
+        pontos: c.pontos,
+        critico: c.critico
+      }));
 
       await app.atendimentos.gravarAvaliacaoDaIa(item.id, {
-        nota: item.avaliacaoDaIa?.nota ?? 7,
+        nota: avaliacaoExistente.nota,
         criterios,
-        resumo: item.avaliacaoDaIa?.resumo ?? null,
-        falhasIdentificadas: item.avaliacaoDaIa?.falhasIdentificadas ?? [],
+        resumo: avaliacaoExistente.resumo ?? null,
+        falhasIdentificadas: avaliacaoExistente.falhasIdentificadas ?? [],
         diagnosticoCancelamento: diag
       });
     }
@@ -410,7 +404,7 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     const fonte = app.config.OPENROUTER_API_KEY ? 'openrouter' : 'analitico-local';
 
     return analisarPassivoResponseSchema.parse({
-      analisados: concluidos.length,
+      analisados: pendentesPassivo.length,
       cancelamentosDetectados,
       modelo,
       fonte

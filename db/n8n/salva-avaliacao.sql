@@ -6,12 +6,13 @@
 --   $3::jsonb    -> Critérios avaliados
 --   $4::text     -> Resumo do atendimento
 --   $5::jsonb    -> Falhas identificadas
--- Parâmetros opcionais de Diagnóstico de Cancelamento ($6..$10):
+-- Parâmetros opcionais de Diagnóstico de Cancelamento ($6..$11):
 --   $6::boolean  -> houve_intencao_cancelamento
 --   $7::text     -> categoria_causa_cancelamento
 --   $8::boolean  -> venda_mal_feita
 --   $9::text     -> concorrente_citado
 --   $10::text    -> diagnostico_cancelamento
+--   $11::text    -> evidencia_trecho
 
 /*
 Chamada básica de 5 parâmetros mantida para compatibilidade:
@@ -34,5 +35,6 @@ SELECT * FROM persistir_avaliacao_da_ia(
   COALESCE($7::text, NULL),
   COALESCE($8::boolean, NULL),
   COALESCE($9::text, NULL),
-  COALESCE($10::text, NULL)
+  COALESCE($10::text, NULL),
+  COALESCE($11::text, NULL)
 );

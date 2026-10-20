@@ -95,6 +95,7 @@ export function lerRecorte(query: {
 
 export const listasComRecorte = [
   '/atendimentos',
+  '/cancelamentos',
   '/favoritos',
   '/monitoramento',
   '/fila-de-curadoria',

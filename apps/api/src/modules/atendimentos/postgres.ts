@@ -22,8 +22,11 @@ import { tempoDeEsperaDaTranscricao } from './tempo-de-espera.js';
 import { inserirAtendimentoSeAusenteSql, inserirAtendimentoSql } from './schema.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
 import { deveSemear } from './semente.js';
-import { extrairDiagnosticoDeCancelamento } from '../cancelamentos/heuristica.js';
-import type { CategoriaCausaCancelamento, DiagnosticoCancelamento } from '@hq-crion/contracts/cancelamento';
+import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
+import {
+  categoriaCausaCancelamentoSchema,
+  type DiagnosticoCancelamento
+} from '@hq-crion/contracts/cancelamento';
 
 export type ExecutorSql = {
   query(
@@ -65,6 +68,7 @@ SELECT
   ia.venda_mal_feita AS ia_venda_mal_feita,
   ia.concorrente_citado AS ia_concorrente_citado,
   ia.diagnostico_cancelamento AS ia_diagnostico_cancelamento,
+  ia.evidencia_trecho AS ia_evidencia_trecho,
   vig.id AS avaliacao_curador_id,
   vig.nota AS nota_curador,
   vig.nota_da_avaliacao_da_ia,
@@ -255,6 +259,7 @@ function montarRegistro(
     ia_venda_mal_feita?: boolean | null;
     ia_concorrente_citado?: string | null;
     ia_diagnostico_cancelamento?: string | null;
+    ia_evidencia_trecho?: string | null;
     avaliacao_curador_id: string | null;
     nota_curador: unknown;
     nota_da_avaliacao_da_ia: unknown;
@@ -273,21 +278,21 @@ function montarRegistro(
   const notaIa =
     linha.nota_ia === null || linha.nota_ia === undefined ? undefined : numero(linha.nota_ia);
   let diagnosticoCancelamento: DiagnosticoCancelamento | undefined = undefined;
-  if (linha.ia_houve_intencao_cancelamento === true) {
+  if (typeof linha.ia_houve_intencao_cancelamento === 'boolean') {
+    const parsedCausa = categoriaCausaCancelamentoSchema.safeParse(
+      linha.ia_categoria_causa_cancelamento
+    );
     diagnosticoCancelamento = {
-      houveIntencaoCancelamento: true,
-      categoriaCausa:
-        (linha.ia_categoria_causa_cancelamento as CategoriaCausaCancelamento | undefined) ?? null,
+      houveIntencaoCancelamento: linha.ia_houve_intencao_cancelamento,
+      categoriaCausa: parsedCausa.success ? parsedCausa.data : null,
       vendaMalFeita: Boolean(linha.ia_venda_mal_feita),
       concorrenteCitado: linha.ia_concorrente_citado ?? null,
       diagnostico: linha.ia_diagnostico_cancelamento ?? null,
+      evidenciaTrecho: linha.ia_evidencia_trecho ?? null,
       origem: 'ia'
     };
-  } else if (
-    linha.ia_houve_intencao_cancelamento === null ||
-    linha.ia_houve_intencao_cancelamento === undefined
-  ) {
-    const diag = extrairDiagnosticoDeCancelamento({
+  } else {
+    diagnosticoCancelamento = resolverDiagnosticoParaAvaliacao({
       motivo: linha.motivo,
       transcricao: linha.transcricao ?? [],
       avaliacaoDaIa:
@@ -301,9 +306,6 @@ function montarRegistro(
             }
           : undefined
     });
-    if (diag.houveIntencaoCancelamento) {
-      diagnosticoCancelamento = diag;
-    }
   }
 
   const avaliacaoDaIa =
@@ -628,8 +630,9 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
          categoria_causa_cancelamento,
          venda_mal_feita,
          concorrente_citado,
-         diagnostico_cancelamento
-       ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)`,
+         diagnostico_cancelamento,
+         evidencia_trecho
+       ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)`,
       [
         registro.id,
         registro.avaliacaoDaIa.nota,
@@ -639,7 +642,8 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
         diag?.categoriaCausa ?? null,
         diag?.vendaMalFeita ?? null,
         diag?.concorrenteCitado ?? null,
-        diag?.diagnostico ?? null
+        diag?.diagnostico ?? null,
+        diag?.evidenciaTrecho ?? null
       ]
     );
     await inserirCriterios(
@@ -825,8 +829,9 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
              categoria_causa_cancelamento,
              venda_mal_feita,
              concorrente_citado,
-             diagnostico_cancelamento
-           ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)`,
+             diagnostico_cancelamento,
+             evidencia_trecho
+           ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)`,
           [
             id,
             entrada.nota,
@@ -836,7 +841,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             entrada.diagnosticoCancelamento?.categoriaCausa ?? null,
             entrada.diagnosticoCancelamento?.vendaMalFeita ?? null,
             entrada.diagnosticoCancelamento?.concorrenteCitado ?? null,
-            entrada.diagnosticoCancelamento?.diagnostico ?? null
+            entrada.diagnosticoCancelamento?.diagnostico ?? null,
+            entrada.diagnosticoCancelamento?.evidenciaTrecho ?? null
           ]
         );
         await inserirCriterios(

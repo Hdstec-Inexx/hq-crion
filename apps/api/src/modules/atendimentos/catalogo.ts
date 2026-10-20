@@ -213,18 +213,7 @@ function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
       avaliacaoDaIa: {
         ...avaliacaoDe(item.nota, item.curadoria),
         resumo:
-          'O cliente relatou cancelamento e migração para a Hapvida motivado por divergência na rede credenciada prometida pelo corretor na adesão.',
-        diagnosticoCancelamento: {
-          houveIntencaoCancelamento: true,
-          categoriaCausa: 'Rede credenciada / Cobertura',
-          vendaMalFeita: true,
-          concorrenteCitado: 'Hapvida',
-          diagnostico:
-            'Cliente cancelou e migrou para a Hapvida devido a hospital prometido pelo corretor na venda que não faz parte da rede credenciada.',
-          evidenciaTrecho:
-            'O corretor me garantiu que o Hospital Santa Joana atendia pelo meu plano, mas quando precisei me disseram que não atende. Me sinto enganado pela venda. Já cancelei e migrei para a Hapvida.',
-          origem: 'ia'
-        }
+          'O cliente relatou cancelamento e migração para a Hapvida motivado por divergência na rede credenciada prometida pelo corretor na adesão.'
       },
       ...fatosInternos(item),
       ...(concluido ? { concluidoEm: item.iniciadoEm } : {})
@@ -256,18 +245,7 @@ function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
       avaliacaoDaIa: {
         ...avaliacaoDe(item.nota, item.curadoria),
         resumo:
-          'O cliente contestou a cobrança no boleto alegando promessa comercial do vendedor e manifestou intenção de cancelamento por venda mal feita.',
-        diagnosticoCancelamento: {
-          houveIntencaoCancelamento: true,
-          categoriaCausa: 'Problema financeiro / Boleto',
-          vendaMalFeita: true,
-          concorrenteCitado: null,
-          diagnostico:
-            'Cliente manifestou intenção de cancelamento por divergência no valor do boleto em desacordo com o prometido pelo vendedor na contratação.',
-          evidenciaTrecho:
-            'O vendedor prometeu que não haveria cobrança de taxa de adesão no primeiro boleto. Foi uma venda mal feita e enganosa. Se não cancelarem essa taxa, vou cancelar o plano agora mesmo.',
-          origem: 'ia'
-        }
+          'O cliente contestou a cobrança no boleto alegando promessa comercial do vendedor e manifestou intenção de cancelamento por venda mal feita.'
       },
       ...fatosInternos(item),
       ...(concluido ? { concluidoEm: item.iniciadoEm } : {}),

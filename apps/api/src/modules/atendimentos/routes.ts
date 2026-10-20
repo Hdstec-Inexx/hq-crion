@@ -23,7 +23,7 @@ import {
 } from '../ingestao/elevenlabs.js';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
-import { extrairDiagnosticoDeCancelamento } from '../cancelamentos/heuristica.js';
+import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
 import { periodoDaQuery, recorteDaQuery, type ModoDaListagem } from './filtros.js';
 import { paginaDaLista } from './pagina.js';
 import type { FavoritosDoAtendimento } from './porta.js';
@@ -86,7 +86,7 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
   return [...vistos.values()];
 }
 
-function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
+export function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
   const { notaIa, notaCurador } = notasDoAtendimento(detalhe);
 
   return {
@@ -171,14 +171,15 @@ function responderDetalhe(
 
   let avaliacaoIaFinal = avaliacaoDaIa;
   if (avaliacaoIaFinal) {
-    if (!avaliacaoIaFinal.diagnosticoCancelamento) {
-      const diag = extrairDiagnosticoDeCancelamento(item);
-      if (diag.houveIntencaoCancelamento) {
-        avaliacaoIaFinal = {
-          ...avaliacaoIaFinal,
-          diagnosticoCancelamento: diag
-        };
-      }
+    const diag = resolverDiagnosticoParaAvaliacao(item);
+    if (diag && diag.houveIntencaoCancelamento) {
+      avaliacaoIaFinal = {
+        ...avaliacaoIaFinal,
+        diagnosticoCancelamento: diag
+      };
+    } else if (avaliacaoIaFinal.diagnosticoCancelamento && !avaliacaoIaFinal.diagnosticoCancelamento.houveIntencaoCancelamento) {
+      const { diagnosticoCancelamento: _omit, ...semDiag } = avaliacaoIaFinal;
+      avaliacaoIaFinal = semDiag;
     }
   }
 

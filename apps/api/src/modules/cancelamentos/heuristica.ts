@@ -238,3 +238,18 @@ export function extrairDiagnosticoDeCancelamento(
     origem: 'heuristica'
   };
 }
+
+export function resolverDiagnosticoParaAvaliacao(
+  atendimento: Pick<
+    RegistroDeAtendimento,
+    'motivo' | 'transcricao' | 'avaliacaoDaIa'
+  >
+): DiagnosticoCancelamento | undefined {
+  const diagSalvo = atendimento.avaliacaoDaIa?.diagnosticoCancelamento;
+  if (diagSalvo && typeof diagSalvo.houveIntencaoCancelamento === 'boolean') {
+    return diagSalvo;
+  }
+
+  const diag = extrairDiagnosticoDeCancelamento(atendimento);
+  return diag.houveIntencaoCancelamento ? diag : undefined;
+}

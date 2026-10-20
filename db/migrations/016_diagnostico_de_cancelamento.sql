@@ -4,9 +4,11 @@ ALTER TABLE hq_avaliacao_da_ia
   ADD COLUMN IF NOT EXISTS categoria_causa_cancelamento TEXT,
   ADD COLUMN IF NOT EXISTS venda_mal_feita BOOLEAN,
   ADD COLUMN IF NOT EXISTS concorrente_citado TEXT,
-  ADD COLUMN IF NOT EXISTS diagnostico_cancelamento TEXT;
+  ADD COLUMN IF NOT EXISTS diagnostico_cancelamento TEXT,
+  ADD COLUMN IF NOT EXISTS evidencia_trecho TEXT;
 
 DROP FUNCTION IF EXISTS persistir_avaliacao_da_ia(text, numeric, jsonb, text, jsonb);
+DROP FUNCTION IF EXISTS persistir_avaliacao_da_ia(text, numeric, jsonb, text, jsonb, boolean, text, boolean, text, text);
 
 CREATE OR REPLACE FUNCTION persistir_avaliacao_da_ia(
   p_atendimento_id text,
@@ -18,7 +20,8 @@ CREATE OR REPLACE FUNCTION persistir_avaliacao_da_ia(
   p_categoria_causa_cancelamento text DEFAULT NULL,
   p_venda_mal_feita boolean DEFAULT NULL,
   p_concorrente_citado text DEFAULT NULL,
-  p_diagnostico_cancelamento text DEFAULT NULL
+  p_diagnostico_cancelamento text DEFAULT NULL,
+  p_evidencia_trecho text DEFAULT NULL
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -45,7 +48,8 @@ BEGIN
     categoria_causa_cancelamento,
     venda_mal_feita,
     concorrente_citado,
-    diagnostico_cancelamento
+    diagnostico_cancelamento,
+    evidencia_trecho
   ) VALUES (
     p_atendimento_id,
     p_nota,
@@ -55,7 +59,8 @@ BEGIN
     p_categoria_causa_cancelamento,
     p_venda_mal_feita,
     p_concorrente_citado,
-    p_diagnostico_cancelamento
+    p_diagnostico_cancelamento,
+    p_evidencia_trecho
   );
 
   INSERT INTO hq_criterio_da_avaliacao_da_ia (
