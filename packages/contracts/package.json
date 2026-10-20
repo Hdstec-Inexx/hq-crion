@@ -44,6 +44,10 @@
     "./ia-avaliadora": {
       "types": "./src/ia-avaliadora.ts",
       "default": "./dist/ia-avaliadora.js"
+    },
+    "./cancelamento": {
+      "types": "./src/cancelamento.ts",
+      "default": "./dist/cancelamento.js"
     }
   },
   "scripts": {
