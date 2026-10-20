@@ -23,7 +23,7 @@ import { inserirAtendimentoSeAusenteSql, inserirAtendimentoSql } from './schema.
 import { catalogoDeAtendimentos } from './catalogo.js';
 import { deveSemear } from './semente.js';
 import { extrairDiagnosticoDeCancelamento } from '../cancelamentos/heuristica.js';
-import type { DiagnosticoCancelamento } from '@hq-crion/contracts/cancelamento';
+import type { CategoriaCausaCancelamento, DiagnosticoCancelamento } from '@hq-crion/contracts/cancelamento';
 
 export type ExecutorSql = {
   query(
@@ -273,19 +273,20 @@ function montarRegistro(
   const notaIa =
     linha.nota_ia === null || linha.nota_ia === undefined ? undefined : numero(linha.nota_ia);
   let diagnosticoCancelamento: DiagnosticoCancelamento | undefined = undefined;
-  if (
-    linha.ia_houve_intencao_cancelamento !== null &&
-    linha.ia_houve_intencao_cancelamento !== undefined
-  ) {
+  if (linha.ia_houve_intencao_cancelamento === true) {
     diagnosticoCancelamento = {
-      houveIntencaoCancelamento: Boolean(linha.ia_houve_intencao_cancelamento),
-      categoriaCausa: (linha.ia_categoria_causa_cancelamento as any) ?? null,
+      houveIntencaoCancelamento: true,
+      categoriaCausa:
+        (linha.ia_categoria_causa_cancelamento as CategoriaCausaCancelamento | undefined) ?? null,
       vendaMalFeita: Boolean(linha.ia_venda_mal_feita),
       concorrenteCitado: linha.ia_concorrente_citado ?? null,
       diagnostico: linha.ia_diagnostico_cancelamento ?? null,
       origem: 'ia'
     };
-  } else {
+  } else if (
+    linha.ia_houve_intencao_cancelamento === null ||
+    linha.ia_houve_intencao_cancelamento === undefined
+  ) {
     const diag = extrairDiagnosticoDeCancelamento({
       motivo: linha.motivo,
       transcricao: linha.transcricao ?? [],
@@ -616,14 +617,29 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
   await cliente.query(inserirAtendimentoSql, valoresDoAtendimento(registro));
 
   if (registro.avaliacaoDaIa) {
+    const diag = registro.avaliacaoDaIa.diagnosticoCancelamento;
     await cliente.query(
-      `INSERT INTO hq_avaliacao_da_ia (atendimento_id, nota, resumo_atendimento, falhas_identificadas)
-       VALUES ($1, $2, $3, $4::jsonb)`,
+      `INSERT INTO hq_avaliacao_da_ia (
+         atendimento_id,
+         nota,
+         resumo_atendimento,
+         falhas_identificadas,
+         houve_intencao_cancelamento,
+         categoria_causa_cancelamento,
+         venda_mal_feita,
+         concorrente_citado,
+         diagnostico_cancelamento
+       ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)`,
       [
         registro.id,
         registro.avaliacaoDaIa.nota,
         registro.avaliacaoDaIa.resumo ?? null,
-        JSON.stringify(registro.avaliacaoDaIa.falhasIdentificadas ?? [])
+        JSON.stringify(registro.avaliacaoDaIa.falhasIdentificadas ?? []),
+        diag?.houveIntencaoCancelamento ?? null,
+        diag?.categoriaCausa ?? null,
+        diag?.vendaMalFeita ?? null,
+        diag?.concorrenteCitado ?? null,
+        diag?.diagnostico ?? null
       ]
     );
     await inserirCriterios(

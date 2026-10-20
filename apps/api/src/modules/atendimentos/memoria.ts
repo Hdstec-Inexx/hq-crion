@@ -307,7 +307,7 @@ export function repositorioEmMemoria(
         criterios,
         resumo: entrada.resumo ?? undefined,
         falhasIdentificadas: entrada.falhasIdentificadas ?? [],
-        ...(diagnosticoCancelamento ? { diagnosticoCancelamento } : {})
+        ...(diagnosticoCancelamento?.houveIntencaoCancelamento ? { diagnosticoCancelamento } : {})
       };
 
       return 'ok';
