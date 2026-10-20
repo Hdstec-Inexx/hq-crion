@@ -14,6 +14,7 @@ import {
 } from './consulta.js';
 import { passaNoRecorte } from './filtros.js';
 import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
+import { extrairDiagnosticoDeCancelamento } from '../cancelamentos/heuristica.js';
 import {
   aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
@@ -167,7 +168,14 @@ export function repositorioEmMemoria(
       return Array.from(melhoresPorChave.values()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
     async buscarPorId(id) {
-      return registros.find((registro) => registro.id === id);
+      const registro = registros.find((item) => item.id === id);
+      if (registro?.avaliacaoDaIa && !registro.avaliacaoDaIa.diagnosticoCancelamento) {
+        const diag = extrairDiagnosticoDeCancelamento(registro);
+        if (diag.houveIntencaoCancelamento) {
+          registro.avaliacaoDaIa.diagnosticoCancelamento = diag;
+        }
+      }
+      return registro;
     },
     async favoritar(atendimentoId, perfilId) {
       const item = registros.find((registro) => registro.id === atendimentoId);
@@ -274,12 +282,32 @@ export function repositorioEmMemoria(
       item.nota = entrada.nota;
       item.notaIa = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
+
+      let diagnosticoCancelamento = entrada.diagnosticoCancelamento;
+      if (!diagnosticoCancelamento) {
+        const diag = extrairDiagnosticoDeCancelamento({
+          motivo: item.motivo,
+          transcricao: item.transcricao,
+          avaliacaoDaIa: {
+            nota: entrada.nota,
+            aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
+            criterios,
+            resumo: entrada.resumo ?? undefined,
+            falhasIdentificadas: entrada.falhasIdentificadas ?? []
+          }
+        });
+        if (diag.houveIntencaoCancelamento) {
+          diagnosticoCancelamento = diag;
+        }
+      }
+
       item.avaliacaoDaIa = {
         nota: entrada.nota,
         aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
         criterios,
         resumo: entrada.resumo ?? undefined,
-        falhasIdentificadas: entrada.falhasIdentificadas ?? []
+        falhasIdentificadas: entrada.falhasIdentificadas ?? [],
+        ...(diagnosticoCancelamento?.houveIntencaoCancelamento ? { diagnosticoCancelamento } : {})
       };
 
       return 'ok';

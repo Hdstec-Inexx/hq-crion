@@ -45,7 +45,27 @@ const configSchema = z
     R2_BUCKET: optionalString,
     R2_ENDPOINT: optionalString,
     R2_ACCESS_KEY_ID: optionalString,
-    R2_SECRET_ACCESS_KEY: optionalString
+    R2_SECRET_ACCESS_KEY: optionalString,
+    OPENROUTER_API_KEY: optionalString,
+    OPENROUTER_MODEL: z
+      .preprocess(
+        (value) =>
+          typeof value === 'string' && value.trim() === '' ? undefined : value,
+        z.string().default('deepseek/deepseek-v4.1-flash')
+      ),
+    OPENROUTER_BASE_URL: z
+      .preprocess(
+        (value) =>
+          typeof value === 'string' && value.trim() === '' ? undefined : value,
+        z.string().default('https://openrouter.ai/api/v1')
+      )
+      .refine((value) => {
+        try {
+          return new URL(value).protocol === 'https:';
+        } catch {
+          return false;
+        }
+      }, 'OPENROUTER_BASE_URL deve ser https')
   })
   .superRefine((config, ctx) => {
     if (config.NODE_ENV !== 'production') {
