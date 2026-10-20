@@ -6,7 +6,11 @@ import {
 } from '@hq-crion/contracts/cancelamento';
 import type { AppConfig } from '../../plugins/config.js';
 import type { RegistroDeAtendimento } from '../atendimentos/registro.js';
-import { extrairDiagnosticoDeCancelamento } from './heuristica.js';
+import {
+  extrairDiagnosticoDeCancelamento,
+  sanearDiagnosticoContraFalsosPositivos,
+  CONCORRENTES
+} from './heuristica.js';
 
 const OPENROUTER_TIMEOUT_MS = 15_000;
 
@@ -32,13 +36,40 @@ function montarEvidencia(
   };
 }
 
+function detectarConcorrenteNaPergunta(pergunta: string): string | null {
+  for (const concorrente of CONCORRENTES) {
+    if (concorrente.padrao.test(pergunta)) {
+      return concorrente.nome;
+    }
+  }
+  return null;
+}
+
+function sanitizarTextoExecutivo(texto: string): string {
+  return texto
+    .replace(/['"]?(concorrenteCitado|concorrente_citado)['"]?/g, 'Concorrente Citado')
+    .replace(/['"]?(vendaMalFeita|venda_mal_feita)['"]?/g, 'Venda Mal Feita')
+    .replace(
+      /['"]?(categoriaCausa|categoria_causa|categoria_causa_cancelamento)['"]?/g,
+      'Causa de Cancelamento'
+    )
+    .replace(
+      /['"]?(houveIntencaoCancelamento|houve_intencao_cancelamento)['"]?/g,
+      'Intenção de Cancelamento'
+    )
+    .replace(
+      /['"]?(diagnosticoCancelamento|diagnostico_cancelamento)['"]?/g,
+      'Diagnóstico de Cancelamento'
+    );
+}
+
 export function sintetizarPesquisaAnaliticaLocal(
   pergunta: string,
   atendimentos: AtendimentoParaPesquisa[],
   modelo: string
 ): PesquisaIaCancelamentoResponse {
   const perguntaNorm = pergunta.toLowerCase();
-  const querHapvida = perguntaNorm.includes('hapvida');
+  const concorrentePerguntado = detectarConcorrenteNaPergunta(pergunta);
   const querVendaMalFeita =
     perguntaNorm.includes('venda mal feita') ||
     perguntaNorm.includes('venda') ||
@@ -46,19 +77,25 @@ export function sintetizarPesquisaAnaliticaLocal(
   const querConcorrente =
     perguntaNorm.includes('concorrente') ||
     perguntaNorm.includes('migra') ||
-    querHapvida;
+    Boolean(concorrentePerguntado);
 
   let selecionados: AtendimentoParaPesquisa[] = [];
+  let ehPerguntaEspecifica = false;
 
-  if (querHapvida) {
-    selecionados = atendimentos.filter((a) =>
-      a.diagnosticoCancelamento.concorrenteCitado?.toLowerCase().includes('hapvida')
-    );
+  if (concorrentePerguntado) {
+    ehPerguntaEspecifica = true;
+    const def = CONCORRENTES.find((c) => c.nome === concorrentePerguntado);
+    selecionados = atendimentos.filter((a) => {
+      const citado = a.diagnosticoCancelamento.concorrenteCitado;
+      if (!citado) return false;
+      return def ? def.padrao.test(citado) || citado.toLowerCase().includes(def.nome.toLowerCase()) : citado.toLowerCase().includes(concorrentePerguntado.toLowerCase());
+    });
   } else if (querVendaMalFeita && !querConcorrente) {
+    ehPerguntaEspecifica = true;
     selecionados = atendimentos.filter(
       (a) => a.diagnosticoCancelamento.vendaMalFeita
     );
-  } else if (querConcorrente && !querHapvida) {
+  } else if (querConcorrente) {
     selecionados = atendimentos.filter(
       (a) => Boolean(a.diagnosticoCancelamento.concorrenteCitado)
     );
@@ -68,8 +105,9 @@ export function sintetizarPesquisaAnaliticaLocal(
     );
   }
 
-  // Se o filtro específico não trouxe nada, pega os cancelamentos gerais
-  if (selecionados.length === 0) {
+  // Se a pergunta foi específica (ex.: sobre um concorrente específico ou venda mal feita)
+  // e não encontrou registros, NÃO fazemos fallback para cancelamentos gerais!
+  if (!ehPerguntaEspecifica && selecionados.length === 0) {
     selecionados = atendimentos.filter(
       (a) => a.diagnosticoCancelamento.houveIntencaoCancelamento
     );
@@ -78,35 +116,35 @@ export function sintetizarPesquisaAnaliticaLocal(
   const totalCancelamentos = atendimentos.filter(
     (a) => a.diagnosticoCancelamento.houveIntencaoCancelamento
   ).length;
-  const totalHapvida = atendimentos.filter((a) =>
-    a.diagnosticoCancelamento.concorrenteCitado?.toLowerCase().includes('hapvida')
-  ).length;
-  const totalVendaMalFeitaHapvida = atendimentos.filter(
-    (a) =>
-      a.diagnosticoCancelamento.concorrenteCitado?.toLowerCase().includes('hapvida') &&
-      a.diagnosticoCancelamento.vendaMalFeita
-  ).length;
+  const totalConcorrente = concorrentePerguntado
+    ? selecionados.length
+    : 0;
   const totalVendaMalFeitaGeral = atendimentos.filter(
     (a) => a.diagnosticoCancelamento.vendaMalFeita
   ).length;
 
   let resposta = '';
 
-  if (querHapvida && querVendaMalFeita) {
-    resposta = `Identificamos ${totalHapvida} atendimento(s) em que o cliente cancelou e migrou para a Hapvida. Desses casos, ${totalVendaMalFeitaHapvida} confirmam a hipótese de venda mal feita, com relatos expressos de promessas de carência ou rede credenciada prometidas pelo corretor comercial que não foram cumpridas na prática.`;
-  } else if (querHapvida) {
-    resposta = `Foram identificados ${totalHapvida} caso(s) de cancelamento ou declaração expressa de migração para a Hapvida no período analisado, motivados principalmente por divergências de rede credenciada e carência.`;
+  if (concorrentePerguntado) {
+    if (totalConcorrente === 0) {
+      resposta = `Nenhum dos **${totalCancelamentos} cancelamentos** analisados no período registra migração declarada para a **${concorrentePerguntado}**.\n\n- **Concorrentes efetivos**: As migrações registradas concentram-se em outras operadoras.\n- **Hipótese de perda**: Não há evidência de churn direcionado à ${concorrentePerguntado} no período e recorte selecionados.\n\nRecomenda-se revalidar a hipótese de perda junto às áreas comercial e de atendimento.`;
+    } else if (querVendaMalFeita) {
+      const comVenda = selecionados.filter((a) => a.diagnosticoCancelamento.vendaMalFeita).length;
+      resposta = `Identificamos **${totalConcorrente} atendimento(s)** com cancelamento e migração confirmada para a **${concorrentePerguntado}**.\n\n- **Incidência de Venda Mal Feita**: ${comVenda} caso(s) confirmam falhas comerciais com divergência de carência ou rede prometida na adesão.\n- **Motivação predominante**: insatisfação com rede credenciada e expectativas divergentes na contratação.\n\nRecomenda-se reforçar o alinhamento comercial com os corretores da região.`;
+    } else {
+      resposta = `Foram identificados **${totalConcorrente} caso(s)** de cancelamento com migração declarada para a **${concorrentePerguntado}** no período analisado.\n\n- **Padrão observado**: clientes declaram contratação de novo plano na operadora concorrente motivados por divergências de rede credenciada e preço.\n\nRecomenda-se direcionar os esforços de retenção e benchmark comercial para essa operadora.`;
+    }
   } else if (querVendaMalFeita) {
-    resposta = `Constatamos ${totalVendaMalFeitaGeral} atendimento(s) com indício claro de venda mal feita entre os cancelamentos analisados. A insatisfação decorre de divergências entre as promessas comerciais dos corretores/vendedores e as coberturas reais do plano.`;
+    resposta = `Constatamos **${totalVendaMalFeitaGeral} atendimento(s)** com indício claro de **Venda Mal Feita** entre os ${totalCancelamentos} cancelamentos analisados.\n\n- **Causas frequentes**: divergências entre as promessas de carência/hospitais dos vendedores e a cobertura real do plano.\n\nRecomenda-se auditoria nos canais comerciais parceiros.`;
   } else if (querConcorrente) {
-    resposta = `No período analisado, identificamos migrações expressas para operadoras concorrentes, com destaque para a Hapvida. Os clientes apontam divergência de rede e custos como catalisadores da migração.`;
+    resposta = `No período analisado, identificamos cancelamentos com declaração expressa de migração para operadoras concorrentes.\n\n- **Impacto**: clientes apontam divergência de rede e custo como catalisadores da troca de operadora.\n\nRecomenda-se acompanhamento sistemático dos cancelamentos com migração.`;
   } else {
-    resposta = `Com base nos ${totalCancelamentos} cancelamento(s) analisados no recorte, o padrão predominante envolve divergências comerciais (venda mal feita) e perda de clientes para operadoras concorrentes da rede credenciada.`;
+    resposta = `Com base nos **${totalCancelamentos} cancelamentos** analisados no recorte, o padrão predominante envolve divergências comerciais (venda mal feita) e problemas financeiros/reajuste.\n\n- **Ação recomendada**: revisar regras de comunicação comercial e negociação de parcelas.`;
   }
 
   return {
     pergunta,
-    resposta,
+    resposta: sanitizarTextoExecutivo(resposta),
     modelo,
     fonte: 'analitico-local',
     evidencias: selecionados.map(montarEvidencia)
@@ -141,11 +179,21 @@ export async function executarPesquisaIa(params: {
     trecho: a.diagnosticoCancelamento.evidenciaTrecho
   }));
 
+  const concorrentePerguntado = detectarConcorrenteNaPergunta(pergunta);
+
   const systemPrompt = `Você é o assistente executivo e analítico da plataforma HQ Crion, especializado em diagnóstico de cancelamentos e churn de planos de saúde.
 Analise os atendimentos fornecidos abaixo para responder à pergunta do gestor.
+DIRETRIZES DE ESTILO E LINGUAGEM:
+1. Responda em português pt-BR com linguagem executiva, clara e objetiva.
+2. NUNCA mencione nomes técnicos de variáveis, colunas ou schemas (é PROIBIDO usar termos como "concorrenteCitado", "vendaMalFeita", "categoriaCausa", "houveIntencaoCancelamento"). Use sempre os termos de domínio: "Concorrente Citado", "Venda Mal Feita", "Causa de Cancelamento".
+3. ESTRUTURE A RESPOSTA EM PARÁGRAFOS E TÓPICOS usando quebras de linha:
+   - Parágrafo 1: Resposta direta, objetiva e quantitativa à pergunta do gestor, com números em negrito (**...**).
+   - Parágrafo 2 (tópicos com "- **...**:"): Padrões observados, principais causas e detalhes das evidências.
+   - Parágrafo 3: Recomendação acionável e síntese para retenção/comercial.
+4. Se a pergunta for sobre um concorrente específico e não houver casos desse concorrente nos dados, declare claramente que não há registros para ele.
 Retorne EXCLUSIVAMENTE um objeto JSON com as chaves:
-- "resposta": texto explicativo e objetivo em português pt-BR respondendo à pergunta com síntese analítica fundamentada nos dados;
-- "evidenciaIds": array de strings com os IDs dos atendimentos mais relevantes que comprovam a resposta.`;
+- "resposta": texto explicativo formatado conforme as diretrizes;
+- "evidenciaIds": array de strings com os IDs dos atendimentos estritamente pertinentes à pergunta (se não houver atendimentos correspondentes à pergunta, retorne array vazio []).`;
 
   const userPrompt = `Pergunta do gestor: "${pergunta}"
 
@@ -206,7 +254,38 @@ ${JSON.stringify(dadosContexto, null, 2)}`;
       .filter((a) => idsEvidencias.has(a.id))
       .map(montarEvidencia);
 
-    if (evidencias.length === 0) {
+    const perguntaNorm = pergunta.toLowerCase();
+    const querVendaMalFeita =
+      perguntaNorm.includes('venda mal feita') ||
+      perguntaNorm.includes('venda') ||
+      perguntaNorm.includes('corretor');
+    const querConcorrente =
+      perguntaNorm.includes('concorrente') ||
+      perguntaNorm.includes('migra') ||
+      Boolean(concorrentePerguntado);
+    const ehPerguntaEspecifica = Boolean(
+      concorrentePerguntado || (querVendaMalFeita && !querConcorrente)
+    );
+
+    // Se a pergunta foi sobre concorrente específico, assegura que as evidências sejam estritas àquele concorrente
+    if (concorrentePerguntado) {
+      const def = CONCORRENTES.find((c) => c.nome === concorrentePerguntado);
+      evidencias = evidencias.filter((e) => {
+        const citado = e.concorrenteCitado;
+        if (!citado) return false;
+        return def
+          ? def.padrao.test(citado) || citado.toLowerCase().includes(def.nome.toLowerCase())
+          : citado.toLowerCase().includes(concorrentePerguntado.toLowerCase());
+      });
+    } else if (querVendaMalFeita && !querConcorrente) {
+      evidencias = evidencias.filter((e) => Boolean(e.vendaMalFeita));
+    } else if (querConcorrente) {
+      evidencias = evidencias.filter((e) => Boolean(e.concorrenteCitado));
+    }
+
+    // Se a pergunta foi específica (ex.: sobre um concorrente específico ou venda mal feita)
+    // e não encontrou registros, NÃO fazemos fallback para cancelamentos gerais!
+    if (!ehPerguntaEspecifica && evidencias.length === 0) {
       evidencias = atendimentos
         .filter((a) => a.diagnosticoCancelamento.houveIntencaoCancelamento)
         .slice(0, 5)
@@ -215,7 +294,7 @@ ${JSON.stringify(dadosContexto, null, 2)}`;
 
     return {
       pergunta,
-      resposta: parsed.resposta,
+      resposta: sanitizarTextoExecutivo(parsed.resposta),
       modelo,
       fonte: 'openrouter',
       evidencias
@@ -248,7 +327,13 @@ Analise a transcrição e motivo do atendimento e responda EXCLUSIVAMENTE em for
 - vendaMalFeita (boolean)
 - concorrenteCitado (string ou null, ex.: "Hapvida", "Unimed", etc.)
 - diagnostico (string concisa explicando o caso ou null)
-- evidenciaTrecho (trecho da fala do cliente comprovando o caso ou null)`;
+- evidenciaTrecho (trecho da fala do cliente comprovando o caso ou null)
+
+REGRAS DE NEGÓCIO MANDATÓRIAS PARA CONCORRENTE CITADO E MIGRAÇÃO:
+1. As empresas avaliadas (Affix, Alter, Conectaplan) são ADMINISTRADORAS de benefícios. O plano que o cliente já possui e cancela pertence a uma operadora parceira (ex.: Unimed do Maranhão, Assim Saúde, Hapvida).
+2. "concorrenteCitado" só deve ser preenchido (e "categoriaCausa" só deve ser "Migração para concorrente") quando o PRÓPRIO CLIENTE declarar explicitamente que está MUDANDO, MIGRANDO ou CONTRATANDO OUTRO PLANO em uma operadora concorrente.
+3. Se o cliente apenas cita a operadora parceira do seu próprio plano atual ou pergunta se deve solicitar o cancelamento à administradora ou direto à operadora, isso NÃO é concorrente citado e NÃO é migração para concorrente.
+4. Falas do Agente de Voz não contam para identificar concorrente. Palavras ambíguas como a conjunção "assim" nunca são concorrentes.`;
 
   const falas = (atendimento.transcricao ?? [])
     .map((t) => `${t.locutor}: ${t.texto}`)
@@ -303,7 +388,7 @@ Analise a transcrição e motivo do atendimento e responda EXCLUSIVAMENTE em for
         ? 'Outros'
         : null;
 
-    return {
+    const diagPre: DiagnosticoCancelamento = {
       houveIntencaoCancelamento: houveIntencao,
       categoriaCausa,
       vendaMalFeita: Boolean(parsed.vendaMalFeita),
@@ -321,6 +406,8 @@ Analise a transcrição e motivo do atendimento e responda EXCLUSIVAMENTE em for
           : null,
       origem: 'ia'
     };
+
+    return sanearDiagnosticoContraFalsosPositivos(atendimento, diagPre);
   } catch {
     return {
       ...extrairDiagnosticoDeCancelamento(atendimento),

@@ -31,7 +31,7 @@ A operação e a gestão precisam responder rapidamente a perguntas críticas de
      - *Concorrentes Citados & Detalhamento*: ranking das operadoras/concorrentes mencionados (ex.: `Hapvida`, `Unimed`, `Amil`) e sub-padrões. Clicar em um concorrente filtra imediatamente a listagem pelos Atendimentos que o citaram.
   3. **Pesquisa por IA**:
      - Campo de pergunta livre com atalhos sugeridos (*"Quem cancelou e foi para a Hapvida?"*, *"O problema do cancelamento é venda mal feita?"*, *"Qual o padrão dos cancelamentos no período?"*).
-     - Retorna resposta analítica sintetizada pelo modelo + lista de **Evidências** (cards clicáveis que levam a `/atendimentos/:id` exibindo o trecho relevante e o diagnóstico).
+     - Retorna resposta analítica sintetizada pelo modelo (estruturada em parágrafos e tópicos, sem expor identificadores técnicos de código) + lista paginada (4 cards por página) de **Evidências** estritamente pertinentes à pergunta (cards clicáveis que levam a `/atendimentos/:id` exibindo o trecho relevante e o diagnóstico, sem listar cancelamentos alheios quando o recorte perguntado tiver zero ocorrências).
      - Inclui botão exclusivo para `Admin` (**"Analisar passivo com IA"**) que processa via OpenRouter os Atendimentos do período ainda sem diagnóstico persistido no banco.
   4. **Listagem Filtrável de Cancelamentos**:
      - Filtros locais combináveis: Causa de Cancelamento, Venda Mal Feita (`Todos`, `Sim`, `Não`), Concorrente citado e busca textual livre.
@@ -41,7 +41,10 @@ A operação e a gestão precisam responder rapidamente a perguntas críticas de
 - Um Atendimento pertence ao universo de Cancelamentos quando:
   - Seu `motivo` contém cancelamento (ex.: `Cancelamento de elegibilidade`), **OU**
   - `houve_intencao_cancelamento = true` na Avaliação da IA, **OU**
-  - A heurística textual detecta na transcrição, no resumo ou nas falhas identificadas solicitação/intenção de cancelamento, migração para concorrente (ex.: *Hapvida*) ou quebra de expectativa comercial levando a desistência.
+  - A heurística textual detecta na transcrição, no resumo ou nas falhas identificadas solicitação/intenção de cancelamento, migração declarada pelo cliente para concorrente (ex.: *Hapvida*) ou quebra de expectativa comercial levando a desistência.
+- **Regra Estrita para Concorrente Citado (`concorrente_citado`) e `Migração para concorrente`**:
+  - Como Affix, Alter e Conectaplan são **Administradoras de Benefícios**, o plano atual do cliente que está sendo cancelado pertence a uma operadora parceira (ex.: *Unimed do Maranhão*, *Assim Saúde*, *Hapvida*).
+  - Portanto, `concorrenteCitado` só é preenchido (e a causa só é `Migração para concorrente`) quando **a fala do próprio cliente** declarar explicitamente que está mudando, migrando, trocando ou contratando plano em outra operadora concorrente. Citar a operadora apenas para identificar o plano atual ou perguntar onde solicitar o cancelamento (ex.: *"Seria com vocês ou direto com a Unimed?"*) **não** configura concorrente citado nem migração. Termos ambíguos como *"assim"*, *"alice"*, *"bradesco"*, *"porto seguro"* ou *"são francisco"* exigem qualificador explícito da operadora de saúde e contexto de migração.
 - **Abordagem Híbrida (Heurística + Persistência IA)**:
   - Para que a tela funcione instantaneamente sobre o passivo já existente no banco antes mesmo de qualquer reprocessamento pago em lote, o backend aplica um classificador heurístico determinístico como fallback sempre que os campos estruturados da IA estiverem nulos no registro.
   - Quando a IA processa o Atendimento (seja via fluxo do n8n na ingestão ou pelo botão de análise de passivo no HQ), os valores estruturados persistidos em `hq_avaliacao_da_ia` têm precedência.
