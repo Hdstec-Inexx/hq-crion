@@ -127,7 +127,9 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '09_uma_avaliacao_do_curador.sql',
       '010_favoritos.sql',
       '011_resolucao_da_demanda_critica.sql',
-      '014_canonicalizar_motivos.sql'
+      '014_canonicalizar_motivos.sql',
+      '015_canonicalizar_motivos_acentuados.sql',
+      '016_diagnostico_de_cancelamento.sql'
     ]
   );
 });
@@ -317,9 +319,10 @@ test('segunda aplicação não repete a migration', async () => {
   assert.equal(aplicadas.has('005_boot_e_custo_ausente.sql'), true);
   assert.equal(aplicadas.has('07_funcao_persistir_avaliacao_da_ia.sql'), true);
   assert.equal(aplicadas.has('011_resolucao_da_demanda_critica.sql'), true);
+  assert.equal(aplicadas.has('016_diagnostico_de_cancelamento.sql'), true);
   assert.equal(
     vistos.filter((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')).length,
-    1
+    2
   );
   assert.equal(
     vistos.slice(marco).some((texto) => texto.includes('FUNCTION persistir_avaliacao_da_ia')),

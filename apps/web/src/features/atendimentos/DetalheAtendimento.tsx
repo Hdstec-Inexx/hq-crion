@@ -115,28 +115,70 @@ function PainelAvaliacao({
         <p className="avaliacao-comentario">{avaliacao.comentario}</p>
       ) : null}
       {!doCurador ? (
-        <div className="avaliacao-notes">
-          <div className="avaliacao-note-col">
-            <p className="panel-label">Resumo do Atendimento</p>
-            <div className="avaliacao-resumo-scroll">
-              <p>{resumo || 'Resumo não informado.'}</p>
+        <>
+          <div className="avaliacao-notes">
+            <div className="avaliacao-note-col">
+              <p className="panel-label">Resumo do Atendimento</p>
+              <div className="avaliacao-resumo-scroll">
+                <p>{resumo || 'Resumo não informado.'}</p>
+              </div>
+            </div>
+            <div className="avaliacao-note-col">
+              <p className="panel-label">Falhas Identificadas</p>
+              <div className="avaliacao-falhas-scroll">
+                {falhas.length > 0 ? (
+                  <ul>
+                    {falhas.map((falha, index) => (
+                      <li key={`${index}:${falha}`}>{falha}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>Nenhuma falha identificada.</p>
+                )}
+              </div>
             </div>
           </div>
-          <div className="avaliacao-note-col">
-            <p className="panel-label">Falhas Identificadas</p>
-            <div className="avaliacao-falhas-scroll">
-              {falhas.length > 0 ? (
-                <ul>
-                  {falhas.map((falha, index) => (
-                    <li key={`${index}:${falha}`}>{falha}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>Nenhuma falha identificada.</p>
-              )}
+          {avaliacao.diagnosticoCancelamento?.houveIntencaoCancelamento ? (
+            <div className="diagnostico-cancelamento-bloco">
+              <p className="panel-label">Diagnóstico de Cancelamento</p>
+              <div className="diagnostico-cancelamento-conteudo">
+                <div className="diagnostico-cancelamento-chips">
+                  {avaliacao.diagnosticoCancelamento.categoriaCausa ? (
+                    <span className="diagnostico-chip-causa">
+                      <strong>Causa:</strong> {avaliacao.diagnosticoCancelamento.categoriaCausa}
+                    </span>
+                  ) : null}
+                  {avaliacao.diagnosticoCancelamento.vendaMalFeita !== undefined ? (
+                    <span
+                      className={`diagnostico-chip-venda ${
+                        avaliacao.diagnosticoCancelamento.vendaMalFeita ? 'is-alerta' : ''
+                      }`}
+                    >
+                      <strong>Venda mal feita:</strong>{' '}
+                      {avaliacao.diagnosticoCancelamento.vendaMalFeita ? 'Sim' : 'Não'}
+                    </span>
+                  ) : null}
+                  {avaliacao.diagnosticoCancelamento.concorrenteCitado ? (
+                    <span className="diagnostico-chip-concorrente">
+                      <strong>Concorrente citado:</strong>{' '}
+                      {avaliacao.diagnosticoCancelamento.concorrenteCitado}
+                    </span>
+                  ) : null}
+                </div>
+                {avaliacao.diagnosticoCancelamento.diagnostico ? (
+                  <p className="diagnostico-cancelamento-texto">
+                    {avaliacao.diagnosticoCancelamento.diagnostico}
+                  </p>
+                ) : null}
+                {avaliacao.diagnosticoCancelamento.evidenciaTrecho ? (
+                  <blockquote className="diagnostico-cancelamento-trecho">
+                    &ldquo;{avaliacao.diagnosticoCancelamento.evidenciaTrecho}&rdquo;
+                  </blockquote>
+                ) : null}
+              </div>
             </div>
-          </div>
-        </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   );

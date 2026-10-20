@@ -256,6 +256,7 @@ test('casca libera as áreas do papel com rótulos curtos', () => {
     [
       'Dashboard',
       'Atendimentos',
+      'Cancelamentos',
       'Favoritos',
       'Ao vivo',
       'Fila de curadoria',
@@ -279,6 +280,7 @@ test('casca libera as áreas do papel com rótulos curtos', () => {
     [
       'Dashboard',
       'Atendimentos',
+      'Cancelamentos',
       'Favoritos',
       'Ao vivo',
       'Fila de curadoria',

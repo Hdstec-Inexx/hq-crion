@@ -23,6 +23,7 @@ import {
 } from '../ingestao/elevenlabs.js';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
+import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
 import { periodoDaQuery, recorteDaQuery, type ModoDaListagem } from './filtros.js';
 import { paginaDaLista } from './pagina.js';
 import type { FavoritosDoAtendimento } from './porta.js';
@@ -85,7 +86,7 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
   return [...vistos.values()];
 }
 
-function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
+export function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
   const { notaIa, notaCurador } = notasDoAtendimento(detalhe);
 
   return {
@@ -168,9 +169,23 @@ function responderDetalhe(
   const { custo, downloadDeAudio, avaliacaoDaIa, avaliacaoDoCurador, ...resto } =
     detalhePublico(item);
 
+  let avaliacaoIaFinal = avaliacaoDaIa;
+  if (avaliacaoIaFinal) {
+    const diag = resolverDiagnosticoParaAvaliacao(item);
+    if (diag && diag.houveIntencaoCancelamento) {
+      avaliacaoIaFinal = {
+        ...avaliacaoIaFinal,
+        diagnosticoCancelamento: diag
+      };
+    } else if (avaliacaoIaFinal.diagnosticoCancelamento && !avaliacaoIaFinal.diagnosticoCancelamento.houveIntencaoCancelamento) {
+      const { diagnosticoCancelamento: _omit, ...semDiag } = avaliacaoIaFinal;
+      avaliacaoIaFinal = semDiag;
+    }
+  }
+
   return atendimentoDetalheSchema.parse({
     ...resto,
-    ...(avaliacaoDaIa ? { avaliacaoDaIa: comAprovacao(avaliacaoDaIa) } : {}),
+    ...(avaliacaoIaFinal ? { avaliacaoDaIa: comAprovacao(avaliacaoIaFinal) } : {}),
     ...(avaliacaoDoCurador ? { avaliacaoDoCurador: comAprovacao(avaliacaoDoCurador) } : {}),
     ...(custoVisivelPara(papel) && custo ? { custo } : {}),
     ...(downloadVisivelPara(papel) && downloadDeAudio ? { downloadDeAudio } : {}),
@@ -378,7 +393,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     return percursoDaFilaDeManutencaoSchema.parse(percurso);
   });
 
-  app.get('/atendimentos/:id', async (request, reply) => {
+  const obterDetalhe = async (request: FastifyRequest, reply: FastifyReply) => {
     semCache(reply);
     const registro = registroDaAutorizacao(request.headers.authorization);
 
@@ -439,7 +454,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     const favoritos = await app.atendimentos.obterFavoritos(id, registro.id);
     return responderDetalhe(item, registro.papel, favoritos);
-  });
+  };
+
+  app.get('/atendimentos/:id', obterDetalhe);
+  app.get('/api/atendimentos/:id', obterDetalhe);
 
   app.post('/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, async (request, reply) => {
     semCache(reply);
@@ -502,7 +520,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     return responderDetalhe(encontrado, registro.papel, favoritos);
   });
 
-  app.post('/atendimentos/:id/avaliacao-da-ia', { bodyLimit: 32_768 }, async (request, reply) => {
+  const gravarIa = async (request: FastifyRequest, reply: FastifyReply) => {
     semCache(reply);
     const registro = exigirPapel(request, reply, 'Admin');
 
@@ -542,7 +560,14 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     const favoritos = await app.atendimentos.obterFavoritos(id, registro.id);
     return responderDetalhe(encontrado, registro.papel, favoritos);
-  });
+  };
+
+  app.post('/atendimentos/:id/avaliacao-da-ia', { bodyLimit: 32_768 }, gravarIa);
+  app.post('/api/atendimentos/:id/avaliacao-da-ia', { bodyLimit: 32_768 }, gravarIa);
+  app.put('/atendimentos/:id/avaliacao-ia', { bodyLimit: 32_768 }, gravarIa);
+  app.put('/api/atendimentos/:id/avaliacao-ia', { bodyLimit: 32_768 }, gravarIa);
+  app.put('/atendimentos/:id/avaliacao-da-ia', { bodyLimit: 32_768 }, gravarIa);
+  app.put('/api/atendimentos/:id/avaliacao-da-ia', { bodyLimit: 32_768 }, gravarIa);
 
   app.post('/atendimentos/:id/favorito', async (request, reply) => {
     semCache(reply);

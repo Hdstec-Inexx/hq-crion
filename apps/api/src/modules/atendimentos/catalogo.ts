@@ -188,6 +188,78 @@ function fatosInternos(item: AtendimentoListItem): Pick<
 function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
   const concluido = item.status === 'Concluído';
 
+  if (item.id === 'a1') {
+    return {
+      ...item,
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:04',
+          texto: `Olá, aqui é a ${item.agente} da ${item.administradora}. Em que posso ajudar?`
+        },
+        {
+          locutor: 'Cliente',
+          quando: '0:12',
+          texto:
+            'Preciso falar sobre rede credenciada. O corretor me garantiu que o Hospital Santa Joana atendia pelo meu plano, mas quando precisei me disseram que não atende. Me sinto enganado pela venda. Já cancelei e migrei para a Hapvida.'
+        },
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:22',
+          texto:
+            'Lamento muito pelo transtorno com a rede credenciada. Vou registrar o relato sobre o corretor e a migração para a Hapvida.'
+        }
+      ],
+      avaliacaoDaIa: {
+        ...avaliacaoDe(item.nota, item.curadoria),
+        resumo:
+          'O cliente relatou cancelamento e migração para a Hapvida motivado por divergência na rede credenciada prometida pelo corretor na adesão.'
+      },
+      ...fatosInternos(item),
+      ...(concluido ? { concluidoEm: item.iniciadoEm } : {})
+    };
+  }
+
+  if (item.id === 'a2') {
+    return {
+      ...item,
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:04',
+          texto: `Olá, aqui é a ${item.agente} da ${item.administradora}. Em que posso ajudar?`
+        },
+        {
+          locutor: 'Cliente',
+          quando: '0:12',
+          texto:
+            'Estou com problema no boleto. O vendedor prometeu que não haveria cobrança de taxa de adesão no primeiro boleto. Foi uma venda mal feita e enganosa. Se não cancelarem essa taxa, vou cancelar o plano agora mesmo.'
+        },
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:22',
+          texto:
+            'Compreendo a situação com o boleto. Vou verificar os detalhes do faturamento e da taxa acordada na adesão.'
+        }
+      ],
+      avaliacaoDaIa: {
+        ...avaliacaoDe(item.nota, item.curadoria),
+        resumo:
+          'O cliente contestou a cobrança no boleto alegando promessa comercial do vendedor e manifestou intenção de cancelamento por venda mal feita.'
+      },
+      ...fatosInternos(item),
+      ...(concluido ? { concluidoEm: item.iniciadoEm } : {}),
+      avaliacaoDoCurador: {
+        ...avaliacaoDe(6, true),
+        notaDaAvaliacaoDaIa: item.nota,
+        curador: 'Carla Mendes',
+        comentario: 'Rever o prompt de boleto na Clara Alter.'
+      },
+      curadorDaRevisao: { id: 'perfil-carla', nome: 'Carla Mendes' },
+      comentarioStatus: 'Pendente' as const
+    };
+  }
+
   return {
     ...item,
     transcricao: [

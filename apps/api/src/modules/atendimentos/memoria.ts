@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { buscarPorId as buscarPerfilPorId } from '../perfil/repositorio.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
-import { canonicalizarMotivo } from './catalogo-motivos.js';
+import {
+  canonicalizarMotivo,
+  chaveCanonicaDoMotivo,
+  pontuacaoDeAcentos
+} from './catalogo-motivos.js';
 import {
   aplicarConsultaDaListagem,
   aplicarConsultaDaManutencao,
@@ -10,6 +14,7 @@ import {
 } from './consulta.js';
 import { passaNoRecorte } from './filtros.js';
 import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
+import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
 import {
   aprovacaoDaAvaliacao,
   avaliacaoDaIaTemVeredito,
@@ -133,17 +138,44 @@ export function repositorioEmMemoria(
       const filtrados = recorte
         ? registros.filter((item) => passaNoRecorte(item, recorte))
         : registros;
-      const motivos = Array.from(
-        new Set(
-          filtrados
-            .map((item) => item.motivo)
-            .filter((motivo): motivo is string => Boolean(motivo && motivo.trim()))
-        )
-      );
-      return motivos.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      const melhoresPorChave = new Map<string, string>();
+
+      for (const item of filtrados) {
+        if (!item.motivo || !item.motivo.trim()) {
+          continue;
+        }
+        const motivo = item.motivo.trim();
+        const chave = chaveCanonicaDoMotivo(motivo);
+        const atual = melhoresPorChave.get(chave);
+
+        if (!atual) {
+          melhoresPorChave.set(chave, motivo);
+        } else {
+          const scoreAtual = pontuacaoDeAcentos(atual);
+          const scoreNovo = pontuacaoDeAcentos(motivo);
+          if (
+            scoreNovo > scoreAtual ||
+            (scoreNovo === scoreAtual && motivo.length > atual.length) ||
+            (scoreNovo === scoreAtual &&
+              motivo.length === atual.length &&
+              motivo.localeCompare(atual) > 0)
+          ) {
+            melhoresPorChave.set(chave, motivo);
+          }
+        }
+      }
+
+      return Array.from(melhoresPorChave.values()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
     async buscarPorId(id) {
-      return registros.find((registro) => registro.id === id);
+      const registro = registros.find((item) => item.id === id);
+      if (registro?.avaliacaoDaIa && !registro.avaliacaoDaIa.diagnosticoCancelamento) {
+        const diag = resolverDiagnosticoParaAvaliacao(registro);
+        if (diag) {
+          registro.avaliacaoDaIa.diagnosticoCancelamento = diag;
+        }
+      }
+      return registro;
     },
     async favoritar(atendimentoId, perfilId) {
       const item = registros.find((registro) => registro.id === atendimentoId);
@@ -250,12 +282,31 @@ export function repositorioEmMemoria(
       item.nota = entrada.nota;
       item.notaIa = entrada.nota;
       const criterios = criteriosComChave(entrada.criterios);
+
+      const diagnosticoCancelamento = entrada.diagnosticoCancelamento
+        ? {
+            ...entrada.diagnosticoCancelamento,
+            origem: entrada.diagnosticoCancelamento.origem ?? ('ia' as const)
+          }
+        : resolverDiagnosticoParaAvaliacao({
+            motivo: item.motivo,
+            transcricao: item.transcricao,
+            avaliacaoDaIa: {
+              nota: entrada.nota,
+              aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
+              criterios,
+              resumo: entrada.resumo ?? undefined,
+              falhasIdentificadas: entrada.falhasIdentificadas ?? []
+            }
+          });
+
       item.avaliacaoDaIa = {
         nota: entrada.nota,
         aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
         criterios,
         resumo: entrada.resumo ?? undefined,
-        falhasIdentificadas: entrada.falhasIdentificadas ?? []
+        falhasIdentificadas: entrada.falhasIdentificadas ?? [],
+        ...(diagnosticoCancelamento ? { diagnosticoCancelamento } : {})
       };
 
       return 'ok';

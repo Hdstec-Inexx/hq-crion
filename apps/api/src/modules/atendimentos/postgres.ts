@@ -22,6 +22,11 @@ import { tempoDeEsperaDaTranscricao } from './tempo-de-espera.js';
 import { inserirAtendimentoSeAusenteSql, inserirAtendimentoSql } from './schema.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
 import { deveSemear } from './semente.js';
+import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
+import {
+  categoriaCausaCancelamentoSchema,
+  type DiagnosticoCancelamento
+} from '@hq-crion/contracts/cancelamento';
 
 export type ExecutorSql = {
   query(
@@ -58,6 +63,12 @@ SELECT
   ia.nota AS nota_ia,
   ia.resumo_atendimento AS ia_resumo_atendimento,
   ia.falhas_identificadas AS ia_falhas_identificadas,
+  ia.houve_intencao_cancelamento AS ia_houve_intencao_cancelamento,
+  ia.categoria_causa_cancelamento AS ia_categoria_causa_cancelamento,
+  ia.venda_mal_feita AS ia_venda_mal_feita,
+  ia.concorrente_citado AS ia_concorrente_citado,
+  ia.diagnostico_cancelamento AS ia_diagnostico_cancelamento,
+  ia.evidencia_trecho AS ia_evidencia_trecho,
   vig.id AS avaliacao_curador_id,
   vig.nota AS nota_curador,
   vig.nota_da_avaliacao_da_ia,
@@ -243,6 +254,12 @@ function montarRegistro(
     nota_ia: unknown;
     ia_resumo_atendimento?: string | null;
     ia_falhas_identificadas?: unknown;
+    ia_houve_intencao_cancelamento?: boolean | null;
+    ia_categoria_causa_cancelamento?: string | null;
+    ia_venda_mal_feita?: boolean | null;
+    ia_concorrente_citado?: string | null;
+    ia_diagnostico_cancelamento?: string | null;
+    ia_evidencia_trecho?: string | null;
     avaliacao_curador_id: string | null;
     nota_curador: unknown;
     nota_da_avaliacao_da_ia: unknown;
@@ -260,6 +277,37 @@ function montarRegistro(
 ): RegistroDeAtendimento {
   const notaIa =
     linha.nota_ia === null || linha.nota_ia === undefined ? undefined : numero(linha.nota_ia);
+  let diagnosticoCancelamento: DiagnosticoCancelamento | undefined = undefined;
+  if (typeof linha.ia_houve_intencao_cancelamento === 'boolean') {
+    const parsedCausa = categoriaCausaCancelamentoSchema.safeParse(
+      linha.ia_categoria_causa_cancelamento
+    );
+    diagnosticoCancelamento = {
+      houveIntencaoCancelamento: linha.ia_houve_intencao_cancelamento,
+      categoriaCausa: parsedCausa.success ? parsedCausa.data : null,
+      vendaMalFeita: Boolean(linha.ia_venda_mal_feita),
+      concorrenteCitado: linha.ia_concorrente_citado ?? null,
+      diagnostico: linha.ia_diagnostico_cancelamento ?? null,
+      evidenciaTrecho: linha.ia_evidencia_trecho ?? null,
+      origem: 'ia'
+    };
+  } else {
+    diagnosticoCancelamento = resolverDiagnosticoParaAvaliacao({
+      motivo: linha.motivo,
+      transcricao: linha.transcricao ?? [],
+      avaliacaoDaIa:
+        notaIa !== undefined
+          ? {
+              nota: notaIa,
+              aprovacao: aprovacaoDaAvaliacao(notaIa, criteriosIa.get(linha.id) ?? []),
+              criterios: criteriosIa.get(linha.id) ?? [],
+              resumo: linha.ia_resumo_atendimento ?? undefined,
+              falhasIdentificadas: falhasIdentificadasDe(linha.ia_falhas_identificadas)
+            }
+          : undefined
+    });
+  }
+
   const avaliacaoDaIa =
     notaIa === undefined
       ? undefined
@@ -268,7 +316,8 @@ function montarRegistro(
           aprovacao: aprovacaoDaAvaliacao(notaIa, criteriosIa.get(linha.id) ?? []),
           criterios: criteriosIa.get(linha.id) ?? [],
           resumo: linha.ia_resumo_atendimento ?? undefined,
-          falhasIdentificadas: falhasIdentificadasDe(linha.ia_falhas_identificadas)
+          falhasIdentificadas: falhasIdentificadasDe(linha.ia_falhas_identificadas),
+          ...(diagnosticoCancelamento ? { diagnosticoCancelamento } : {})
         };
   const notaCurador =
     linha.nota_curador === null || linha.nota_curador === undefined
@@ -570,14 +619,31 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
   await cliente.query(inserirAtendimentoSql, valoresDoAtendimento(registro));
 
   if (registro.avaliacaoDaIa) {
+    const diag = registro.avaliacaoDaIa.diagnosticoCancelamento;
     await cliente.query(
-      `INSERT INTO hq_avaliacao_da_ia (atendimento_id, nota, resumo_atendimento, falhas_identificadas)
-       VALUES ($1, $2, $3, $4::jsonb)`,
+      `INSERT INTO hq_avaliacao_da_ia (
+         atendimento_id,
+         nota,
+         resumo_atendimento,
+         falhas_identificadas,
+         houve_intencao_cancelamento,
+         categoria_causa_cancelamento,
+         venda_mal_feita,
+         concorrente_citado,
+         diagnostico_cancelamento,
+         evidencia_trecho
+       ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)`,
       [
         registro.id,
         registro.avaliacaoDaIa.nota,
         registro.avaliacaoDaIa.resumo ?? null,
-        JSON.stringify(registro.avaliacaoDaIa.falhasIdentificadas ?? [])
+        JSON.stringify(registro.avaliacaoDaIa.falhasIdentificadas ?? []),
+        diag?.houveIntencaoCancelamento ?? null,
+        diag?.categoriaCausa ?? null,
+        diag?.vendaMalFeita ?? null,
+        diag?.concorrenteCitado ?? null,
+        diag?.diagnostico ?? null,
+        diag?.evidenciaTrecho ?? null
       ]
     );
     await inserirCriterios(
@@ -690,14 +756,21 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       const administradora = recorte?.administradora ?? null;
       const agente = recorte?.agente ?? null;
       const resultado = await pool.query(
-        `SELECT DISTINCT a.motivo
-         FROM hq_atendimento a
-         JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
-         WHERE a.motivo IS NOT NULL
-           AND a.motivo <> ''
-           AND ($1::text IS NULL OR ag.administradora = $1)
-           AND ($2::text IS NULL OR a.agente_id = $2)
-         ORDER BY a.motivo ASC`,
+        `WITH motivos_unicos AS (
+           SELECT DISTINCT ON (hq_chave_canonica_motivo(a.motivo))
+                  a.motivo
+           FROM hq_atendimento a
+           JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
+           WHERE a.motivo IS NOT NULL
+             AND a.motivo <> ''
+             AND ($1::text IS NULL OR ag.administradora = $1)
+             AND ($2::text IS NULL OR a.agente_id = $2)
+           ORDER BY hq_chave_canonica_motivo(a.motivo),
+                    (length(a.motivo) - length(regexp_replace(a.motivo, '[áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ]', '', 'g'))) DESC,
+                    length(a.motivo) DESC,
+                    a.motivo DESC
+         )
+         SELECT motivo FROM motivos_unicos ORDER BY motivo ASC`,
         [administradora, agente]
       );
       return resultado.rows.map((linha: { motivo: string }) => linha.motivo);
@@ -747,13 +820,29 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
 
         await cliente.query(`DELETE FROM hq_avaliacao_da_ia WHERE atendimento_id = $1`, [id]);
         await cliente.query(
-          `INSERT INTO hq_avaliacao_da_ia (atendimento_id, nota, resumo_atendimento, falhas_identificadas)
-           VALUES ($1, $2, $3, $4::jsonb)`,
+          `INSERT INTO hq_avaliacao_da_ia (
+             atendimento_id,
+             nota,
+             resumo_atendimento,
+             falhas_identificadas,
+             houve_intencao_cancelamento,
+             categoria_causa_cancelamento,
+             venda_mal_feita,
+             concorrente_citado,
+             diagnostico_cancelamento,
+             evidencia_trecho
+           ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)`,
           [
             id,
             entrada.nota,
             entrada.resumo ?? null,
-            JSON.stringify(entrada.falhasIdentificadas ?? [])
+            JSON.stringify(entrada.falhasIdentificadas ?? []),
+            entrada.diagnosticoCancelamento?.houveIntencaoCancelamento ?? null,
+            entrada.diagnosticoCancelamento?.categoriaCausa ?? null,
+            entrada.diagnosticoCancelamento?.vendaMalFeita ?? null,
+            entrada.diagnosticoCancelamento?.concorrenteCitado ?? null,
+            entrada.diagnosticoCancelamento?.diagnostico ?? null,
+            entrada.diagnosticoCancelamento?.evidenciaTrecho ?? null
           ]
         );
         await inserirCriterios(
