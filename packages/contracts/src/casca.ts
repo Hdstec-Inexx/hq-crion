@@ -18,6 +18,12 @@ const atendimentos: AreaDaCasca = {
   titulo: 'Atendimentos'
 };
 
+const cancelamentos: AreaDaCasca = {
+  rota: '/cancelamentos',
+  rotulo: 'Cancelamentos',
+  titulo: 'Diagnóstico de Cancelamentos'
+};
+
 const favoritos: AreaDaCasca = {
   rota: '/favoritos',
   rotulo: 'Favoritos',
@@ -76,6 +82,7 @@ const areasPorPapel: Record<Papel, AreaDaCasca[]> = {
   Gestão: [
     dashboard,
     atendimentos,
+    cancelamentos,
     favoritos,
     aoVivo,
     filaDeCuradoria,
@@ -93,6 +100,7 @@ const areasPorPapel: Record<Papel, AreaDaCasca[]> = {
   Admin: [
     dashboard,
     atendimentos,
+    cancelamentos,
     favoritos,
     aoVivo,
     filaDeCuradoria,

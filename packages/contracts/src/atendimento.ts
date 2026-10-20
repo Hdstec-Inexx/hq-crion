@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import {
+  diagnosticoCancelamentoSchema,
+  type DiagnosticoCancelamento
+} from './cancelamento.js';
+import {
   detalheDaFerramentaSchema,
   identificacaoDaChamadaSchema,
   resultadoDaChamadaSchema
@@ -151,7 +155,8 @@ export const avaliacaoSchema = z.object({
   aprovacao: z.enum(['Aprovado', 'Reprovado']),
   criterios: z.array(criterioAvaliadoSchema).min(1),
   resumo: z.string().nullable().optional(),
-  falhasIdentificadas: z.array(z.string()).optional()
+  falhasIdentificadas: z.array(z.string()).optional(),
+  diagnosticoCancelamento: diagnosticoCancelamentoSchema.optional()
 });
 
 export const avaliacaoDoCuradorSchema = avaliacaoSchema.extend({
@@ -169,7 +174,8 @@ export const gravacaoDaAvaliacaoDaIaSchema = z.object({
   nota: z.number().finite().min(0).max(10),
   criterios: z.array(criterioDaGravacaoSchema).min(1).max(30),
   resumo: z.string().trim().nullable().optional(),
-  falhasIdentificadas: z.array(z.string().trim()).optional()
+  falhasIdentificadas: z.array(z.string().trim()).optional(),
+  diagnosticoCancelamento: diagnosticoCancelamentoSchema.optional()
 });
 
 const criterioDaConferenciaSchema = z.object({
@@ -412,3 +418,38 @@ export const eventoDaObservacaoSchema = z.discriminatedUnion('tipo', [
 
 export type SessaoDaObservacao = z.infer<typeof sessaoDaObservacaoSchema>;
 export type EventoDaObservacao = z.infer<typeof eventoDaObservacaoSchema>;
+
+export {
+  categoriasDeCausaCancelamento,
+  type CategoriaCausaCancelamento,
+  categoriaCausaCancelamentoSchema,
+  origemDiagnosticoCancelamentoSchema,
+  type OrigemDiagnosticoCancelamento,
+  diagnosticoCancelamentoSchema,
+  type DiagnosticoCancelamento,
+  cancelamentoItemSchema,
+  type CancelamentoItem,
+  kpisCancelamentoSchema,
+  type KpisCancelamento,
+  cancelamentoPorCausaSchema,
+  type CancelamentoPorCausa,
+  cancelamentoPorConcorrenteSchema,
+  type CancelamentoPorConcorrente,
+  painelDeCancelamentosResponseSchema,
+  type PainelDeCancelamentosResponse,
+  filtrosCancelamentoQuerySchema,
+  type FiltrosCancelamentoQuery,
+  pesquisaIaCancelamentoRequestSchema,
+  type PesquisaIaCancelamentoRequest,
+  fontePesquisaIaSchema,
+  type FontePesquisaIa,
+  evidenciaPesquisaIaSchema,
+  type EvidenciaPesquisaIa,
+  pesquisaIaCancelamentoResponseSchema,
+  type PesquisaIaCancelamentoResponse,
+  analisarPassivoRequestSchema,
+  type AnalisarPassivoRequest,
+  analisarPassivoResponseSchema,
+  type AnalisarPassivoResponse
+} from './cancelamento.js';
+
