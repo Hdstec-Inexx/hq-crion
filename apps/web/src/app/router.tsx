@@ -13,6 +13,7 @@ import { ListagemAtendimentos } from '../features/atendimentos/ListagemAtendimen
 import { FavoritosPage } from '../features/atendimentos/FavoritosPage';
 import { CascaAutenticada, FalhaAoCarregarPerfil } from '../features/casca/CascaAutenticada';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
+import { CancelamentosPage } from '../features/cancelamentos/CancelamentosPage';
 import { HealthPage } from '../features/health/HealthPage';
 import { PerfisPage } from '../features/perfis/PerfisPage';
 import { MonitoramentoPage } from '../features/monitoramento/MonitoramentoPage';
@@ -130,6 +131,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: null },
       { path: 'dashboard', element: <DashboardPage /> },
+      { path: 'cancelamentos', element: <CancelamentosPage /> },
       { path: 'atendimentos', element: <ListagemAtendimentos /> },
       { path: 'atendimentos/:id', element: <DetalheAtendimento /> },
       { path: 'favoritos', element: <FavoritosPage /> },
