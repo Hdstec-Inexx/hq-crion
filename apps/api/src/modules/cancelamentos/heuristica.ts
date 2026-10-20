@@ -129,29 +129,25 @@ function extrairMelhorTrecho(
   transcricao: Array<{ locutor: string; texto: string }>,
   resumo?: string | null
 ): string | null {
-  for (const turno of transcricao) {
-    if (turno.locutor.toLowerCase().includes('cliente')) {
-      if (
-        PADRAO_CANCELAMENTO.test(turno.texto) ||
-        CONCORRENTES.some((c) => c.padrao.test(turno.texto)) ||
-        PADRAO_VENDA_MAL_FEITA_DIRETO.test(turno.texto)
-      ) {
-        return turno.texto;
-      }
-    }
-  }
+  const eTrechoRelevante = (texto: string) =>
+    PADRAO_CANCELAMENTO.test(texto) ||
+    CONCORRENTES.some((c) => c.padrao.test(texto)) ||
+    PADRAO_VENDA_MAL_FEITA_DIRETO.test(texto) ||
+    identificarVendaMalFeita(texto);
 
   for (const turno of transcricao) {
-    if (
-      PADRAO_CANCELAMENTO.test(turno.texto) ||
-      CONCORRENTES.some((c) => c.padrao.test(turno.texto)) ||
-      PADRAO_VENDA_MAL_FEITA_DIRETO.test(turno.texto)
-    ) {
+    if (turno.locutor.toLowerCase().includes('cliente') && eTrechoRelevante(turno.texto)) {
       return turno.texto;
     }
   }
 
-  if (resumo && PADRAO_CANCELAMENTO.test(resumo)) {
+  for (const turno of transcricao) {
+    if (eTrechoRelevante(turno.texto)) {
+      return turno.texto;
+    }
+  }
+
+  if (resumo && eTrechoRelevante(resumo)) {
     return resumo;
   }
 
