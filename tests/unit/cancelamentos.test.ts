@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from '../../apps/api/src/app.js';
 import { areasDaCasca } from '../../packages/contracts/src/casca.js';
 import {
@@ -17,8 +20,14 @@ import {
   periodoAteHoje,
   periodoMesCivil
 } from '../../packages/contracts/src/recorte.js';
-import { extrairDiagnosticoDeCancelamento } from '../../apps/api/src/modules/cancelamentos/heuristica.js';
-import { classificarAtendimentoComIa } from '../../apps/api/src/modules/cancelamentos/openrouter.js';
+import {
+  extrairDiagnosticoDeCancelamento,
+  identificarConcorrenteDeMigracao
+} from '../../apps/api/src/modules/cancelamentos/heuristica.js';
+import {
+  classificarAtendimentoComIa,
+  executarPesquisaIa
+} from '../../apps/api/src/modules/cancelamentos/openrouter.js';
 import { parseAppConfig } from '../../apps/api/src/plugins/config.js';
 
 process.env.NODE_ENV = 'test';
@@ -257,6 +266,159 @@ test('Detecção heurística de cancelamento, concorrente Hapvida e venda mal fe
   assert.equal(diag3.concorrenteCitado, null);
   assert.equal(diag3.vendaMalFeita, false);
   assert.equal(diag3.categoriaCausa, null);
+
+  // Caso 4: Conjunção comum 'assim' ('Assim, a cobrança...', 'entrasse assim alguma oferta...') NÃO deve ser classificada como Assim Saúde
+  const diagAssim1 = extrairDiagnosticoDeCancelamento({
+    motivo: 'Inversão de pagamento',
+    transcricao: [
+      {
+        locutor: 'Cliente',
+        quando: '0:05',
+        texto:
+          'Sim, a solicitação foi aberta justamente para que o pagamento já realizado seja analisado e, se confirmada a inversão, seja direcionado para a competência de outubro. Assim, a cobrança não deve gerar juros ou multa indevidos.'
+      }
+    ]
+  });
+  assert.equal(diagAssim1.concorrenteCitado, null);
+  assert.notEqual(diagAssim1.concorrenteCitado, 'Assim Saúde');
+
+  const diagAssim2 = extrairDiagnosticoDeCancelamento({
+    motivo: 'Transferência Sac/Cancelamento',
+    transcricao: [
+      {
+        locutor: 'Cliente',
+        quando: '0:10',
+        texto:
+          'Eu queria ver sobre desconto, porque eu liguei há alguns meses atrás, o atendente me informou que era possível que entrasse assim alguma oferta de desconto no meu plano. Consegue ver se tem alguma oferta?'
+      }
+    ]
+  });
+  assert.equal(diagAssim2.concorrenteCitado, null);
+  assert.notEqual(diagAssim2.concorrenteCitado, 'Assim Saúde');
+
+  // Caso 5: Dúvida sobre o canal de cancelamento do próprio plano operado por parceira da Administradora (ex: Unimed do Maranhão)
+  // Cliente pergunta onde cancelar o plano atual, NÃO está migrando para concorrente
+  const diagOperadoraAtual = extrairDiagnosticoDeCancelamento({
+    motivo: 'Transferência Sac/Cancelamento',
+    transcricao: [
+      {
+        locutor: 'Agente de Voz',
+        quando: '0:00',
+        texto: 'Central Affix, sou a Clara. Como posso te ajudar hoje?'
+      },
+      {
+        locutor: 'Cliente',
+        quando: '0:04',
+        texto:
+          'Bom dia, Larissa. Eu gostaria de informação de aonde eu tenho que solicitar o cancelamento. Seria com vocês ou direto com a Unimed dooo Maranhão?'
+      }
+    ]
+  });
+  assert.equal(diagOperadoraAtual.houveIntencaoCancelamento, true);
+  assert.equal(diagOperadoraAtual.concorrenteCitado, null);
+  assert.notEqual(diagOperadoraAtual.categoriaCausa, 'Migração para concorrente');
+
+  // Caso 6: Fala da Clara (Agente de Voz) citando operadora não deve ser atribuída como concorrente
+  const diagFalaAgente = extrairDiagnosticoDeCancelamento({
+    motivo: 'Cancelamento',
+    transcricao: [
+      {
+        locutor: 'Agente de Voz',
+        quando: '0:02',
+        texto: 'Você possui convênio ativo com a Amil através da nossa administradora?'
+      },
+      {
+        locutor: 'Cliente',
+        quando: '0:08',
+        texto: 'Eu quero cancelar por problemas com boleto e cobrança indevida.'
+      }
+    ]
+  });
+  assert.equal(diagFalaAgente.concorrenteCitado, null);
+  assert.equal(diagFalaAgente.categoriaCausa, 'Problema financeiro / Boleto');
+
+  const diagMigracaoAssim = extrairDiagnosticoDeCancelamento({
+    motivo: 'Cancelamento',
+    transcricao: [
+      {
+        locutor: 'Cliente',
+        quando: '0:06',
+        texto: 'Estou cancelando porque fechei contrato novo e migrei para a Assim Saúde.'
+      }
+    ]
+  });
+  assert.equal(diagMigracaoAssim.houveIntencaoCancelamento, true);
+  assert.equal(diagMigracaoAssim.concorrenteCitado, 'Assim Saúde');
+  assert.equal(diagMigracaoAssim.categoriaCausa, 'Migração para concorrente');
+
+  // Caso 7: Fallback para resumo da IA quando a transcrição não possui turnos explícitos do cliente com migração
+  const concorrentePorResumo = identificarConcorrenteDeMigracao(
+    [{ locutor: 'Agente de Voz', texto: 'Central de Atendimento, como posso ajudar?' }],
+    'Cliente solicitou cancelamento após confirmar que migrou para a Hapvida.'
+  );
+  assert.equal(concorrentePorResumo, 'Hapvida');
+
+  // Caso 8: Saneamento de diagnóstico persistido com falso positivo e ajuste do texto diagnóstico
+  const diagPersistidoComErro = extrairDiagnosticoDeCancelamento({
+    motivo: 'Problema no boleto',
+    transcricao: [
+      {
+        locutor: 'Cliente',
+        quando: '0:03',
+        texto: 'Assim, a cobrança gerou juros indevidos e quero cancelar.'
+      }
+    ],
+    avaliacaoDaIa: {
+      nota: 7,
+      resumo: 'Cliente reclamou de juros no boleto.',
+      falhasIdentificadas: [],
+      criterios: [],
+      diagnosticoCancelamento: {
+        houveIntencaoCancelamento: true,
+        categoriaCausa: 'Migração para concorrente',
+        vendaMalFeita: false,
+        concorrenteCitado: 'Assim Saúde',
+        diagnostico: 'Cliente declarou cancelamento ou migração para a operadora concorrente Assim Saúde.',
+        evidenciaTrecho: 'Assim, a cobrança gerou juros indevidos',
+        origem: 'ia'
+      }
+    }
+  });
+  assert.equal(diagPersistidoComErro.concorrenteCitado, null);
+  assert.equal(diagPersistidoComErro.categoriaCausa, 'Problema financeiro / Boleto');
+  assert.doesNotMatch(diagPersistidoComErro.diagnostico ?? '', /Assim Saúde/);
+  assert.match(diagPersistidoComErro.diagnostico ?? '', /problema financeiro \/ boleto/i);
+});
+
+test('Pesquisa por IA sobre concorrente sem casos retorna 0 evidências e resposta de ausência', async () => {
+  const app = await buildApp();
+  const { inicio, fim } = periodoMesCivil(new Date());
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/cancelamentos/pesquisa-ia',
+      headers: { authorization: `Bearer ${sessao}` },
+      payload: {
+        pergunta: 'Quem cancelou e foi para a Amil?',
+        administradora: 'Affix',
+        agente: 'affix-0800',
+        inicio,
+        fim
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    const resultado = pesquisaIaCancelamentoResponseSchema.parse(response.json());
+    assert.equal(resultado.evidencias.length, 0, 'Não deve inventar evidências quando a resposta é 0');
+    assert.match(resultado.resposta, /Amil/i);
+    assert.doesNotMatch(resultado.resposta, /concorrenteCitado/i);
+    assert.doesNotMatch(resultado.resposta, /vendaMalFeita/i);
+  } finally {
+    await app.close();
+  }
 });
 
 test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte e Período', async () => {
@@ -701,7 +863,132 @@ test('Recorte, período do Dashboard, idempotência do passivo e validação de 
 
     assert.equal(classificado.categoriaCausa, 'Outros');
     assert.equal(classificado.origem, 'ia');
+
+    // Validação pós-LLM (User Story 18): se a LLM alucinar concorrenteCitado = 'Assim Saúde' para a conjunção "assim",
+    // o pós-processamento deve anular concorrenteCitado, recalcular causa e ajustar texto de diagnóstico
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  houveIntencaoCancelamento: true,
+                  categoriaCausa: 'Migração para concorrente',
+                  vendaMalFeita: false,
+                  concorrenteCitado: 'Assim Saúde',
+                  diagnostico: 'Cliente cancelou e migrou para a Assim Saúde.',
+                  evidenciaTrecho: 'Assim, a cobrança gerou juros'
+                })
+              }
+            }
+          ]
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )) as typeof fetch;
+
+    const classificadoFalsoPositivo = await classificarAtendimentoComIa({
+      atendimento: {
+        id: 'x2',
+        administradora: 'Affix',
+        agente: 'Clara Affix 0800',
+        agenteId: 'affix-0800',
+        iniciadoEm: '2026-10-11T09:00:00-03:00',
+        motivo: 'Problema no boleto',
+        nota: 8,
+        notaIa: 8,
+        notaCurador: null,
+        status: 'Concluído',
+        curadoria: false,
+        conversa: 'conv-x2',
+        transcricao: [
+          {
+            locutor: 'Cliente',
+            quando: '0:05',
+            texto: 'Assim, a cobrança gerou juros e não consigo pagar.'
+          }
+        ]
+      },
+      config: parseAppConfig({
+        NODE_ENV: 'test',
+        OPENROUTER_API_KEY: 'sk-or-test'
+      })
+    });
+
+    assert.equal(classificadoFalsoPositivo.concorrenteCitado, null);
+    assert.equal(classificadoFalsoPositivo.categoriaCausa, 'Problema financeiro / Boleto');
+    assert.doesNotMatch(classificadoFalsoPositivo.diagnostico ?? '', /Assim Saúde/);
+
+    // Validação de pergunta específica sobre Venda Mal Feita quando não há casos no período
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  resposta: 'Não identificamos casos de venda mal feita no período.',
+                  evidenciaIds: ['x1'] // LLM devolve ID que não tem venda mal feita
+                })
+              }
+            }
+          ]
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )) as typeof fetch;
+
+    const resultadoVendaSemCasos = await executarPesquisaIa({
+      pergunta: 'O problema do cancelamento é venda mal feita?',
+      atendimentos: [
+        {
+          id: 'x1',
+          administradora: 'Affix',
+          agente: 'Clara Affix 0800',
+          agenteId: 'affix-0800',
+          iniciadoEm: '2026-10-11T09:00:00-03:00',
+          motivo: 'Reajuste anual',
+          nota: 8,
+          notaIa: 8,
+          notaCurador: null,
+          status: 'Concluído',
+          curadoria: false,
+          conversa: 'conv-x1',
+          diagnosticoCancelamento: {
+            houveIntencaoCancelamento: true,
+            categoriaCausa: 'Preço / Reajuste',
+            vendaMalFeita: false,
+            concorrenteCitado: null,
+            diagnostico: 'Reajuste alto.',
+            evidenciaTrecho: 'Mensalidade aumentou demais.',
+            origem: 'ia'
+          }
+        }
+      ],
+      config: parseAppConfig({
+        NODE_ENV: 'test',
+        OPENROUTER_API_KEY: 'sk-or-test'
+      })
+    });
+
+    assert.equal(resultadoVendaSemCasos.evidencias.length, 0);
   } finally {
     globalThis.fetch = fetchOriginal;
   }
+
+  // 6. Interface: CancelamentosPage integra paginação de 4 em 4 nas evidências e truncamento seguro de layout
+  const cancelamentosPageTsx = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/src/features/cancelamentos/CancelamentosPage.tsx'),
+    'utf8'
+  );
+  assert.match(cancelamentosPageTsx, /EVIDENCIAS_POR_PAGINA\s*=\s*4/);
+  assert.match(cancelamentosPageTsx, /RespostaExecutivaFormatada/);
+  assert.match(cancelamentosPageTsx, /<PaginacaoCompacta[\s\S]*?pagina=\{(?:paginaEvidencias|paginaAtualNormalizada)\}[\s\S]*?totalPaginas=\{totalPaginasEvidencias\}/);
+
+  const dashboardCss = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/src/styles/dashboard.css'),
+    'utf8'
+  );
+  assert.match(dashboardCss, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(dashboardCss, /-webkit-line-clamp:\s*4/);
+  assert.match(dashboardCss, /text-overflow:\s*ellipsis/);
 });

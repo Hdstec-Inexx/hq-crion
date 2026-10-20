@@ -850,6 +850,24 @@
   font-size: 14px;
   line-height: 1.6;
   color: var(--ink);
+  white-space: pre-line;
+}
+
+.cancelamentos-ia-resposta-texto p {
+  margin: 0 0 10px;
+}
+
+.cancelamentos-ia-resposta-texto p:last-child {
+  margin-bottom: 0;
+}
+
+.cancelamentos-ia-resposta-texto ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.cancelamentos-ia-resposta-texto li {
+  margin-bottom: 4px;
 }
 
 .cancelamentos-evidencias-bloco h4 {
@@ -861,8 +879,14 @@
 
 .cancelamentos-evidencias-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .cancelamentos-evidencias-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .cancelamentos-evidencia-card {
@@ -875,6 +899,9 @@
   border-radius: 12px;
   text-decoration: none;
   color: inherit;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -888,11 +915,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 
 .cancelamentos-evidencia-cabecalho strong {
   font-size: 13px;
   color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cancelamentos-badge-adm {
@@ -902,6 +934,7 @@
   border-radius: 4px;
   background: #f0f4f3;
   color: var(--ink);
+  flex-shrink: 0;
 }
 
 .cancelamentos-evidencia-motivo {
@@ -943,6 +976,11 @@
   font-style: italic;
   color: var(--mute);
   line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .cancelamentos-evidencia-diag {

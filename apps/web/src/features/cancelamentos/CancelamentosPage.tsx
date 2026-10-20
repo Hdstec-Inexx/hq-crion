@@ -29,6 +29,7 @@ const SUGESTOES_IA = [
 ] as const;
 
 const ITENS_POR_PAGINA = 20;
+const EVIDENCIAS_POR_PAGINA = 4;
 
 function formatarPercentual(valor: number) {
   return `${Number.isInteger(valor) ? String(valor) : valor.toFixed(1).replace('.', ',')}%`;
@@ -65,6 +66,65 @@ function parseAdministradora(valor: string | null): Administradora | undefined {
     return valor;
   }
   return undefined;
+}
+
+function renderizarTrechoComNegrito(texto: string) {
+  const partes = texto.split(/(\*\*.*?\*\*)/g);
+  return partes.map((parte, idx) => {
+    if (parte.startsWith('**') && parte.endsWith('**')) {
+      return <strong key={idx}>{parte.slice(2, -2)}</strong>;
+    }
+    return parte;
+  });
+}
+
+function RespostaExecutivaFormatada({ texto }: { texto: string }) {
+  const blocos = texto.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+
+  return (
+    <div className="cancelamentos-ia-resposta-texto">
+      {blocos.map((bloco, idx) => {
+        const linhas = bloco.split('\n').map((l) => l.trim()).filter(Boolean);
+        const temLinhasTopicos = linhas.some(
+          (l) => l.startsWith('- ') || l.startsWith('* ') || l.startsWith('• ')
+        );
+
+        if (temLinhasTopicos) {
+          const elementos: React.ReactNode[] = [];
+          const bufferTopicos: string[] = [];
+
+          const descarregarBuffer = () => {
+            if (bufferTopicos.length > 0) {
+              elementos.push(
+                <ul key={`ul-${elementos.length}`}>
+                  {bufferTopicos.map((topico, tIdx) => (
+                    <li key={tIdx}>{renderizarTrechoComNegrito(topico)}</li>
+                  ))}
+                </ul>
+              );
+              bufferTopicos.length = 0;
+            }
+          };
+
+          for (const linha of linhas) {
+            if (linha.startsWith('- ') || linha.startsWith('* ') || linha.startsWith('• ')) {
+              bufferTopicos.push(linha.replace(/^[-*•]\s*/, ''));
+            } else {
+              descarregarBuffer();
+              elementos.push(
+                <p key={`p-${elementos.length}`}>{renderizarTrechoComNegrito(linha)}</p>
+              );
+            }
+          }
+          descarregarBuffer();
+
+          return <div key={idx}>{elementos}</div>;
+        }
+
+        return <p key={idx}>{renderizarTrechoComNegrito(bloco)}</p>;
+      })}
+    </div>
+  );
 }
 
 export function CancelamentosPage() {
@@ -112,6 +172,7 @@ export function CancelamentosPage() {
   const [resultadoIa, setResultadoIa] =
     useState<PesquisaIaCancelamentoResponse | null>(null);
   const [erroIa, setErroIa] = useState<string | null>(null);
+  const [paginaEvidencias, setPaginaEvidencias] = useState(1);
 
   // Estado de Analisar Passivo
   const [analisandoPassivo, setAnalisandoPassivo] = useState(false);
@@ -297,6 +358,7 @@ export function CancelamentosPage() {
 
     setPesquisandoIa(true);
     setErroIa(null);
+    setPaginaEvidencias(1);
 
     try {
       const resp = await pesquisarCancelamentosComIa({
@@ -307,6 +369,7 @@ export function CancelamentosPage() {
         fim: fimCampo || undefined
       });
       setResultadoIa(resp);
+      setPaginaEvidencias(1);
     } catch (err) {
       setErroIa(
         err instanceof Error ? err.message : 'Não foi possível consultar a IA.'
@@ -642,70 +705,100 @@ export function CancelamentosPage() {
                         {resultadoIa.modelo} · {resultadoIa.fonte}
                       </span>
                     </div>
-                    <p className="cancelamentos-ia-resposta-texto">{resultadoIa.resposta}</p>
+                    <RespostaExecutivaFormatada texto={resultadoIa.resposta} />
                   </div>
 
                   {resultadoIa.evidencias.length > 0 ? (
                     <div className="cancelamentos-evidencias-bloco">
                       <h4>Evidências Citadas ({resultadoIa.evidencias.length})</h4>
-                      <div className="cancelamentos-evidencias-grid">
-                        {resultadoIa.evidencias.map((evidencia) => (
-                          <Link
-                            key={evidencia.id}
-                            to={destinoDoDetalhe(
-                              evidencia.id,
-                              location.search,
-                              '/cancelamentos'
-                            )}
-                            className="cancelamentos-evidencia-card"
-                          >
-                            <div className="cancelamentos-evidencia-cabecalho">
-                              <strong>Atendimento #{evidencia.id}</strong>
-                              {evidencia.administradora ? (
-                                <span className="cancelamentos-badge-adm">
-                                  {evidencia.administradora}
-                                </span>
-                              ) : null}
+                      {(() => {
+                        const totalEvidencias = resultadoIa.evidencias.length;
+                        const totalPaginasEvidencias = Math.ceil(
+                          totalEvidencias / EVIDENCIAS_POR_PAGINA
+                        );
+                        const paginaAtualNormalizada = Math.min(
+                          Math.max(1, paginaEvidencias),
+                          Math.max(1, totalPaginasEvidencias)
+                        );
+                        const inicioEv = (paginaAtualNormalizada - 1) * EVIDENCIAS_POR_PAGINA;
+                        const evidenciasPaginadas = resultadoIa.evidencias.slice(
+                          inicioEv,
+                          inicioEv + EVIDENCIAS_POR_PAGINA
+                        );
+
+                        return (
+                          <>
+                            <div className="cancelamentos-evidencias-grid">
+                              {evidenciasPaginadas.map((evidencia) => (
+                                <Link
+                                  key={evidencia.id}
+                                  to={destinoDoDetalhe(
+                                    evidencia.id,
+                                    location.search,
+                                    '/cancelamentos'
+                                  )}
+                                  className="cancelamentos-evidencia-card"
+                                >
+                                  <div className="cancelamentos-evidencia-cabecalho">
+                                    <strong title={`Atendimento #${evidencia.id}`}>
+                                      Atendimento #{evidencia.id}
+                                    </strong>
+                                    {evidencia.administradora ? (
+                                      <span className="cancelamentos-badge-adm">
+                                        {evidencia.administradora}
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  {evidencia.motivo ? (
+                                    <p className="cancelamentos-evidencia-motivo">
+                                      <strong>Motivo:</strong> {evidencia.motivo}
+                                    </p>
+                                  ) : null}
+
+                                  <div className="cancelamentos-evidencia-tags">
+                                    {evidencia.categoriaCausa ? (
+                                      <span className="cancelamentos-tag-pequena">
+                                        {evidencia.categoriaCausa}
+                                      </span>
+                                    ) : null}
+                                    {evidencia.concorrenteCitado ? (
+                                      <span className="cancelamentos-tag-pequena is-concorrente">
+                                        {evidencia.concorrenteCitado}
+                                      </span>
+                                    ) : null}
+                                    {evidencia.vendaMalFeita ? (
+                                      <span className="cancelamentos-tag-pequena is-venda">
+                                        Venda mal feita
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  {evidencia.trecho ? (
+                                    <blockquote className="cancelamentos-evidencia-citacao">
+                                      &ldquo;{evidencia.trecho}&rdquo;
+                                    </blockquote>
+                                  ) : null}
+
+                                  {evidencia.diagnostico ? (
+                                    <p className="cancelamentos-evidencia-diag">
+                                      {evidencia.diagnostico}
+                                    </p>
+                                  ) : null}
+                                </Link>
+                              ))}
                             </div>
 
-                            {evidencia.motivo ? (
-                              <p className="cancelamentos-evidencia-motivo">
-                                <strong>Motivo:</strong> {evidencia.motivo}
-                              </p>
+                            {totalPaginasEvidencias > 1 ? (
+                              <PaginacaoCompacta
+                                pagina={paginaAtualNormalizada}
+                                totalPaginas={totalPaginasEvidencias}
+                                irPara={setPaginaEvidencias}
+                              />
                             ) : null}
-
-                            <div className="cancelamentos-evidencia-tags">
-                              {evidencia.categoriaCausa ? (
-                                <span className="cancelamentos-tag-pequena">
-                                  {evidencia.categoriaCausa}
-                                </span>
-                              ) : null}
-                              {evidencia.concorrenteCitado ? (
-                                <span className="cancelamentos-tag-pequena is-concorrente">
-                                  {evidencia.concorrenteCitado}
-                                </span>
-                              ) : null}
-                              {evidencia.vendaMalFeita ? (
-                                <span className="cancelamentos-tag-pequena is-venda">
-                                  Venda mal feita
-                                </span>
-                              ) : null}
-                            </div>
-
-                            {evidencia.trecho ? (
-                              <blockquote className="cancelamentos-evidencia-citacao">
-                                &ldquo;{evidencia.trecho}&rdquo;
-                              </blockquote>
-                            ) : null}
-
-                            {evidencia.diagnostico ? (
-                              <p className="cancelamentos-evidencia-diag">
-                                {evidencia.diagnostico}
-                              </p>
-                            ) : null}
-                          </Link>
-                        ))}
-                      </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : null}
                 </div>

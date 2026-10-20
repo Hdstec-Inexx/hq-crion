@@ -129,7 +129,8 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '011_resolucao_da_demanda_critica.sql',
       '014_canonicalizar_motivos.sql',
       '015_canonicalizar_motivos_acentuados.sql',
-      '016_diagnostico_de_cancelamento.sql'
+      '016_diagnostico_de_cancelamento.sql',
+      '017_sanear_concorrentes_cancelamento.sql'
     ]
   );
 });
