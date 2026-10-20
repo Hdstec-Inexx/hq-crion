@@ -255,6 +255,7 @@ test('Detecção heurística de cancelamento, concorrente Hapvida e venda mal fe
 test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte e Período', async () => {
   const app = await buildApp();
   const { inicio, fim } = periodoMesCivil(new Date());
+  const urlBase = `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}`;
 
   try {
     const sessao = await sessaoDe(app, 'ana.souza@crion');
@@ -262,7 +263,7 @@ test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte
     // Consulta Affix -> Clara Affix 0800 (contém a1: cancelamento Hapvida + venda mal feita)
     const resAffix = await app.inject({
       method: 'GET',
-      url: `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}`,
+      url: urlBase,
       headers: { authorization: `Bearer ${sessao}` }
     });
 
@@ -288,7 +289,7 @@ test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte
     // Filtro concorrente=Hapvida deve retornar o atendimento a1
     const resConcorrenteHapvida = await app.inject({
       method: 'GET',
-      url: `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}&concorrente=Hapvida`,
+      url: `${urlBase}&concorrente=Hapvida`,
       headers: { authorization: `Bearer ${sessao}` }
     });
     const itensHapvida = painelDeCancelamentosResponseSchema.parse(resConcorrenteHapvida.json()).itens;
@@ -297,7 +298,7 @@ test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte
     // Filtro concorrente inexistente não deve retornar a1
     const resConcorrenteInexistente = await app.inject({
       method: 'GET',
-      url: `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}&concorrente=OperadoraFantasma`,
+      url: `${urlBase}&concorrente=ConcorrenteInexistente`,
       headers: { authorization: `Bearer ${sessao}` }
     });
     const itensInexistente = painelDeCancelamentosResponseSchema.parse(resConcorrenteInexistente.json()).itens;
@@ -306,7 +307,7 @@ test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte
     // Filtro vendaMalFeita=sim deve incluir a1
     const resVendaSim = await app.inject({
       method: 'GET',
-      url: `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}&vendaMalFeita=sim`,
+      url: `${urlBase}&vendaMalFeita=sim`,
       headers: { authorization: `Bearer ${sessao}` }
     });
     const itensVendaSim = painelDeCancelamentosResponseSchema.parse(resVendaSim.json()).itens;
@@ -315,7 +316,7 @@ test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte
     // Filtro vendaMalFeita=nao deve excluir a1
     const resVendaNao = await app.inject({
       method: 'GET',
-      url: `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}&vendaMalFeita=nao`,
+      url: `${urlBase}&vendaMalFeita=nao`,
       headers: { authorization: `Bearer ${sessao}` }
     });
     const itensVendaNao = painelDeCancelamentosResponseSchema.parse(resVendaNao.json()).itens;
@@ -324,7 +325,7 @@ test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte
     // Filtro causa compatível com a1 ('Rede credenciada / Cobertura')
     const resCausaCerta = await app.inject({
       method: 'GET',
-      url: `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}&causa=${encodeURIComponent('Rede credenciada / Cobertura')}`,
+      url: `${urlBase}&causa=${encodeURIComponent('Rede credenciada / Cobertura')}`,
       headers: { authorization: `Bearer ${sessao}` }
     });
     const itensCausaCerta = painelDeCancelamentosResponseSchema.parse(resCausaCerta.json()).itens;
@@ -333,7 +334,7 @@ test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte
     // Filtro causa divergente de a1 ('Problema financeiro / Boleto')
     const resCausaDivergente = await app.inject({
       method: 'GET',
-      url: `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}&causa=${encodeURIComponent('Problema financeiro / Boleto')}`,
+      url: `${urlBase}&causa=${encodeURIComponent('Problema financeiro / Boleto')}`,
       headers: { authorization: `Bearer ${sessao}` }
     });
     const itensCausaDivergente = painelDeCancelamentosResponseSchema.parse(resCausaDivergente.json()).itens;
@@ -385,46 +386,46 @@ test('Pesquisa por IA responde pergunta com síntese e evidências (Fallback Ana
 test('Pesquisa por IA integra com cliente OpenRouter simulado via mock de rede', async () => {
   const chaveOriginal = process.env.OPENROUTER_API_KEY;
   const fetchOriginal = globalThis.fetch;
-
-  process.env.OPENROUTER_API_KEY = 'sk-or-test-mock-key';
-
-  let fetchChamado = false;
-  let authHeaderRecebido: string | null = null;
-  let bodyEnviado: any = null;
-
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    fetchChamado = true;
-    const headers = new Headers(init?.headers);
-    authHeaderRecebido = headers.get('authorization');
-    if (init?.body) {
-      bodyEnviado = JSON.parse(init.body.toString());
-    }
-
-    return new Response(
-      JSON.stringify({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                resposta:
-                  'Identificamos cancelamento com migração para a Hapvida motivado por venda mal feita e promessa de rede não cumprida.',
-                evidenciaIds: ['a1']
-              })
-            }
-          }
-        ]
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
-  }) as typeof fetch;
-
-  const app = await buildApp();
-  const { inicio, fim } = periodoMesCivil(new Date());
+  let app: Awaited<ReturnType<typeof buildApp>> | undefined;
 
   try {
+    process.env.OPENROUTER_API_KEY = 'sk-or-test-mock-key';
+
+    let fetchChamado = false;
+    let authHeaderRecebido: string | null = null;
+    let bodyEnviado: { model?: string } | null = null;
+
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      fetchChamado = true;
+      const headers = new Headers(init?.headers);
+      authHeaderRecebido = headers.get('authorization');
+      if (init?.body) {
+        bodyEnviado = JSON.parse(init.body.toString());
+      }
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  resposta:
+                    'Identificamos cancelamento com migração para a Hapvida motivado por venda mal feita e promessa de rede não cumprida.',
+                  evidenciaIds: ['a1']
+                })
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }) as typeof fetch;
+
+    app = await buildApp();
+    const { inicio, fim } = periodoMesCivil(new Date());
     const sessao = await sessaoDe(app, 'bruno.alves@crion');
 
     const response = await app.inject({
@@ -445,12 +446,14 @@ test('Pesquisa por IA integra com cliente OpenRouter simulado via mock de rede',
 
     assert.equal(fetchChamado, true, 'fetch do OpenRouter deveria ter sido chamado');
     assert.equal(authHeaderRecebido, 'Bearer sk-or-test-mock-key');
-    assert.equal(bodyEnviado?.model, 'deepseek/deepseek-v4.1-flash');
+    assert.equal((bodyEnviado as { model?: string } | null)?.model, 'deepseek/deepseek-v4.1-flash');
     assert.equal(resultado.fonte, 'openrouter');
     assert.match(resultado.resposta, /Hapvida/i);
     assert.equal(resultado.evidencias[0]?.id, 'a1');
   } finally {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
     globalThis.fetch = fetchOriginal;
     if (chaveOriginal === undefined) {
       delete process.env.OPENROUTER_API_KEY;
