@@ -1,5 +1,6 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import { custoVisivelPara, type ListagemResponse } from '@hq-crion/contracts/atendimento';
+import { formatarCpf } from '@hq-crion/contracts/cpf';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
@@ -148,6 +149,7 @@ export function ListagemAtendimentos({
                     </Link>
                     <div className="listagem-meta">
                       {item.motivo} · {item.status}
+                      {item.cpf ? ` · CPF: ${formatarCpf(item.cpf)}` : ''}
                       {custoVisivelPara(perfil.papel) && item.custo ? ` · ${item.custo}` : ''}
                       {item.curadoria && item.curadaEm ? ` · Data da Curadoria: ${formatarQuando(item.curadaEm)}` : ''}
                     </div>

@@ -25,6 +25,7 @@ import {
   recusaDaConferencia,
   type RegistroDeAtendimento
 } from './registro.js';
+import { extrairCpf } from '@hq-crion/contracts/cpf';
 
 function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendimento) {
   const motivosExistentes = registros.map((registro) => registro.motivo).filter(Boolean);
@@ -34,9 +35,14 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
   if (!atual) {
     registros.push({
       ...novo,
-      motivo: motivoCanonico
+      motivo: motivoCanonico,
+      cpf: novo.cpf ?? extrairCpf(novo)
     });
     return;
+  }
+
+  if (novo.cpf !== undefined) {
+    atual.cpf = novo.cpf;
   }
 
   if (novo.motivo !== undefined) {
@@ -125,9 +131,11 @@ export function repositorioEmMemoria(
 
   for (const item of base) {
     const motivosExistentes = registros.map((r) => r.motivo).filter(Boolean);
+    const cpf = item.cpf ?? extrairCpf(item);
     registros.push({
       ...item,
-      motivo: canonicalizarMotivo(item.motivo, motivosExistentes)
+      motivo: canonicalizarMotivo(item.motivo, motivosExistentes),
+      cpf
     });
   }
 
@@ -181,10 +189,18 @@ export function repositorioEmMemoria(
     },
     async buscarPorId(id) {
       const registro = registros.find((item) => item.id === id);
-      if (registro?.avaliacaoDaIa && !registro.avaliacaoDaIa.diagnosticoCancelamento) {
-        const diag = resolverDiagnosticoParaAvaliacao(registro);
-        if (diag) {
-          registro.avaliacaoDaIa.diagnosticoCancelamento = diag;
+      if (registro) {
+        if (!registro.cpf) {
+          const cpf = extrairCpf(registro);
+          if (cpf) {
+            registro.cpf = cpf;
+          }
+        }
+        if (registro.avaliacaoDaIa && !registro.avaliacaoDaIa.diagnosticoCancelamento) {
+          const diag = resolverDiagnosticoParaAvaliacao(registro);
+          if (diag) {
+            registro.avaliacaoDaIa.diagnosticoCancelamento = diag;
+          }
         }
       }
       return registro;
@@ -405,9 +421,11 @@ export function repositorioEmMemoria(
         const info = resolverFavoritos(favoritos, item.id, perfilId);
         const notas = notasDoAtendimento(item);
         const curadaEm = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm ?? null;
+        const cpf = item.cpf ?? extrairCpf(item);
         return {
           ...item,
           ...notas,
+          ...(cpf ? { cpf } : {}),
           curadaEm,
           favoritadoPeloUsuario: info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,

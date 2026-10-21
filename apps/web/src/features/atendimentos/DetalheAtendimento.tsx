@@ -13,6 +13,7 @@ import {
   type EstadoDoCriterio,
   type PercursoDaFilaDeManutencao
 } from '@hq-crion/contracts/atendimento';
+import { formatarCpf } from '@hq-crion/contracts/cpf';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import type { CriterioDaRegua, ReguaDeAvaliacao } from '@hq-crion/contracts/regua';
 import {
@@ -651,6 +652,12 @@ export function DetalheAtendimento() {
               <dt>Motivo de Contato</dt>
               <dd>{atendimento.motivo}</dd>
             </div>
+            {atendimento.cpf ? (
+              <div>
+                <dt>CPF</dt>
+                <dd>{formatarCpf(atendimento.cpf)}</dd>
+              </div>
+            ) : null}
             <div>
               <dt>Favorito</dt>
               <dd>

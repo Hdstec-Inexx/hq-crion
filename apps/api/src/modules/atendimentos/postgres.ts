@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { falhasIdentificadasDe, type CriterioAvaliado } from '@hq-crion/contracts/atendimento';
+import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import {
   aplicarConsultaDaListagem,
@@ -122,6 +123,10 @@ WHERE ($7::text IS NULL OR a.id = $7)
           ELSE a.iniciado_em
         END) AT TIME ZONE 'America/Sao_Paulo')::date <= $5::date
     )
+  )
+  AND (
+    $9::text IS NULL
+    OR REPLACE(REPLACE(a.transcricao::text || ' ' || COALESCE(a.ferramentas::text, ''), '.', ''), '-', '') ILIKE '%' || $9 || '%' ESCAPE '\'
   )
 `;
 
@@ -346,6 +351,10 @@ function montarRegistro(
       : undefined;
 
   const custo = formatarCusto(linha.custo);
+  const cpf = extrairCpf({
+    transcricao: linha.transcricao,
+    ferramentas: linha.ferramentas
+  });
 
   return {
     id: linha.id,
@@ -360,6 +369,7 @@ function montarRegistro(
     status: linha.status,
     curadoria: Boolean(linha.tem_curadoria),
     curadaEm,
+    cpf,
     conversa: linha.id,
     favoritadoPeloUsuario: Boolean(linha.favoritado_pelo_usuario),
     favoritosCount: numero(linha.favoritos_count ?? 0),
@@ -419,6 +429,12 @@ async function lerRegistros(
   const referenciaData = queryTipoData === 'curadoria'
     ? 'curadoria'
     : (modo === 'fila' ? 'conclusao' : 'inicio');
+  const queryCpf = query.cpf && query.cpf.trim() !== '' ? normalizarCpf(query.cpf) : null;
+  const paramCpf =
+    query.cpf && query.cpf.trim() !== ''
+      ? (queryCpf ? queryCpf.replace(/[%_\\]/g, '\\$&') : '__NENHUM_CPF_VALIDO__')
+      : null;
+
   const resultado = await cliente.query(leituraSql, [
     recorte.administradora,
     recorte.agente,
@@ -427,7 +443,8 @@ async function lerRegistros(
     aplicarPeriodo ? (periodo?.fim ?? '1970-01-01') : '9999-12-31',
     referenciaData,
     entrada.id ?? null,
-    entrada.perfilId ?? null
+    entrada.perfilId ?? null,
+    paramCpf
   ]);
   const linhas = resultado.rows as Parameters<typeof montarRegistro>[0][];
   const criteriosIa = await mapaDeCriterios(

@@ -7,6 +7,7 @@ import {
   type CriterioDaConferencia,
   type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
+import { extrairCpf } from '@hq-crion/contracts/cpf';
 import { reguaUnica } from '../regua/regua-unica.js';
 
 export type FerramentasDoAtendimento = {
@@ -206,10 +207,12 @@ export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe 
 
   const notas = notasDoAtendimento(item);
   const curadaEm = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm ?? null;
+  const cpf = item.cpf ?? extrairCpf(item);
 
   return {
     ...publico,
     ...notas,
+    ...(cpf ? { cpf } : {}),
     curadaEm,
     ...(item.avaliacaoDoCurador
       ? {

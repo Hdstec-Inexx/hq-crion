@@ -19,6 +19,7 @@ export type CampoVisivelDaListagem =
   | 'periodo'
   | 'tipoData'
   | 'conversa'
+  | 'cpf'
   | 'motivo'
   | 'criterios'
   | 'statusCuradoria'
@@ -33,6 +34,7 @@ const camposPorRota: Record<string, readonly CampoVisivelDaListagem[]> = {
     'periodo',
     'tipoData',
     'conversa',
+    'cpf',
     'motivo',
     'criterios',
     'statusCuradoria',
@@ -46,11 +48,12 @@ const camposPorRota: Record<string, readonly CampoVisivelDaListagem[]> = {
     'curador',
     'limpar'
   ],
-  '/fila-de-curadoria': ['periodo', 'conversa', 'motivo', 'notaIa', 'limpar'],
+  '/fila-de-curadoria': ['periodo', 'conversa', 'cpf', 'motivo', 'notaIa', 'limpar'],
   '/minhas-curadorias': [
     'periodo',
     'tipoData',
     'conversa',
+    'cpf',
     'motivo',
     'criterios',
     'notaIa',
@@ -60,6 +63,7 @@ const camposPorRota: Record<string, readonly CampoVisivelDaListagem[]> = {
     'periodo',
     'tipoData',
     'conversa',
+    'cpf',
     'motivo',
     'criterios',
     'curador',
@@ -93,6 +97,7 @@ const chavesLimpaveis = [
   'nota',
   'motivo',
   'conversa',
+  'cpf',
   'curadoria',
   'notaIa',
   'statusCuradoria',

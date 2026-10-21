@@ -3,6 +3,7 @@ import {
   notaIaDaQuery,
   statusDaCuradoria
 } from '@hq-crion/contracts/filtros-listagem';
+import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   lerRecorte,
@@ -200,6 +201,21 @@ export function passaNosFiltros(
 
   if (query.conversa && item.conversa !== query.conversa) {
     return false;
+  }
+
+  if (query.cpf && query.cpf.trim() !== '') {
+    const cpfBuscado = normalizarCpf(query.cpf);
+    if (!cpfBuscado) {
+      return false;
+    }
+    const cpfDoItem = item.cpf ?? extrairCpf(item);
+    if (!cpfDoItem) {
+      return false;
+    }
+    const cpfNormalizado = normalizarCpf(cpfDoItem);
+    if (!cpfNormalizado.includes(cpfBuscado)) {
+      return false;
+    }
   }
 
   const statusCuradoria = statusDaCuradoria.find((status) => status === query.statusCuradoria);

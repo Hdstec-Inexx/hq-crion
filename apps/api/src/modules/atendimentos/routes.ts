@@ -14,6 +14,7 @@ import {
   type AtendimentoListItem,
   type Avaliacao
 } from '@hq-crion/contracts/atendimento';
+import { extrairCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
@@ -89,6 +90,7 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
 export function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
   const { notaIa, notaCurador } = notasDoAtendimento(detalhe);
   const curadaEm = detalhe.curadaEm ?? detalhe.avaliacaoDoCurador?.curadaEm ?? null;
+  const cpf = detalhe.cpf ?? extrairCpf(detalhe);
 
   return {
     id: detalhe.id,
@@ -104,6 +106,7 @@ export function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem
     curadoria: detalhe.curadoria,
     curadaEm,
     conversa: detalhe.conversa,
+    ...(cpf ? { cpf } : {}),
     ...(detalhe.custo ? { custo: detalhe.custo } : {}),
     favoritadoPeloUsuario: detalhe.favoritadoPeloUsuario ?? false,
     favoritosCount: detalhe.favoritosCount ?? 0,
