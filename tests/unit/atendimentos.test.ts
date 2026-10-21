@@ -1507,6 +1507,19 @@ test('GET /atendimentos filtra por tipoData=curadoria alternando entre data do A
       resMinhas.json().itens.some((it: { id: string }) => it.id === 'atend-antigo-curado-recente'),
       true
     );
+
+    // 5. Ignora tipoData=curadoria quando Curador consulta /atendimentos ou /fila-de-curadoria
+    const resAtendimentosCurador = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?inicio=2026-10-01&fim=2026-10-31&tipoData=curadoria',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(resAtendimentosCurador.statusCode, 200);
+    assert.equal(
+      resAtendimentosCurador.json().itens.some((it: { id: string }) => it.id === 'a1'),
+      true,
+      'Para Curador em /atendimentos, tipoData=curadoria é ignorado e os pendentes do período são listados'
+    );
   } finally {
     await app.close();
   }

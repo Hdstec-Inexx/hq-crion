@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { falhasIdentificadasDe, type CriterioAvaliado } from '@hq-crion/contracts/atendimento';
 import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
+import type { Papel } from '@hq-crion/contracts/perfil';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import {
   aplicarConsultaDaListagem,
@@ -8,15 +9,17 @@ import {
   aplicarConsultaDoDashboard,
   consultaDoPercurso
 } from './consulta.js';
-import { periodoDaQuery, type ModoDaListagem } from './filtros.js';
+import { modoAdmiteTipoDataCuradoria, periodoDaQuery, type ModoDaListagem } from './filtros.js';
 import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
+  autorDaConferencia,
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
   criteriosComChave,
   recusaDaAvaliacao,
   recusaDaConferencia,
+  transicaoDoComentarioNaConferencia,
   type RegistroDeAtendimento
 } from './registro.js';
 import { tempoDeEsperaDaTranscricao } from './tempo-de-espera.js';
@@ -418,6 +421,7 @@ async function lerRegistros(
     query?: Record<string, string | undefined>;
     modo?: ModoDaListagem | 'dashboard' | 'manutencao';
     perfilId?: string;
+    papel?: Papel;
   }
 ) {
   const query = entrada.query ?? {};
@@ -426,14 +430,16 @@ async function lerRegistros(
   const aplicarPeriodo = entrada.id ? false : modo !== 'monitoramento';
   const recorte = entrada.recorte ?? { administradora: null, agente: null };
   const queryTipoData = query.tipoData?.trim();
-  const referenciaData = queryTipoData === 'curadoria'
-    ? 'curadoria'
-    : (modo === 'fila' ? 'conclusao' : 'inicio');
-  const queryCpf = query.cpf && query.cpf.trim() !== '' ? normalizarCpf(query.cpf) : null;
-  const paramCpf =
-    query.cpf && query.cpf.trim() !== ''
-      ? (queryCpf ? queryCpf.replace(/[%_\\]/g, '\\$&') : '__NENHUM_CPF_VALIDO__')
-      : null;
+  const referenciaData =
+    queryTipoData === 'curadoria' && modoAdmiteTipoDataCuradoria(modo, entrada.papel)
+      ? 'curadoria'
+      : (modo === 'fila' ? 'conclusao' : 'inicio');
+  const temFiltroCpf = Boolean(query.cpf && query.cpf.trim() !== '');
+  const queryCpf = temFiltroCpf ? normalizarCpf(query.cpf) : null;
+  if (temFiltroCpf && !queryCpf) {
+    return [];
+  }
+  const paramCpf = queryCpf ? queryCpf.replace(/[%_\\]/g, '\\$&') : null;
 
   const resultado = await cliente.query(leituraSql, [
     recorte.administradora,
@@ -908,24 +914,21 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             | undefined;
 
           let avaliacaoId: string;
-          let curadorId: string;
-          let curadorNome: string;
+          const curadorFinal = autorDaConferencia(
+            entrada,
+            avaliacaoExistente
+              ? { id: avaliacaoExistente.curador_id, nome: avaliacaoExistente.curador_nome }
+              : undefined
+          );
 
           if (avaliacaoExistente) {
             avaliacaoId = avaliacaoExistente.id;
-            if (entrada.papel === 'Admin') {
-              curadorId = avaliacaoExistente.curador_id;
-              curadorNome = avaliacaoExistente.curador_nome;
-            } else {
-              curadorId = entrada.curador.id;
-              curadorNome = entrada.curador.nome;
-            }
 
             await cliente.query(
               `UPDATE hq_avaliacao_do_curador
                SET nota = $1, curador_id = $2, curador_nome = $3, criada_em = now()
                WHERE id = $4`,
-              [entrada.nota, curadorId, curadorNome, avaliacaoId]
+              [entrada.nota, curadorFinal.id, curadorFinal.nome, avaliacaoId]
             );
 
             await cliente.query(
@@ -934,8 +937,6 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             );
           } else {
             avaliacaoId = randomUUID();
-            curadorId = entrada.curador.id;
-            curadorNome = entrada.curador.nome;
 
             await cliente.query(
               `INSERT INTO hq_avaliacao_do_curador
@@ -946,8 +947,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
                 id,
                 entrada.nota,
                 encontrado.avaliacaoDaIa.nota,
-                curadorId,
-                curadorNome
+                curadorFinal.id,
+                curadorFinal.nome
               ]
             );
           }
@@ -969,32 +970,29 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             | { id: string; texto: string; status: 'Pendente' | 'Resolvido' }
             | undefined;
 
-          const novoTexto = entrada.comentario?.trim() || null;
+          const transicao = transicaoDoComentarioNaConferencia(
+            entrada.comentario,
+            comentarioExistente?.texto
+          );
 
-          if (novoTexto) {
-            if (comentarioExistente) {
-              if (novoTexto !== comentarioExistente.texto) {
-                await cliente.query(
-                  `UPDATE hq_comentario
-                   SET texto = $1, status = 'Pendente', resolvido_por_id = NULL, resolvido_em = NULL
-                   WHERE id = $2`,
-                  [novoTexto, comentarioExistente.id]
-                );
-              }
-            } else {
-              await cliente.query(
-                `INSERT INTO hq_comentario (id, avaliacao_id, atendimento_id, texto, status, criado_em)
-                 VALUES ($1, $2, $3, $4, 'Pendente', now())`,
-                [randomUUID(), avaliacaoId, id, novoTexto]
-              );
-            }
-          } else {
-            if (comentarioExistente) {
-              await cliente.query(
-                `DELETE FROM hq_comentario WHERE id = $1`,
-                [comentarioExistente.id]
-              );
-            }
+          if (transicao.acao === 'criar') {
+            await cliente.query(
+              `INSERT INTO hq_comentario (id, avaliacao_id, atendimento_id, texto, status, criado_em)
+               VALUES ($1, $2, $3, $4, 'Pendente', now())`,
+              [randomUUID(), avaliacaoId, id, transicao.texto]
+            );
+          } else if (transicao.acao === 'reabrir' && comentarioExistente) {
+            await cliente.query(
+              `UPDATE hq_comentario
+               SET texto = $1, status = 'Pendente', resolvido_por_id = NULL, resolvido_em = NULL
+               WHERE id = $2`,
+              [transicao.texto, comentarioExistente.id]
+            );
+          } else if (transicao.acao === 'excluir' && comentarioExistente) {
+            await cliente.query(
+              `DELETE FROM hq_comentario WHERE id = $1`,
+              [comentarioExistente.id]
+            );
           }
 
           return 'ok' as const;
@@ -1135,7 +1133,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       return mapa;
     },
     async consultarListagem(recorte, query, modo, perfilId, papel) {
-      const registros = await lerRegistros(pool, { recorte, query, modo, perfilId });
+      const registros = await lerRegistros(pool, { recorte, query, modo, perfilId, papel });
       return aplicarConsultaDaListagem(registros, recorte, query, modo, perfilId, papel);
     },
     async consultarFavoritos(recorte, query, perfil) {

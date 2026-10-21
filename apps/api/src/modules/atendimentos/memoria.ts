@@ -17,12 +17,15 @@ import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
 import {
   aprovacaoDaAvaliacao,
+  autorDaConferencia,
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
   criteriosComChave,
+  metadadosDeCuradoriaECpf,
   notasDoAtendimento,
   recusaDaAvaliacao,
   recusaDaConferencia,
+  transicaoDoComentarioNaConferencia,
   type RegistroDeAtendimento
 } from './registro.js';
 import { extrairCpf } from '@hq-crion/contracts/cpf';
@@ -347,15 +350,15 @@ export function repositorioEmMemoria(
         return recusa ?? 'indisponivel';
       }
 
-      const jaTinhaAvaliacao = Boolean(item.avaliacaoDoCurador);
-      const curadorOriginal = item.curadorDaRevisao ?? (item.avaliacaoDoCurador ? {
-        id: item.avaliacaoDoCurador.curador,
-        nome: item.avaliacaoDoCurador.curador
-      } : undefined);
-
-      const curadorFinal = (jaTinhaAvaliacao && entrada.papel === 'Admin' && curadorOriginal)
-        ? curadorOriginal
-        : entrada.curador;
+      const curadorExistente =
+        item.curadorDaRevisao ??
+        (item.avaliacaoDoCurador
+          ? {
+              id: item.avaliacaoDoCurador.curador,
+              nome: item.avaliacaoDoCurador.curador
+            }
+          : undefined);
+      const curadorFinal = autorDaConferencia(entrada, curadorExistente);
 
       const curadaEm = new Date().toISOString();
       item.curadoria = true;
@@ -364,8 +367,10 @@ export function repositorioEmMemoria(
       item.notaCurador = entrada.nota;
 
       const criterios = criteriosComChave(entrada.criterios);
-      const novoTextoComentario = entrada.comentario?.trim() || undefined;
-      const textoComentarioAnterior = item.avaliacaoDoCurador?.comentario?.trim() || undefined;
+      const transicao = transicaoDoComentarioNaConferencia(
+        entrada.comentario,
+        item.avaliacaoDoCurador?.comentario
+      );
 
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
@@ -374,19 +379,17 @@ export function repositorioEmMemoria(
         notaDaAvaliacaoDaIa: item.avaliacaoDaIa.nota,
         curador: curadorFinal.nome,
         curadaEm,
-        ...(novoTextoComentario ? { comentario: novoTextoComentario } : {})
+        ...(transicao.acao !== 'excluir' ? { comentario: transicao.texto } : {})
       };
 
-      if (novoTextoComentario) {
-        if (novoTextoComentario === textoComentarioAnterior) {
-          item.comentarioId = item.comentarioId ?? item.id;
-        } else {
-          item.comentarioStatus = 'Pendente';
-          item.comentarioId = item.comentarioId ?? item.id;
-          item.comentarioResolvidoPorId = undefined;
-          item.comentarioResolvidoPorNome = undefined;
-          item.comentarioResolvidoEm = undefined;
-        }
+      if (transicao.acao === 'manter') {
+        item.comentarioId = item.comentarioId ?? item.id;
+      } else if (transicao.acao === 'criar' || transicao.acao === 'reabrir') {
+        item.comentarioStatus = 'Pendente';
+        item.comentarioId = item.comentarioId ?? item.id;
+        item.comentarioResolvidoPorId = undefined;
+        item.comentarioResolvidoPorNome = undefined;
+        item.comentarioResolvidoEm = undefined;
       } else {
         item.comentarioStatus = undefined;
         item.comentarioId = undefined;
@@ -420,8 +423,7 @@ export function repositorioEmMemoria(
       return itens.map((item) => {
         const info = resolverFavoritos(favoritos, item.id, perfilId);
         const notas = notasDoAtendimento(item);
-        const curadaEm = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm ?? null;
-        const cpf = item.cpf ?? extrairCpf(item);
+        const { curadaEm, cpf } = metadadosDeCuradoriaECpf(item);
         return {
           ...item,
           ...notas,
@@ -441,9 +443,12 @@ export function repositorioEmMemoria(
       const mapearItem = (item: RegistroDeAtendimento) => {
         const info = resolverFavoritos(favoritos, item.id, perfil.id);
         const notas = notasDoAtendimento(item);
+        const { curadaEm, cpf } = metadadosDeCuradoriaECpf(item);
         return {
           ...item,
           ...notas,
+          ...(cpf ? { cpf } : {}),
+          curadaEm,
           favoritadoPeloUsuario: perfil.papel === 'Curador' ? true : info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)

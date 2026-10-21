@@ -136,13 +136,16 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
   );
 });
 
-test('a migration 018_edicao_de_conferencia remove os triggers de imutabilidade da avaliação, critérios e comentário', () => {
+test('a migration 018_edicao_de_conferencia remove os triggers de imutabilidade da avaliação, critérios e ajusta a trigger do comentário', () => {
   const migracao = listarMigracoes().find((m) => m.nome === '018_edicao_de_conferencia.sql');
   assert.ok(migracao, 'migration 018_edicao_de_conferencia.sql ausente');
   const sql = migracao.sql;
   assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_avaliacao_do_curador_imutavel\s+ON\s+hq_avaliacao_do_curador/i);
   assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_criterio_da_avaliacao_do_curador_imutavel\s+ON\s+hq_criterio_da_avaliacao_do_curador/i);
   assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_comentario_so_status\s+ON\s+hq_comentario/i);
+  assert.match(sql, /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+hq_comentario_so_status\(\)/i);
+  assert.match(sql, /IF\s+TG_OP\s*=\s*'DELETE'\s+THEN\s+RETURN\s+OLD/i);
+  assert.match(sql, /CREATE\s+TRIGGER\s+hq_comentario_so_status/i);
 });
 
 test('a migration 018_edicao_de_conferencia é aplicada no fluxo de migração do banco', async () => {

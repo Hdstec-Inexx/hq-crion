@@ -139,6 +139,21 @@ export function resolverMotivoDaQuery(
   return undefined;
 }
 
+export function modoAdmiteTipoDataCuradoria(
+  modo: ModoDaListagem | 'dashboard' | 'manutencao',
+  papel?: Papel
+): boolean {
+  if (modo === 'minhas' || modo === 'realizadas') {
+    return true;
+  }
+
+  if (modo === 'todos' && papel !== 'Curador') {
+    return true;
+  }
+
+  return false;
+}
+
 export function passaNosFiltros(
   item: RegistroDeAtendimento,
   recorte: ReturnType<typeof lerRecorte>,
@@ -157,7 +172,8 @@ export function passaNosFiltros(
   }
 
   const queryTipoData = query.tipoData?.trim();
-  const filtrarPorCuradoria = queryTipoData === 'curadoria';
+  const filtrarPorCuradoria =
+    queryTipoData === 'curadoria' && modoAdmiteTipoDataCuradoria(modo, papel);
   const dataCuradoria = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm;
 
   if (filtrarPorCuradoria) {

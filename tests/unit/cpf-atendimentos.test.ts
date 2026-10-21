@@ -388,4 +388,16 @@ test('repositorioPostgres extrai CPF e normaliza pontuação ao consultarListage
     'Admin'
   );
   assert.equal(itensVazio.length, 0);
+
+  // Busca com apenas pontuação faz curto-circuito sem consultar o banco
+  consultas.length = 0;
+  const itensPontuacao = await repo.consultarListagem(
+    { administradora: null, agente: null },
+    { inicio: '2026-10-01', fim: '2026-10-31', cpf: ' . - ' },
+    'todos',
+    'p1',
+    'Admin'
+  );
+  assert.equal(itensPontuacao.length, 0);
+  assert.equal(consultas.length, 0);
 });

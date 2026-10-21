@@ -43,7 +43,10 @@ function digitosVerificadoresValidos(digitos: string): boolean {
   return Number(digitos[10]) === digito2;
 }
 
-function extrairCpfDePropriedades(objeto: Record<string, unknown>): string | undefined {
+function extrairCpfDePropriedades(
+  objeto: Record<string, unknown>,
+  permitirTextoLivre = false
+): string | undefined {
   for (const [chave, valor] of Object.entries(objeto)) {
     if (ehChaveDeCpf(chave)) {
       if (typeof valor === 'string' || typeof valor === 'number') {
@@ -56,10 +59,28 @@ function extrairCpfDePropriedades(objeto: Record<string, unknown>): string | und
   }
 
   for (const valor of Object.values(objeto)) {
-    if (valor && typeof valor === 'object' && !Array.isArray(valor)) {
-      const encontrado = extrairCpfDePropriedades(valor as Record<string, unknown>);
+    if (valor && typeof valor === 'object') {
+      const encontrado = Array.isArray(valor)
+        ? extrairCpfDePayload(valor, false)
+        : extrairCpfDePropriedades(valor as Record<string, unknown>, false);
       if (encontrado) {
         return encontrado;
+      }
+    }
+  }
+
+  if (permitirTextoLivre) {
+    for (const valor of Object.values(objeto)) {
+      if (typeof valor === 'string') {
+        const encontrado = extrairCpfDoTexto(valor);
+        if (encontrado) {
+          return encontrado;
+        }
+      } else if (valor && typeof valor === 'object') {
+        const encontrado = extrairCpfDePayload(valor, true);
+        if (encontrado) {
+          return encontrado;
+        }
       }
     }
   }
@@ -82,7 +103,7 @@ function extrairCpfDePayload(payload: unknown, permitirTextoLivre = true): strin
       }
       return undefined;
     }
-    return extrairCpfDePropriedades(payload as Record<string, unknown>);
+    return extrairCpfDePropriedades(payload as Record<string, unknown>, permitirTextoLivre);
   }
 
   if (typeof payload === 'string') {
@@ -166,14 +187,11 @@ type ChamadaDeFerramentaUnificada = {
   resposta?: unknown;
 };
 
-function extrairChamadasDeFerramenta(atendimento: {
-  transcricao?: unknown;
-  ferramentas?: unknown;
-}): ChamadaDeFerramentaUnificada[] {
+function extrairChamadasDosDetalhesDaTranscricao(transcricao: unknown): ChamadaDeFerramentaUnificada[] {
   const chamadas: ChamadaDeFerramentaUnificada[] = [];
 
-  if (Array.isArray(atendimento.transcricao)) {
-    for (const turno of atendimento.transcricao as Array<{
+  if (Array.isArray(transcricao)) {
+    for (const turno of transcricao as Array<{
       detalhes?: Array<Record<string, unknown>>;
     }>) {
       if (Array.isArray(turno.detalhes)) {
@@ -189,12 +207,18 @@ function extrairChamadasDeFerramenta(atendimento: {
     }
   }
 
+  return chamadas;
+}
+
+function extrairChamadasDaColunaFerramentas(ferramentas: unknown): ChamadaDeFerramentaUnificada[] {
+  const chamadas: ChamadaDeFerramentaUnificada[] = [];
   let listaFerramentas: Array<Record<string, unknown>> = [];
-  if (Array.isArray(atendimento.ferramentas)) {
-    listaFerramentas = atendimento.ferramentas as Array<Record<string, unknown>>;
-  } else if (typeof atendimento.ferramentas === 'string') {
+
+  if (Array.isArray(ferramentas)) {
+    listaFerramentas = ferramentas as Array<Record<string, unknown>>;
+  } else if (typeof ferramentas === 'string') {
     try {
-      const parsed = JSON.parse(atendimento.ferramentas) as unknown;
+      const parsed = JSON.parse(ferramentas) as unknown;
       if (Array.isArray(parsed)) {
         listaFerramentas = parsed as Array<Record<string, unknown>>;
       }
@@ -215,18 +239,10 @@ function extrairChamadasDeFerramenta(atendimento: {
   return chamadas;
 }
 
-export function extrairCpf(atendimento: {
-  transcricao?: unknown;
-  ferramentas?: unknown;
-  cpf?: string | null;
-}): string | undefined {
-  if (typeof atendimento.cpf === 'string' && atendimento.cpf.trim()) {
-    return formatarCpf(atendimento.cpf);
-  }
-
-  const chamadas = extrairChamadasDeFerramenta(atendimento);
-
-  // Prioridade 1: Chamadas de ferramenta específicas de CPF (como consultar_cpf)
+function extrairCpfDeListaDeChamadas(
+  chamadas: readonly ChamadaDeFerramentaUnificada[],
+  permitirPadraoEmQualquerFerramenta: boolean
+): string | undefined {
   for (const chamada of chamadas) {
     if (ehFerramentaDeCpf(chamada.nome)) {
       const cpfParam = extrairCpfDePayload(chamada.parametros, true);
@@ -240,7 +256,6 @@ export function extrairCpf(atendimento: {
     }
   }
 
-  // Prioridade 2: Outras chamadas de ferramenta que possuam campo explícito de CPF (não texto livre)
   for (const chamada of chamadas) {
     const cpfParam = extrairCpfDePayload(chamada.parametros, false);
     if (cpfParam) {
@@ -250,6 +265,45 @@ export function extrairCpf(atendimento: {
     if (cpfResp) {
       return cpfResp;
     }
+  }
+
+  if (permitirPadraoEmQualquerFerramenta) {
+    for (const chamada of chamadas) {
+      const cpfParam = extrairCpfDePayload(chamada.parametros, true);
+      if (cpfParam) {
+        return cpfParam;
+      }
+      const cpfResp = extrairCpfDePayload(chamada.resposta, true);
+      if (cpfResp) {
+        return cpfResp;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+export function extrairCpf(atendimento: {
+  transcricao?: unknown;
+  ferramentas?: unknown;
+  cpf?: string | null;
+}): string | undefined {
+  if (typeof atendimento.cpf === 'string' && atendimento.cpf.trim()) {
+    return formatarCpf(atendimento.cpf);
+  }
+
+  // Prioridade 1: Parâmetros e respostas das Chamadas de Ferramenta estruturadas na transcrição (detalhes)
+  const chamadasDetalhes = extrairChamadasDosDetalhesDaTranscricao(atendimento.transcricao);
+  const cpfDosDetalhes = extrairCpfDeListaDeChamadas(chamadasDetalhes, true);
+  if (cpfDosDetalhes) {
+    return cpfDosDetalhes;
+  }
+
+  // Prioridade 2: Coluna ferramentas (array de chamadas com parameters.cpf ou resposta)
+  const chamadasFerramentas = extrairChamadasDaColunaFerramentas(atendimento.ferramentas);
+  const cpfDasFerramentas = extrairCpfDeListaDeChamadas(chamadasFerramentas, false);
+  if (cpfDasFerramentas) {
+    return cpfDasFerramentas;
   }
 
   // Prioridade 3: Padrão de CPF no texto da transcrição

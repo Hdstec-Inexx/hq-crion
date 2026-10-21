@@ -107,7 +107,7 @@ O conjunto único de critérios contra o qual todo Atendimento é medido, em tod
 _Avoid_: régua por Administradora, régua por Agente
 
 **Avaliação**:
-O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. A da IA é gerada para todo Atendimento concluído e carrega checklist de critérios, nota, **Resumo do Atendimento** e **Falhas Identificadas**. A nota do Curador é a soma dos pontos da Régua nos Critérios cujo estado não é **Não atendido**; **Não se aplica** conserva os pontos. O Curador não a digita. O selo **Aprovado**, na IA e no Curador, exige nota no limiar da Régua e nenhum Critério crítico em **Não atendido**; fora disso o selo é **Reprovado**. Sem Avaliação do Curador, o painel da IA ocupa a largura — exceto na Conferência aberta, em que esse painel sai. Gravada a Conferência, os dois painéis ficam lado a lado.
+O veredito sobre um Atendimento, produzido pela IA Avaliadora ou pelo Curador. As duas coexistem lado a lado quando ambas existem, sem hierarquia. A da IA é gerada para todo Atendimento concluído e carrega checklist de critérios, nota, **Resumo do Atendimento** e **Falhas Identificadas**. A do Curador registra também quem a realizou e a **Data da Curadoria** (atualizada quando a Conferência é editada). A nota do Curador é a soma dos pontos da Régua nos Critérios cujo estado não é **Não atendido**; **Não se aplica** conserva os pontos. O Curador não a digita. O selo **Aprovado**, na IA e no Curador, exige nota no limiar da Régua e nenhum Critério crítico em **Não atendido**; fora disso o selo é **Reprovado**. Sem Avaliação do Curador, o painel da IA ocupa a largura — exceto na Conferência aberta, em que esse painel sai. Gravada a Conferência, os dois painéis ficam lado a lado.
 _Avoid_: Nota da Régua (número digitado na Conferência)
 
 **Conferência**:
@@ -178,6 +178,9 @@ _Avoid_: Supervisão (implica intervenção), Ao vivo (fora da casca)
 Nas listagens o controle chama-se **Nota da IA Avaliadora**. Recorta pela **nota exata** da Avaliação da IA (0 a 10, passo 0,5). Zero ou ausente = sem recorte.
 _Avoid_: Nota mínima, limiar ≥, passo 0,1, Nota da Avaliação da IA (conceito GEAP de calibração do avaliador — este HQ não o usa no filtro)
 
+**CPF**:
+O documento do titular ou cliente identificado no Atendimento a partir das Chamadas de Ferramenta ou da transcrição da conversa. Exibido na linha da listagem e nos fatos do detalhe do Atendimento quando presente, e pesquisável nas listagens com ou sem máscara de pontuação.
+
 **Fila de Curadoria**:
 A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador escolhe quais revisar (modelo pull). Na casca: “Fila de curadoria”. O Período é o termo **Período**; a lista vai do mais antigo ao mais novo. Filtros: Recorte, período, id da conversa, CPF, motivo, **Filtro de Nota da IA**, Limpar — o mesmo recorte operacional da fila GEAP, sem critérios nem curador.
 
@@ -194,7 +197,7 @@ Listas de Atendimentos já conferidos. Filtros como no GEAP: Recorte, período (
 A lista de Comentários da conferência — pendentes e resolvidos — da qual o Admin trabalha a manutenção dos Agentes de Voz. Filtro por status e data; cada item liga ao Atendimento de origem. Só o Admin opera a fila. Na casca: “Manutenção”. Recorte igual às outras listagens. O Período é o termo **Período**.
 
 **Comentário**:
-O insumo escrito na conferência do Curador. Entra na Fila de Manutenção como Pendente; o Admin marca Resolvido. Gestão lê o texto no detalhe do Atendimento, sem operar a fila.
+O insumo escrito na Conferência. Entra na Fila de Manutenção como Pendente; o Admin marca Resolvido. Na edição da Conferência, pode ser incluído, alterado ou removido: se o texto não muda, conserva o status atual na fila; se o texto é alterado quando já estava Resolvido, reabre como Pendente; se removido, sai da Fila de Manutenção. Gestão lê o texto no detalhe do Atendimento, sem operar a fila.
 
 **Diagnóstico de Cancelamento**:
 O conjunto estruturado de fatos sobre a perda ou intenção de saída do cliente em um Atendimento, extraído pela IA Avaliadora (no fluxo de ingestão ou via reprocessamento no HQ) ou derivado por heurística sobre a transcrição, o Motivo e o Resumo do Atendimento. Compreende: (1) se houve intenção ou solicitação de cancelamento (`houveIntencaoCancelamento`), mesmo que o Motivo inicial do contato tenha sido outro (ex.: Reajuste, Boleto, Rede credenciada); (2) a **Causa de Cancelamento** categorizada (`Venda mal feita / Divergência comercial`, `Migração para concorrente`, `Preço / Reajuste`, `Rede credenciada / Cobertura`, `Insatisfação com atendimento`, `Problema financeiro / Boleto`, `Outros`); (3) o indicativo de **Venda Mal Feita** (`vendaMalFeita`), marcando divergências entre o prometido na adesão/corretor (carência, rede, preço, coparticipação) e a entrega real; (4) o **Concorrente Citado** (`concorrenteCitado`, ex.: `Hapvida`, `Unimed`, `Amil`), preenchido exclusivamente quando o próprio cliente declara estar migrando, trocando ou contratando plano em outra operadora — nunca quando cita a operadora apenas como o próprio plano atual administrado pela Affix, Alter ou Conectaplan, nem por termos ambíguos soltos na conversa; e (5) a síntese explicativa do que ocorreu para perder o cliente (`diagnosticoCancelamento`). Quando verdadeiro, é exibido também dentro do painel da Avaliação da IA no detalhe do Atendimento.

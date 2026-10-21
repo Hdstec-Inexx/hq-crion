@@ -87,6 +87,35 @@ test('extrairCpf identifica CPF a partir de ferramentas (array)', () => {
   assert.equal(extrairCpf(atendimento), '529.982.247-25');
 });
 
+test('extrairCpf prioriza detalhes da transcrição (Prioridade 1) sobre a coluna ferramentas (Prioridade 2) e extrai padrão em resposta de ferramenta', () => {
+  const atendimento = {
+    transcricao: [
+      {
+        locutor: 'Agente de Voz' as const,
+        quando: '0:05',
+        texto: '[Chamada de Ferramenta: buscar_beneficiario]',
+        detalhes: [
+          {
+            tipo: 'Ferramenta' as const,
+            nome: 'buscar_beneficiario',
+            nomeDaFerramenta: 'buscar_beneficiario',
+            resposta: '{"mensagem":"Titular localizado: 529.982.247-25"}'
+          }
+        ]
+      }
+    ],
+    ferramentas: [
+      {
+        tool_name: 'consultar_cpf',
+        parameters: { cpf: '11144477735' },
+        success: true
+      }
+    ]
+  };
+
+  assert.equal(extrairCpf(atendimento), '529.982.247-25');
+});
+
 test('extrairCpf prioriza consultar_cpf em ferramentas/detalhes sobre o texto da transcrição', () => {
   const atendimento = {
     transcricao: [

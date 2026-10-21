@@ -60,3 +60,14 @@ test('DetalheAtendimento exibe CPF na grade de fatos quando presente', () => {
   assert.match(detalhe, /<dt>CPF<\/dt>/);
   assert.match(detalhe, /formatarCpf\(atendimento\.cpf\)/);
 });
+
+test('FavoritosPage exibe CPF e Data da Curadoria nos metadados da linha quando presentes', () => {
+  const favoritos = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/FavoritosPage.tsx'),
+    'utf8'
+  );
+
+  assert.match(favoritos, /item\.cpf/);
+  assert.match(favoritos, /CPF:\s*\$\{formatarCpf\(item\.cpf\)\}/);
+  assert.match(favoritos, /Data da Curadoria:\s*\$\{formatarQuando\(item\.curadaEm\)\}/);
+});

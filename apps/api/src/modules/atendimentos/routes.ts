@@ -31,6 +31,7 @@ import type { FavoritosDoAtendimento } from './porta.js';
 import {
   aprovacaoDaAvaliacao,
   detalhePublico,
+  metadadosDeCuradoriaECpf,
   montarConferencia,
   notasDoAtendimento,
   recusaDaConferencia,
@@ -89,8 +90,7 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
 
 export function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
   const { notaIa, notaCurador } = notasDoAtendimento(detalhe);
-  const curadaEm = detalhe.curadaEm ?? detalhe.avaliacaoDoCurador?.curadaEm ?? null;
-  const cpf = detalhe.cpf ?? extrairCpf(detalhe);
+  const { curadaEm, cpf } = metadadosDeCuradoriaECpf(detalhe);
 
   return {
     id: detalhe.id,
