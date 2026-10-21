@@ -348,14 +348,12 @@ test('seletor de referência de data (tipoData) em camposVisiveis, queryAposFilt
   assert.match(barra, /key=\{`tipoData-\$\{searchParams\.get\('tipoData'\)/);
 });
 
-test('listagens.css padroniza a legenda de todos os filtros (incluindo Motivo) e distribui os controles com altura uniforme', () => {
+test('listagens.css padroniza a legenda de todos os filtros (incluindo Motivo) e distribui os controles sem quebra interna no período', () => {
   const css = readFileSync(join(raiz, 'apps/web/src/styles/listagens.css'), 'utf8');
 
-  assert.match(
-    css,
-    /\.listagem-filtros\s*>\s*label\s*,\s*\.listagem-filtro-periodo\s+label\s*,\s*\.listagem-combobox-motivo\s+label\s*,\s*\.listagem-multiselect-criterios\s*\{[\s\S]*?display:\s*grid;[\s\S]*?font-size:\s*12px;[\s\S]*?font-weight:\s*600;/
-  );
-  assert.match(css, /\.listagem-combobox-motivo\s*,\s*\.listagem-multiselect-criterios\s*\{[\s\S]*?flex:\s*1\s+1\s+190px;/);
+  assert.match(css, /\.listagem-combobox-motivo\s+label/);
+  assert.match(css, /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  assert.match(css, /\.listagem-filtro-periodo\s*\{[\s\S]*?flex-wrap:\s*nowrap;/);
   assert.match(css, /\.listagem-filtro-nota-ia-controle\s*\{[\s\S]*?height:\s*36px;/);
 });
 
