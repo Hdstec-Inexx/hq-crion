@@ -116,7 +116,7 @@ function semCache(reply: FastifyReply) {
 function exigirPapel(
   request: FastifyRequest,
   reply: FastifyReply,
-  papel: Papel
+  papel: Papel | readonly Papel[]
 ) {
   const registro = registroDaAutorizacao(request.headers.authorization);
 
@@ -125,7 +125,8 @@ function exigirPapel(
     return undefined;
   }
 
-  if (registro.papel !== papel) {
+  const permitidos = Array.isArray(papel) ? papel : [papel];
+  if (!permitidos.includes(registro.papel)) {
     void reply.code(403).send({ statusCode: 403 });
     return undefined;
   }
@@ -459,9 +460,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
   app.get('/atendimentos/:id', obterDetalhe);
   app.get('/api/atendimentos/:id', obterDetalhe);
 
-  app.post('/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, async (request, reply) => {
+  const gravarConferenciaHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     semCache(reply);
-    const registro = exigirPapel(request, reply, 'Curador');
+    const registro = exigirPapel(request, reply, ['Curador', 'Admin']);
 
     if (!registro) {
       return;
@@ -489,17 +490,25 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(409).send({ statusCode: 409 });
     }
 
+    // Admin só pode editar conferência existente:
+    if (registro.papel === 'Admin' && !atual.avaliacaoDoCurador) {
+      return reply.code(403).send({ statusCode: 403 });
+    }
+
     const montada = montarConferencia(atual.avaliacaoDaIa.criterios, lido.data.checklist);
 
     if (!montada) {
       return reply.code(400).send({ statusCode: 400 });
     }
 
+    const comentario = lido.data.comentario?.trim() || undefined;
+
     const resultado = await app.atendimentos.conferir(id, {
       curador: { id: registro.id, nome: registro.nome },
+      papel: registro.papel,
       nota: montada.nota,
       criterios: montada.criterios,
-      ...(lido.data.comentario ? { comentario: lido.data.comentario } : {})
+      ...(comentario ? { comentario } : {})
     });
 
     if (resultado === 'ausente') {
@@ -518,7 +527,12 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     const favoritos = await app.atendimentos.obterFavoritos(id, registro.id);
     return responderDetalhe(encontrado, registro.papel, favoritos);
-  });
+  };
+
+  app.post('/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, gravarConferenciaHandler);
+  app.put('/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, gravarConferenciaHandler);
+  app.post('/api/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, gravarConferenciaHandler);
+  app.put('/api/atendimentos/:id/conferencia', { bodyLimit: 32_768 }, gravarConferenciaHandler);
 
   const gravarIa = async (request: FastifyRequest, reply: FastifyReply) => {
     semCache(reply);

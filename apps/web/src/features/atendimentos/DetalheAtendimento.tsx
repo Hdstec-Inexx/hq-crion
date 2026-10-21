@@ -67,10 +67,12 @@ function listaComRecorte(searchParams: URLSearchParams) {
 
 function PainelAvaliacao({
   titulo,
-  avaliacao
+  avaliacao,
+  onEditar
 }: {
   titulo: string;
   avaliacao: Avaliacao | AvaliacaoDoCurador;
+  onEditar?: () => void;
 }) {
   const aprovado = avaliacao.aprovacao === 'Aprovado';
   const doCurador = 'notaDaAvaliacaoDaIa' in avaliacao;
@@ -88,6 +90,11 @@ function PainelAvaliacao({
           <strong>{formatarNota(avaliacao.nota)}</strong>
           <span>{avaliacao.aprovacao}</span>
         </div>
+        {onEditar ? (
+          <button type="button" className="conferencia-editar-btn" onClick={onEditar}>
+            Editar conferência
+          </button>
+        ) : null}
       </header>
       {doCurador ? (
         <p className="avaliacao-snapshot">
@@ -205,20 +212,27 @@ function estadosDoCriterioNaConferencia(criterio: Pick<CriterioDaRegua, 'admiteN
 function FormularioConferencia({
   atendimento,
   onGravada,
-  onFavoritoAlterado
+  onFavoritoAlterado,
+  onCancelar
 }: {
   atendimento: AtendimentoDetalhe & { avaliacaoDaIa: Avaliacao };
   onGravada: (detalhe: AtendimentoDetalhe) => void;
   onFavoritoAlterado?: (novoEstado: boolean) => void;
+  onCancelar?: () => void;
 }) {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [regua, setRegua] = useState<ReguaDeAvaliacao | null>(null);
-  const [estados, setEstados] = useState<Record<string, EstadoDoCriterio>>(() =>
-    Object.fromEntries(
+  const [estados, setEstados] = useState<Record<string, EstadoDoCriterio>>(() => {
+    if (atendimento.avaliacaoDoCurador?.criterios) {
+      return Object.fromEntries(
+        atendimento.avaliacaoDoCurador.criterios.map((criterio) => [criterio.nome, criterio.estado])
+      );
+    }
+    return Object.fromEntries(
       atendimento.avaliacaoDaIa.criterios.map((criterio) => [criterio.nome, criterio.estado])
-    )
-  );
+    );
+  });
   const resumo =
     typeof atendimento.avaliacaoDaIa.resumo === 'string'
       ? atendimento.avaliacaoDaIa.resumo.trim()
@@ -322,7 +336,11 @@ function FormularioConferencia({
         />
       </div>
       <p className="panel-label">Checklist do Curador</p>
-      <p>Os estados começam iguais aos da IA. Confirme ou corrija cada Critério.</p>
+      <p>
+        {atendimento.avaliacaoDoCurador
+          ? 'Os estados refletem a avaliação vigente. Confirme ou corrija cada Critério.'
+          : 'Os estados começam iguais aos da IA. Confirme ou corrija cada Critério.'}
+      </p>
       <div className="conferencia-lista">
         {linhas.map(({ criterio, daRegua, estado }) => (
           <div className="conferencia-linha" key={criterio.nome}>
@@ -381,16 +399,27 @@ function FormularioConferencia({
       </div>
       <label className="conferencia-comentario">
         Comentário da revisão (opcional)
-        <textarea name="comentario" rows={3} />
+        <textarea
+          name="comentario"
+          rows={3}
+          defaultValue={atendimento.avaliacaoDoCurador?.comentario ?? ''}
+        />
       </label>
       {erro ? (
         <p className="listagem-erro" role="alert">
           {erro}
         </p>
       ) : null}
-      <button type="submit" disabled={enviando || !checklistCompleto}>
-        Salvar conferência
-      </button>
+      <div className="conferencia-acoes">
+        <button type="submit" disabled={enviando || !checklistCompleto}>
+          Salvar conferência
+        </button>
+        {onCancelar ? (
+          <button type="button" className="conferencia-cancelar-btn" onClick={onCancelar}>
+            Cancelar
+          </button>
+        ) : null}
+      </div>
     </form>
   );
 }
@@ -406,11 +435,16 @@ export function DetalheAtendimento() {
   const [percurso, setPercurso] = useState<PercursoDaFilaDeManutencao | null>(null);
   const [erroResolucao, setErroResolucao] = useState(false);
   const [resolvendo, setResolvendo] = useState(false);
+  const [editandoConferencia, setEditandoConferencia] = useState(false);
+  const podeEditarConferencia =
+    (perfil.papel === 'Curador' || perfil.papel === 'Admin') &&
+    Boolean(atendimento?.avaliacaoDoCurador);
   const vindoDaFila = searchParams.get('lista') === '/manutencao';
   const operaPercurso = perfil.papel === 'Admin' && vindoDaFila;
   const volta = vindoDaFila ? destinoDaFilaDeManutencao(searchParams) : listaComRecorte(searchParams);
 
   useEffect(() => {
+    setEditandoConferencia(false);
     if (!id) {
       return;
     }
@@ -658,19 +692,33 @@ export function DetalheAtendimento() {
             />
           ) : null}
           {!conferenciaAberta(perfil.papel, atendimento) ? (
-          <div
-            className={`avaliacao-paineis${atendimento.avaliacaoDoCurador ? '' : ' ia-only'}`}
-          >
-            {atendimento.avaliacaoDaIa ? (
-              <PainelAvaliacao titulo="Avaliação da IA" avaliacao={atendimento.avaliacaoDaIa} />
-            ) : null}
-            {atendimento.avaliacaoDoCurador ? (
-              <PainelAvaliacao
-                titulo="Avaliação do Curador"
-                avaliacao={atendimento.avaliacaoDoCurador}
+            editandoConferencia && atendimento.avaliacaoDaIa ? (
+              <FormularioConferencia
+                key={`edicao-${atendimento.id}`}
+                atendimento={{ ...atendimento, avaliacaoDaIa: atendimento.avaliacaoDaIa }}
+                onGravada={(novo) => {
+                  setAtendimento(novo);
+                  setEditandoConferencia(false);
+                }}
+                onFavoritoAlterado={atualizarFavorito}
+                onCancelar={() => setEditandoConferencia(false)}
               />
-            ) : null}
-          </div>
+            ) : (
+              <div
+                className={`avaliacao-paineis${atendimento.avaliacaoDoCurador ? '' : ' ia-only'}`}
+              >
+                {atendimento.avaliacaoDaIa ? (
+                  <PainelAvaliacao titulo="Avaliação da IA" avaliacao={atendimento.avaliacaoDaIa} />
+                ) : null}
+                {atendimento.avaliacaoDoCurador ? (
+                  <PainelAvaliacao
+                    titulo="Avaliação do Curador"
+                    avaliacao={atendimento.avaliacaoDoCurador}
+                    onEditar={podeEditarConferencia ? () => setEditandoConferencia(true) : undefined}
+                  />
+                ) : null}
+              </div>
+            )
           ) : null}
           {operaPercurso && percurso?.comentarioPendenteId ? (
             <div className="percurso-da-fila">

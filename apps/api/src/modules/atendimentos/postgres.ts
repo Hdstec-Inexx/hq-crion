@@ -860,46 +860,113 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
     async conferir(id, entrada) {
       try {
         return await emTransacao(pool, async (cliente) => {
-        const registros = await lerRegistros(cliente, { id });
-        const encontrado = registros[0];
-        const recusa = recusaDaConferencia(encontrado);
+          const registros = await lerRegistros(cliente, { id });
+          const encontrado = registros[0];
+          const recusa = recusaDaConferencia(encontrado);
 
-        if (recusa || !encontrado || !avaliacaoDaIaTemVeredito(encontrado)) {
-          return recusa ?? 'indisponivel';
-        }
+          if (recusa || !encontrado || !avaliacaoDaIaTemVeredito(encontrado)) {
+            return recusa ?? 'indisponivel';
+          }
 
-        const avaliacaoId = randomUUID();
-        await cliente.query(
-          `INSERT INTO hq_avaliacao_do_curador
-             (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            avaliacaoId,
-            id,
-            entrada.nota,
-            encontrado.avaliacaoDaIa.nota,
-            entrada.curador.id,
-            entrada.curador.nome
-          ]
-        );
-        await inserirCriterios(
-          cliente,
-          `INSERT INTO hq_criterio_da_avaliacao_do_curador
-             (avaliacao_id, ordem, chave, nome, estado, pontos, critico)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          avaliacaoId,
-          entrada.criterios
-        );
-
-        if (entrada.comentario) {
-          await cliente.query(
-            `INSERT INTO hq_comentario (id, avaliacao_id, atendimento_id, texto)
-             VALUES ($1, $2, $3, $4)`,
-            [randomUUID(), avaliacaoId, id, entrada.comentario]
+          const avaliacaoExistenteRes = await cliente.query(
+            `SELECT id, curador_id, curador_nome FROM hq_avaliacao_do_curador WHERE atendimento_id = $1`,
+            [id]
           );
-        }
+          const avaliacaoExistente = avaliacaoExistenteRes.rows[0] as
+            | { id: string; curador_id: string; curador_nome: string }
+            | undefined;
 
-        return 'ok' as const;
+          let avaliacaoId: string;
+          let curadorId: string;
+          let curadorNome: string;
+
+          if (avaliacaoExistente) {
+            avaliacaoId = avaliacaoExistente.id;
+            if (entrada.papel === 'Admin') {
+              curadorId = avaliacaoExistente.curador_id;
+              curadorNome = avaliacaoExistente.curador_nome;
+            } else {
+              curadorId = entrada.curador.id;
+              curadorNome = entrada.curador.nome;
+            }
+
+            await cliente.query(
+              `UPDATE hq_avaliacao_do_curador
+               SET nota = $1, curador_id = $2, curador_nome = $3
+               WHERE id = $4`,
+              [entrada.nota, curadorId, curadorNome, avaliacaoId]
+            );
+
+            await cliente.query(
+              `DELETE FROM hq_criterio_da_avaliacao_do_curador WHERE avaliacao_id = $1`,
+              [avaliacaoId]
+            );
+          } else {
+            avaliacaoId = randomUUID();
+            curadorId = entrada.curador.id;
+            curadorNome = entrada.curador.nome;
+
+            await cliente.query(
+              `INSERT INTO hq_avaliacao_do_curador
+                 (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                avaliacaoId,
+                id,
+                entrada.nota,
+                encontrado.avaliacaoDaIa.nota,
+                curadorId,
+                curadorNome
+              ]
+            );
+          }
+
+          await inserirCriterios(
+            cliente,
+            `INSERT INTO hq_criterio_da_avaliacao_do_curador
+               (avaliacao_id, ordem, chave, nome, estado, pontos, critico)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            avaliacaoId,
+            entrada.criterios
+          );
+
+          const comentarioExistenteRes = await cliente.query(
+            `SELECT id, texto, status FROM hq_comentario WHERE avaliacao_id = $1`,
+            [avaliacaoId]
+          );
+          const comentarioExistente = comentarioExistenteRes.rows[0] as
+            | { id: string; texto: string; status: 'Pendente' | 'Resolvido' }
+            | undefined;
+
+          const novoTexto = entrada.comentario?.trim() || null;
+
+          if (novoTexto) {
+            if (comentarioExistente) {
+              if (novoTexto !== comentarioExistente.texto) {
+                await cliente.query(
+                  `UPDATE hq_comentario
+                   SET texto = $1, status = 'Pendente', resolvido_por_id = NULL, resolvido_em = NULL
+                   WHERE id = $2`,
+                  [novoTexto, comentarioExistente.id]
+                );
+              }
+            } else {
+              await cliente.query(
+                `INSERT INTO hq_comentario (id, avaliacao_id, atendimento_id, texto, status, criado_em)
+                 VALUES ($1, $2, $3, $4, 'Pendente', now())`,
+                [randomUUID(), avaliacaoId, id, novoTexto]
+              );
+            }
+          } else {
+            if (comentarioExistente) {
+              await cliente.query(
+                `DELETE FROM hq_comentario WHERE id = $1`,
+                [comentarioExistente.id]
+              );
+            }
+          }
+
+          return 'ok' as const;
         });
       } catch (error) {
         if (violacaoUnica(error)) {

@@ -130,9 +130,37 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '014_canonicalizar_motivos.sql',
       '015_canonicalizar_motivos_acentuados.sql',
       '016_diagnostico_de_cancelamento.sql',
-      '017_sanear_concorrentes_cancelamento.sql'
+      '017_sanear_concorrentes_cancelamento.sql',
+      '018_edicao_de_conferencia.sql'
     ]
   );
+});
+
+test('a migration 018_edicao_de_conferencia remove os triggers de imutabilidade da avaliação, critérios e comentário', () => {
+  const migracao = listarMigracoes().find((m) => m.nome === '018_edicao_de_conferencia.sql');
+  assert.ok(migracao, 'migration 018_edicao_de_conferencia.sql ausente');
+  const sql = migracao.sql;
+  assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_avaliacao_do_curador_imutavel\s+ON\s+hq_avaliacao_do_curador/i);
+  assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_criterio_da_avaliacao_do_curador_imutavel\s+ON\s+hq_criterio_da_avaliacao_do_curador/i);
+  assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_comentario_so_status\s+ON\s+hq_comentario/i);
+});
+
+test('a migration 018_edicao_de_conferencia é aplicada no fluxo de migração do banco', async () => {
+  const comandos: string[] = [];
+  const { pool } = poolDeTeste((texto) => {
+    comandos.push(texto);
+    if (texto.includes('SELECT nome FROM hq_migracao')) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  await aplicarMigracoes(pool);
+
+  const migracao018 = comandos.find(
+    (cmd) => cmd.includes('hq_avaliacao_do_curador_imutavel') && cmd.includes('DROP TRIGGER')
+  );
+  assert.ok(migracao018, 'migration 018 deve ser executada');
 });
 
 test('a migration 011_resolucao_da_demanda_critica atualiza a Régua e critérios históricos com desativação de trigger', () => {
