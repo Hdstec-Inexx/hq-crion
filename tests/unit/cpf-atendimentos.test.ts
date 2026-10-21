@@ -90,6 +90,12 @@ test('passaNosFiltros normaliza pontuação e compara dígitos com busca mascara
     passaNosFiltros(itemSemCpf, recorte, { cpf: '52998224725' }, 'todos', 'p1'),
     false
   );
+
+  // 7. Busca contendo apenas pontuação/espaços sem dígitos válidos não deve passar
+  assert.equal(
+    passaNosFiltros(itemComCpf, recorte, { cpf: ' . - ' }, 'todos', 'p1'),
+    false
+  );
 });
 
 test('passaNosFiltros extrai automaticamente CPF da transcrição se item.cpf não estiver pré-preenchido', () => {
@@ -368,10 +374,10 @@ test('repositorioPostgres extrai CPF e normaliza pontuação ao consultarListage
   assert.ok(consultaSql, 'Deve executar leituraSql no postgres');
   assert.match(
     consultaSql.sql,
-    /REPLACE\(REPLACE\(a\.transcricao::text\s*\|\|\s*' '\s*\|\|\s*COALESCE\(a\.ferramentas::text,\s*''\),\s*'\.',\s*''\),\s*'-',\s*''\)\s+ILIKE\s+'%'\s*\|\|\s*REPLACE\(REPLACE\(\$9,\s*'\.',\s*''\),\s*'-',\s*''\)\s*\|\|\s*'%'/i,
+    /REPLACE\(REPLACE\(a\.transcricao::text\s*\|\|\s*' '\s*\|\|\s*COALESCE\(a\.ferramentas::text,\s*''\),\s*'\.',\s*''\),\s*'-',\s*''\)\s+ILIKE\s+'%'\s*\|\|\s*\$9\s*\|\|\s*'%'/i,
     'SQL deve normalizar pontuação (. e -) de transcricao e ferramentas no PostgreSQL'
   );
-  assert.equal(consultaSql.valores?.[8], '529.982.247-25', '$9 deve receber o valor informado para filtro de CPF');
+  assert.equal(consultaSql.valores?.[8], '52998224725', '$9 deve receber os dígitos normalizados para filtro de CPF');
 
   // Busca que não bate
   const itensVazio = await repo.consultarListagem(

@@ -174,6 +174,34 @@ test('extrairCpf não concatena números avulsos de JSON genérico sem chave de 
   assert.equal(extrairCpf(atendimento), undefined);
 });
 
+test('extrairCpf não extrai telefone celular de 11 dígitos no texto livre se não houver indicativo de CPF', () => {
+  const atendimento = {
+    transcricao: [
+      {
+        locutor: 'Cliente' as const,
+        quando: '0:10',
+        texto: 'Meu telefone para contato é 61988887777.'
+      }
+    ]
+  };
+
+  assert.equal(extrairCpf(atendimento), undefined);
+});
+
+test('extrairCpf extrai telefone se estiver explicitamente rotulado como CPF', () => {
+  const atendimento = {
+    transcricao: [
+      {
+        locutor: 'Cliente' as const,
+        quando: '0:10',
+        texto: 'Meu CPF é 52998224725.'
+      }
+    ]
+  };
+
+  assert.equal(extrairCpf(atendimento), '529.982.247-25');
+});
+
 test('contratos de listagem e detalhe aceitam e expõem o campo cpf', () => {
   const item = {
     id: 'a1',

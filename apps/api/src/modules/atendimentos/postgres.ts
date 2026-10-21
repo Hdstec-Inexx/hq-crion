@@ -126,7 +126,7 @@ WHERE ($7::text IS NULL OR a.id = $7)
   )
   AND (
     $9::text IS NULL
-    OR REPLACE(REPLACE(a.transcricao::text || ' ' || COALESCE(a.ferramentas::text, ''), '.', ''), '-', '') ILIKE '%' || REPLACE(REPLACE($9, '.', ''), '-', '') || '%'
+    OR REPLACE(REPLACE(a.transcricao::text || ' ' || COALESCE(a.ferramentas::text, ''), '.', ''), '-', '') ILIKE '%' || $9 || '%' ESCAPE '\'
   )
 `;
 
@@ -429,6 +429,12 @@ async function lerRegistros(
   const referenciaData = queryTipoData === 'curadoria'
     ? 'curadoria'
     : (modo === 'fila' ? 'conclusao' : 'inicio');
+  const queryCpf = query.cpf && query.cpf.trim() !== '' ? normalizarCpf(query.cpf) : null;
+  const paramCpf =
+    query.cpf && query.cpf.trim() !== ''
+      ? (queryCpf ? queryCpf.replace(/[%_\\]/g, '\\$&') : '__NENHUM_CPF_VALIDO__')
+      : null;
+
   const resultado = await cliente.query(leituraSql, [
     recorte.administradora,
     recorte.agente,
@@ -438,7 +444,7 @@ async function lerRegistros(
     referenciaData,
     entrada.id ?? null,
     entrada.perfilId ?? null,
-    query.cpf && query.cpf.trim() ? query.cpf.trim() : null
+    paramCpf
   ]);
   const linhas = resultado.rows as Parameters<typeof montarRegistro>[0][];
   const criteriosIa = await mapaDeCriterios(

@@ -18,6 +18,31 @@ function ehChaveDeCpf(chave: string): boolean {
   return normalizada === 'cpf' || normalizada === 'nrcpf';
 }
 
+function digitosVerificadoresValidos(digitos: string): boolean {
+  if (digitos.length !== 11) {
+    return false;
+  }
+  if (/^(\d)\1{10}$/.test(digitos)) {
+    return false;
+  }
+  let soma1 = 0;
+  for (let i = 0; i < 9; i++) {
+    soma1 += Number(digitos[i]) * (10 - i);
+  }
+  const resto1 = soma1 % 11;
+  const digito1 = resto1 < 2 ? 0 : 11 - resto1;
+  if (Number(digitos[9]) !== digito1) {
+    return false;
+  }
+  let soma2 = 0;
+  for (let i = 0; i < 10; i++) {
+    soma2 += Number(digitos[i]) * (11 - i);
+  }
+  const resto2 = soma2 % 11;
+  const digito2 = resto2 < 2 ? 0 : 11 - resto2;
+  return Number(digitos[10]) === digito2;
+}
+
 function extrairCpfDePropriedades(objeto: Record<string, unknown>): string | undefined {
   for (const [chave, valor] of Object.entries(objeto)) {
     if (ehChaveDeCpf(chave)) {
@@ -42,7 +67,7 @@ function extrairCpfDePropriedades(objeto: Record<string, unknown>): string | und
   return undefined;
 }
 
-function extrairCpfDePayload(payload: unknown): string | undefined {
+function extrairCpfDePayload(payload: unknown, permitirTextoLivre = true): string | undefined {
   if (payload === null || payload === undefined) {
     return undefined;
   }
@@ -50,7 +75,7 @@ function extrairCpfDePayload(payload: unknown): string | undefined {
   if (typeof payload === 'object') {
     if (Array.isArray(payload)) {
       for (const item of payload) {
-        const encontrado = extrairCpfDePayload(item);
+        const encontrado = extrairCpfDePayload(item, permitirTextoLivre);
         if (encontrado) {
           return encontrado;
         }
@@ -69,13 +94,15 @@ function extrairCpfDePayload(payload: unknown): string | undefined {
     if (textoLimpo.startsWith('{') || textoLimpo.startsWith('[')) {
       try {
         const json = JSON.parse(textoLimpo) as unknown;
-        return extrairCpfDePayload(json);
+        return extrairCpfDePayload(json, permitirTextoLivre);
       } catch {
-        // Se falhar o parse de JSON, busca padrão estruturado de CPF
+        // Se falhar o parse de JSON, segue para validação de texto se permitida
       }
     }
 
-    return extrairCpfDoTexto(textoLimpo);
+    if (permitirTextoLivre) {
+      return extrairCpfDoTexto(textoLimpo);
+    }
   }
 
   return undefined;
@@ -110,16 +137,24 @@ function extrairCpfDoTexto(texto: string): string | undefined {
     return formatarCpf(matchRotulado[1]);
   }
 
-  // 3. Sequência isolada de 11 dígitos numéricos
-  const match11Digitos = texto.match(/\b\d{11}\b/);
-  if (match11Digitos) {
-    return formatarCpf(match11Digitos[0]);
-  }
-
-  // 4. Dígitos separados por espaço: 123 456 789 01
+  // 3. Sequência de 11 dígitos com separadores de espaço (ex.: 123 456 789 01)
   const matchEspacos = texto.match(/\b\d{3}\s\d{3}\s\d{3}\s\d{2}\b/);
   if (matchEspacos) {
-    return formatarCpf(matchEspacos[0]);
+    const digitos = matchEspacos[0].replace(/\s/g, '');
+    if (digitosVerificadoresValidos(digitos)) {
+      return formatarCpf(matchEspacos[0]);
+    }
+  }
+
+  // 4. Sequência isolada de 11 dígitos no texto livre: exige dígitos verificadores válidos
+  // para não confundir com números de celular (DDD + 9 dígitos), timestamps ou protocolos.
+  const regex11 = /\b\d{11}\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex11.exec(texto)) !== null) {
+    const sequencia = match[0];
+    if (digitosVerificadoresValidos(sequencia)) {
+      return formatarCpf(sequencia);
+    }
   }
 
   return undefined;
@@ -194,24 +229,24 @@ export function extrairCpf(atendimento: {
   // Prioridade 1: Chamadas de ferramenta específicas de CPF (como consultar_cpf)
   for (const chamada of chamadas) {
     if (ehFerramentaDeCpf(chamada.nome)) {
-      const cpfParam = extrairCpfDePayload(chamada.parametros);
+      const cpfParam = extrairCpfDePayload(chamada.parametros, true);
       if (cpfParam) {
         return cpfParam;
       }
-      const cpfResp = extrairCpfDePayload(chamada.resposta);
+      const cpfResp = extrairCpfDePayload(chamada.resposta, true);
       if (cpfResp) {
         return cpfResp;
       }
     }
   }
 
-  // Prioridade 2: Outras chamadas de ferramenta que possuam campo explícito de CPF
+  // Prioridade 2: Outras chamadas de ferramenta que possuam campo explícito de CPF (não texto livre)
   for (const chamada of chamadas) {
-    const cpfParam = extrairCpfDePayload(chamada.parametros);
+    const cpfParam = extrairCpfDePayload(chamada.parametros, false);
     if (cpfParam) {
       return cpfParam;
     }
-    const cpfResp = extrairCpfDePayload(chamada.resposta);
+    const cpfResp = extrairCpfDePayload(chamada.resposta, false);
     if (cpfResp) {
       return cpfResp;
     }

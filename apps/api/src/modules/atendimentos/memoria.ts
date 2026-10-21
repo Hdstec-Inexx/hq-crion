@@ -131,9 +131,11 @@ export function repositorioEmMemoria(
 
   for (const item of base) {
     const motivosExistentes = registros.map((r) => r.motivo).filter(Boolean);
+    const cpf = item.cpf ?? extrairCpf(item);
     registros.push({
       ...item,
-      motivo: canonicalizarMotivo(item.motivo, motivosExistentes)
+      motivo: canonicalizarMotivo(item.motivo, motivosExistentes),
+      cpf
     });
   }
 

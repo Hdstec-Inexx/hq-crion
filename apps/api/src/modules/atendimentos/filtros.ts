@@ -205,15 +205,16 @@ export function passaNosFiltros(
 
   if (query.cpf && query.cpf.trim() !== '') {
     const cpfBuscado = normalizarCpf(query.cpf);
-    if (cpfBuscado) {
-      const cpfDoItem = item.cpf ?? extrairCpf(item);
-      if (!cpfDoItem) {
-        return false;
-      }
-      const cpfNormalizado = normalizarCpf(cpfDoItem);
-      if (!cpfNormalizado.includes(cpfBuscado)) {
-        return false;
-      }
+    if (!cpfBuscado) {
+      return false;
+    }
+    const cpfDoItem = item.cpf ?? extrairCpf(item);
+    if (!cpfDoItem) {
+      return false;
+    }
+    const cpfNormalizado = normalizarCpf(cpfDoItem);
+    if (!cpfNormalizado.includes(cpfBuscado)) {
+      return false;
     }
   }
 
