@@ -516,7 +516,7 @@ export function CancelamentosPage() {
 
           {/* BLOCO 2 — Gráficos Interativos */}
           <section
-            className="dashboard-paineis cancelamentos-graficos-grid"
+            className="cancelamentos-graficos-grid"
             aria-label="Gráficos de Causas e Concorrentes"
           >
             {/* Painel Causas de Cancelamento */}
@@ -854,7 +854,7 @@ export function CancelamentosPage() {
                 />
               </label>
 
-              <label>
+              <label className="cancelamentos-filtro-busca">
                 Busca textual
                 <input
                   type="search"
@@ -930,9 +930,18 @@ export function CancelamentosPage() {
                             </div>
                           </td>
                           <td className="cancelamentos-col-diagnostico">
-                            <p className="cancelamentos-diagnostico-resumo">
-                              {item.diagnosticoCancelamento.diagnostico ?? 'Sem diagnóstico.'}
-                            </p>
+                            {(() => {
+                              const diagnosticoTexto =
+                                item.diagnosticoCancelamento.diagnostico ?? 'Sem diagnóstico.';
+                              return (
+                                <p
+                                  className="cancelamentos-diagnostico-resumo"
+                                  title={diagnosticoTexto}
+                                >
+                                  {diagnosticoTexto}
+                                </p>
+                              );
+                            })()}
                           </td>
                           <td className="cancelamentos-col-acoes">
                             <Link
