@@ -2,7 +2,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: 10px 12px;
+  gap: 10px;
   margin-bottom: 14px;
   padding: 14px 16px;
   background: var(--paper);
@@ -13,18 +13,38 @@
 .listagem-filtros > label,
 .listagem-filtro-periodo label,
 .listagem-combobox-motivo label,
-.listagem-multiselect-criterios {
+.listagem-multiselect-criterios,
+.listagem-filtros-pulso .listagem-filtro-nota-ia,
+.listagem-filtros .listagem-filtro-nota-ia {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 5px;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   color: var(--ink);
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .listagem-filtros > label {
-  flex: 1 1 150px;
-  min-width: 140px;
+  flex: 1 1 10%;
+  min-width: 105px;
+}
+
+.listagem-filtros > label:has(select[name='status']) {
+  flex: 1.15 1 14%;
+  min-width: 136px;
+}
+
+.listagem-filtros > label:has(select[name='statusCuradoria']) {
+  flex: 1.1 1 11%;
+  min-width: 122px;
+}
+
+.listagem-filtros > label:has(select[name='curador']) {
+  flex: 0.9 1 9%;
+  min-width: 96px;
 }
 
 .listagem-multiselect-criterios-rotulo {
@@ -38,10 +58,11 @@
 .listagem-filtros select,
 .listagem-multiselect-criterios-gatilho {
   width: 100%;
+  min-width: 0;
   height: 36px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 6px 10px;
+  padding: 6px 8px;
   font-size: 13px;
   font-weight: 500;
   color: var(--ink);
@@ -53,7 +74,7 @@
   height: 36px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 0 16px;
+  padding: 0 14px;
   font-size: 13px;
   font-weight: 600;
   background: #fff;
@@ -81,30 +102,57 @@
 
 .listagem-filtro-periodo {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: end;
   gap: 8px;
-  flex: 2 1 420px;
+  flex: 2 1 28%;
+  min-width: min(280px, 100%);
+}
+
+.listagem-filtro-periodo:has([name='tipoData']) {
+  flex: 3.3 1 43%;
+  min-width: min(415px, 100%);
 }
 
 .listagem-filtro-periodo label {
-  flex: 1 1 130px;
-  min-width: 125px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.listagem-filtro-periodo label:has([name='tipoData']) {
+  flex: 1 1 0;
+  min-width: 118px;
+}
+
+@media (max-width: 720px) {
+  .listagem-filtro-periodo {
+    flex-wrap: wrap;
+  }
+
+  .listagem-filtro-periodo label {
+    flex: 1 1 130px;
+  }
 }
 
 .listagem-filtro-seta {
+  flex: none;
   height: 36px;
   display: inline-flex;
   align-items: center;
-  padding: 0 2px;
+  padding: 0 1px;
   color: var(--mute);
 }
 
-.listagem-combobox-motivo,
+.listagem-combobox-motivo {
+  position: relative;
+  flex: 1.35 1 18%;
+  min-width: 150px;
+}
+
 .listagem-multiselect-criterios {
   position: relative;
-  flex: 1 1 190px;
-  min-width: 180px;
+  flex: 1.15 1 13%;
+  min-width: 138px;
 }
 
 .listagem-combobox-motivo-lista,
@@ -185,22 +233,17 @@
 
 .listagem-filtros-pulso .listagem-filtro-nota-ia,
 .listagem-filtros .listagem-filtro-nota-ia {
-  display: grid;
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--ink);
-  flex: 1 1 190px;
-  min-width: 180px;
+  flex: 1.35 1 18%;
+  min-width: 150px;
 }
 
 .listagem-filtro-nota-ia-controle {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
   height: 36px;
-  min-height: 36px;
   padding: 0 10px;
   background: #fff;
   border: 1px solid var(--line);
@@ -208,8 +251,9 @@
 }
 
 .listagem-filtros input[type='range'] {
-  flex: 1;
-  min-width: 100px;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
   accent-color: var(--cyan);
