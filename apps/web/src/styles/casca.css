@@ -1,12 +1,12 @@
 .enquadramento {
   display: grid;
-  grid-template-columns: 228px 1fr;
+  grid-template-columns: 228px minmax(0, 1fr);
   min-height: 100vh;
   min-height: 100dvh;
 }
 
 .enquadramento.is-collapsed {
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 .casca {
@@ -152,5 +152,6 @@
 }
 
 .casca-main {
+  min-width: 0;
   padding: 28px 32px 96px;
 }
