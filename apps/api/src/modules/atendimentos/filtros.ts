@@ -3,6 +3,7 @@ import {
   notaIaDaQuery,
   statusDaCuradoria
 } from '@hq-crion/contracts/filtros-listagem';
+import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   lerRecorte,
@@ -138,6 +139,21 @@ export function resolverMotivoDaQuery(
   return undefined;
 }
 
+export function modoAdmiteTipoDataCuradoria(
+  modo: ModoDaListagem | 'dashboard' | 'manutencao',
+  papel?: Papel
+): boolean {
+  if (modo === 'minhas' || modo === 'realizadas') {
+    return true;
+  }
+
+  if (modo === 'todos' && papel !== 'Curador') {
+    return true;
+  }
+
+  return false;
+}
+
 export function passaNosFiltros(
   item: RegistroDeAtendimento,
   recorte: ReturnType<typeof lerRecorte>,
@@ -155,7 +171,20 @@ export function passaNosFiltros(
     return false;
   }
 
-  const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
+  const queryTipoData = query.tipoData?.trim();
+  const filtrarPorCuradoria =
+    queryTipoData === 'curadoria' && modoAdmiteTipoDataCuradoria(modo, papel);
+  const dataCuradoria = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm;
+
+  if (filtrarPorCuradoria) {
+    if (!item.curadoria || !dataCuradoria) {
+      return false;
+    }
+  }
+
+  const quando = filtrarPorCuradoria
+    ? (dataCuradoria as string)
+    : (modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm);
 
   if (!passaNoRecorteEPeriodo(item, recorte, query, quando)) {
     return false;
@@ -188,6 +217,21 @@ export function passaNosFiltros(
 
   if (query.conversa && item.conversa !== query.conversa) {
     return false;
+  }
+
+  if (query.cpf && query.cpf.trim() !== '') {
+    const cpfBuscado = normalizarCpf(query.cpf);
+    if (!cpfBuscado) {
+      return false;
+    }
+    const cpfDoItem = item.cpf ?? extrairCpf(item);
+    if (!cpfDoItem) {
+      return false;
+    }
+    const cpfNormalizado = normalizarCpf(cpfDoItem);
+    if (!cpfNormalizado.includes(cpfBuscado)) {
+      return false;
+    }
   }
 
   const statusCuradoria = statusDaCuradoria.find((status) => status === query.statusCuradoria);

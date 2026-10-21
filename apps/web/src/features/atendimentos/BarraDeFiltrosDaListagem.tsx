@@ -88,6 +88,19 @@ export function BarraDeFiltrosDaListagem({
     <form className="listagem-filtros listagem-filtros-pulso" onSubmit={onFiltrar}>
       {campoVisivel('periodo') ? (
         <div className="listagem-filtro-periodo">
+          {campoVisivel('tipoData') ? (
+            <label>
+              Referência de data
+              <select
+                name="tipoData"
+                defaultValue={searchParams.get('tipoData') ?? 'atendimento'}
+                key={`tipoData-${searchParams.get('tipoData') ?? 'atendimento'}`}
+              >
+                <option value="atendimento">Atendimento</option>
+                <option value="curadoria">Curadoria</option>
+              </select>
+            </label>
+          ) : null}
           <label>
             Data inicial
             <input
@@ -150,6 +163,17 @@ export function BarraDeFiltrosDaListagem({
             placeholder="Buscar por ID"
             defaultValue={searchParams.get('conversa') ?? ''}
             key={`conversa-${searchParams.get('conversa') ?? ''}`}
+          />
+        </label>
+      ) : null}
+      {campoVisivel('cpf') ? (
+        <label>
+          CPF
+          <input
+            name="cpf"
+            placeholder="Buscar por CPF"
+            defaultValue={searchParams.get('cpf') ?? ''}
+            key={`cpf-${searchParams.get('cpf') ?? ''}`}
           />
         </label>
       ) : null}

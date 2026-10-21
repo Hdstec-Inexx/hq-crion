@@ -745,6 +745,130 @@ test('sem próximo no período, a consulta volta à fila com Recorte e filtros',
   }
 });
 
+test('ciclo de vida do comentário na Fila de Manutenção durante edição da conferência', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+
+    // 1. Criação inicial de conferência em a3 SEM comentário
+    const criacaoSemComentario = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: { checklist: checklistDaConferencia() }
+    });
+    assert.equal(criacaoSemComentario.statusCode, 200);
+    assert.equal(criacaoSemComentario.json().avaliacaoDoCurador.comentario, undefined);
+
+    // Fila de manutenção não tem a3
+    let fila = await app.inject({
+      method: 'GET',
+      url: '/manutencao',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(fila.json().itens.some((it: { atendimentoId: string }) => it.atendimentoId === 'a3'), false);
+
+    // Transição 1: Edição adiciona comentário -> entra na Fila de Manutenção como Pendente
+    const edicaoComNovo = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: { checklist: checklistDaConferencia(), comentario: 'Comentário original v1' }
+    });
+    assert.equal(edicaoComNovo.statusCode, 200);
+
+    fila = await app.inject({
+      method: 'GET',
+      url: '/manutencao?status=Pendente',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const itemPendente = fila.json().itens.find((it: { atendimentoId: string }) => it.atendimentoId === 'a3');
+    assert.ok(itemPendente);
+    assert.equal(itemPendente.texto, 'Comentário original v1');
+    assert.equal(itemPendente.status, 'Pendente');
+
+    // Admin resolve o comentário
+    const resolucao = await app.inject({
+      method: 'POST',
+      url: `/manutencao/${itemPendente.id}/resolver`,
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resolucao.statusCode, 200);
+    assert.equal(resolucao.json().status, 'Resolvido');
+    assert.equal(resolucao.json().resolvidoPor, 'Bruno Alves');
+    assert.ok(resolucao.json().resolvidoEm);
+
+    // Transição 2: Edição mantendo o mesmo texto -> preserva status Resolvido e metadados de resolução
+    const edicaoMesmoTexto = await app.inject({
+      method: 'PUT',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: { checklist: checklistDaConferencia(), comentario: 'Comentário original v1' }
+    });
+    assert.equal(edicaoMesmoTexto.statusCode, 200);
+
+    let filaResolvidos = await app.inject({
+      method: 'GET',
+      url: '/manutencao?status=Resolvido',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    let itemResolvido = filaResolvidos.json().itens.find((it: { atendimentoId: string }) => it.atendimentoId === 'a3');
+    assert.ok(itemResolvido);
+    assert.equal(itemResolvido.status, 'Resolvido');
+    assert.equal(itemResolvido.resolvidoPor, 'Bruno Alves');
+    assert.ok(itemResolvido.resolvidoEm);
+
+    // Transição 3: Edição alterando o texto do comentário já Resolvido -> reabre como Pendente (limpando quem resolveu e quando)
+    const edicaoTextoAlterado = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: { checklist: checklistDaConferencia(), comentario: 'Comentário alterado v2' }
+    });
+    assert.equal(edicaoTextoAlterado.statusCode, 200);
+
+    filaResolvidos = await app.inject({
+      method: 'GET',
+      url: '/manutencao?status=Resolvido',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(filaResolvidos.json().itens.some((it: { atendimentoId: string }) => it.atendimentoId === 'a3'), false);
+
+    fila = await app.inject({
+      method: 'GET',
+      url: '/manutencao?status=Pendente',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    const itemReaberto = fila.json().itens.find((it: { atendimentoId: string }) => it.atendimentoId === 'a3');
+    assert.ok(itemReaberto);
+    assert.equal(itemReaberto.texto, 'Comentário alterado v2');
+    assert.equal(itemReaberto.status, 'Pendente');
+    assert.equal(itemReaberto.resolvidoPor, undefined);
+    assert.equal(itemReaberto.resolvidoEm, undefined);
+
+    // Transição 4: Edição removendo o texto do comentário -> deixa de existir no atendimento e sai da fila
+    const edicaoRemovendo = await app.inject({
+      method: 'PUT',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: { checklist: checklistDaConferencia(), comentario: '' }
+    });
+    assert.equal(edicaoRemovendo.statusCode, 200);
+    assert.equal(edicaoRemovendo.json().avaliacaoDoCurador.comentario, undefined);
+
+    fila = await app.inject({
+      method: 'GET',
+      url: '/manutencao',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(fila.json().itens.some((it: { atendimentoId: string }) => it.atendimentoId === 'a3'), false);
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /manutencao/proximo rejeita Recorte inválido e Atendimento ausente', async () => {
   const app = await buildApp();
 

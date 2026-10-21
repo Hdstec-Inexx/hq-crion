@@ -370,6 +370,7 @@ test('Detecção heurística de cancelamento, concorrente Hapvida e venda mal fe
     ],
     avaliacaoDaIa: {
       nota: 7,
+      aprovacao: 'Reprovado',
       resumo: 'Cliente reclamou de juros no boleto.',
       falhasIdentificadas: [],
       criterios: [],
@@ -953,6 +954,7 @@ test('Recorte, período do Dashboard, idempotência do passivo e validação de 
           status: 'Concluído',
           curadoria: false,
           conversa: 'conv-x1',
+          transcricao: [],
           diagnosticoCancelamento: {
             houveIntencaoCancelamento: true,
             categoriaCausa: 'Preço / Reajuste',
@@ -976,8 +978,9 @@ test('Recorte, período do Dashboard, idempotência do passivo e validação de 
   }
 
   // 6. Interface: CancelamentosPage integra paginação de 4 em 4 nas evidências e truncamento seguro de layout
+  const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
   const cancelamentosPageTsx = readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/src/features/cancelamentos/CancelamentosPage.tsx'),
+    join(raiz, 'apps/web/src/features/cancelamentos/CancelamentosPage.tsx'),
     'utf8'
   );
   assert.match(cancelamentosPageTsx, /EVIDENCIAS_POR_PAGINA\s*=\s*4/);
@@ -985,10 +988,44 @@ test('Recorte, período do Dashboard, idempotência do passivo e validação de 
   assert.match(cancelamentosPageTsx, /<PaginacaoCompacta[\s\S]*?pagina=\{(?:paginaEvidencias|paginaAtualNormalizada)\}[\s\S]*?totalPaginas=\{totalPaginasEvidencias\}/);
 
   const dashboardCss = readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/src/styles/dashboard.css'),
+    join(raiz, 'apps/web/src/styles/dashboard.css'),
+    'utf8'
+  );
+  const cascaCss = readFileSync(
+    join(raiz, 'apps/web/src/styles/casca.css'),
     'utf8'
   );
   assert.match(dashboardCss, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(dashboardCss, /-webkit-line-clamp:\s*4/);
   assert.match(dashboardCss, /text-overflow:\s*ellipsis/);
+
+  // 7. Contenção de layout da Casca Autenticada e de Cancelamentos, busca textual e tabela de Atendimentos de Cancelamento
+  assert.match(cascaCss, /\.enquadramento\s*\{[\s\S]*?grid-template-columns:\s*228px\s+minmax\(0,\s*1fr\)/);
+  assert.match(cascaCss, /\.enquadramento\.is-collapsed\s*\{[\s\S]*?grid-template-columns:\s*72px\s+minmax\(0,\s*1fr\)/);
+  assert.match(cascaCss, /\.casca-main\s*\{[\s\S]*?min-width:\s*0/);
+  assert.match(dashboardCss, /\.cancelamentos-pagina\s*\{[\s\S]*?min-width:\s*0/);
+
+  // Grid de gráficos independente das grid-template-areas do Dashboard
+  assert.doesNotMatch(cancelamentosPageTsx, /dashboard-paineis\s+cancelamentos-graficos-grid/);
+  assert.match(cancelamentosPageTsx, /className="cancelamentos-graficos-grid"/);
+  assert.match(dashboardCss, /\.cancelamentos-graficos-grid\s*\{[\s\S]*?display:\s*grid[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+
+  // Campo Busca textual na barra de filtros com largura mínima suficiente para exibir o placeholder completo
+  assert.match(cancelamentosPageTsx, /cancelamentos-filtro-busca[\s\S]*?Busca textual[\s\S]*?placeholder="ID do atendimento, motivo, diagnóstico\.\.\."/);
+  assert.match(dashboardCss, /\.cancelamentos-filtro-busca[\s\S]*?min-width:\s*min\(320px,\s*100%\)/);
+
+  // Coluna Diagnóstico na tabela de Atendimentos de Cancelamento: largura equilibrada, truncamento em 2 linhas e tooltip (title)
+  assert.match(
+    cancelamentosPageTsx,
+    /const diagnosticoTexto\s*=\s*item\.diagnosticoCancelamento\.diagnostico\s*\?\?\s*'Sem diagnóstico\.';[\s\S]*?<p\s+className="cancelamentos-diagnostico-resumo"\s+title=\{diagnosticoTexto\}\s*>\s*\{diagnosticoTexto\}\s*<\/p>/
+  );
+  assert.match(
+    dashboardCss,
+    /\.cancelamentos-col-diagnostico\s*\{[\s\S]*?min-width:\s*260px/
+  );
+  assert.match(
+    dashboardCss,
+    /\.cancelamentos-diagnostico-resumo\s*\{[\s\S]*?-webkit-line-clamp:\s*2[\s\S]*?line-clamp:\s*2[\s\S]*?overflow:\s*hidden[\s\S]*?text-overflow:\s*ellipsis/
+  );
 });
+

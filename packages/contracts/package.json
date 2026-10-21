@@ -48,6 +48,10 @@
     "./cancelamento": {
       "types": "./src/cancelamento.ts",
       "default": "./dist/cancelamento.js"
+    },
+    "./cpf": {
+      "types": "./src/cpf.ts",
+      "default": "./dist/cpf.js"
     }
   },
   "scripts": {

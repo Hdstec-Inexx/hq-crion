@@ -58,6 +58,8 @@ export const atendimentoListItemSchema = z.object({
   notaCurador: z.number().nullable().optional(),
   status: z.string().min(1),
   curadoria: z.boolean(),
+  curadaEm: z.string().nullable().optional(),
+  cpf: z.string().nullable().optional(),
   conversa: z.string().min(1),
   custo: z.string().min(1).optional(),
   favoritadoPeloUsuario: z.boolean().optional(),
@@ -162,7 +164,8 @@ export const avaliacaoSchema = z.object({
 export const avaliacaoDoCuradorSchema = avaliacaoSchema.extend({
   notaDaAvaliacaoDaIa: z.number(),
   comentario: z.string().min(1).optional(),
-  curador: z.string().min(1)
+  curador: z.string().min(1),
+  curadaEm: z.string().optional()
 });
 
 const criterioDaGravacaoSchema = criterioAvaliadoSchema.extend({
@@ -186,7 +189,7 @@ const criterioDaConferenciaSchema = z.object({
 
 export const conferenciaRequestSchema = z.object({
   checklist: z.array(criterioDaConferenciaSchema).min(1).max(30),
-  comentario: z.string().trim().min(1).optional()
+  comentario: z.string().trim().optional()
 });
 
 export function notaDerivada(

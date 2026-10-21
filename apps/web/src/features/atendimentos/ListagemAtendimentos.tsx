@@ -1,5 +1,6 @@
 import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import { custoVisivelPara, type ListagemResponse } from '@hq-crion/contracts/atendimento';
+import { formatarCpf } from '@hq-crion/contracts/cpf';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
@@ -11,20 +12,7 @@ import { BarraDeFiltrosDaListagem } from './BarraDeFiltrosDaListagem';
 import { BadgeFavoritos } from './BadgeFavoritos';
 import { BotaoFavorito } from './BotaoFavorito';
 import { PaginacaoCompacta } from './PaginacaoCompacta';
-
-function formatarQuando(iso: string) {
-  const parts = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).formatToParts(new Date(iso));
-  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === tipo)?.value ?? '';
-
-  return `${valor('day')}/${valor('month')} ${valor('hour')}:${valor('minute')}`;
-}
+import { formatarQuando } from './formatar-quando';
 
 function formatarNota(nota: number) {
   return nota.toFixed(1).replace('.', ',');
@@ -161,7 +149,9 @@ export function ListagemAtendimentos({
                     </Link>
                     <div className="listagem-meta">
                       {item.motivo} · {item.status}
+                      {item.cpf ? ` · CPF: ${formatarCpf(item.cpf)}` : ''}
                       {custoVisivelPara(perfil.papel) && item.custo ? ` · ${item.custo}` : ''}
+                      {item.curadoria && item.curadaEm ? ` · Data da Curadoria: ${formatarQuando(item.curadaEm)}` : ''}
                     </div>
                   </div>
                   <BadgeAdministradora

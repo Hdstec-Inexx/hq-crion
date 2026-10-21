@@ -6,6 +6,7 @@ import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
 import {
   atendimentoListItemSchema,
+  avaliacaoDoCuradorSchema,
   caminhoDeMidiaPermitido,
   custoVisivelPara,
   downloadVisivelPara,
@@ -25,6 +26,7 @@ import {
   notaIaDaQuery
 } from '../../packages/contracts/src/filtros-listagem.js';
 import { destinoInicial } from '../../packages/contracts/src/casca.js';
+import type { RegistroDeAtendimento } from '../../apps/api/src/modules/atendimentos/registro.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -60,6 +62,20 @@ test('linha da listagem exibe notas rotuladas de IA e Curador e listagens.css ac
     'utf8'
   );
   assert.match(listagensCss, /\.listagem-notas/);
+
+  // Deve exibir Data da Curadoria na linha de listagem quando curado
+  assert.match(listagemTsx, /item\.curadaEm/);
+  assert.match(listagemTsx, /formatarQuando\(item\.curadaEm\)/);
+  assert.match(listagemTsx, /Data da Curadoria:/);
+
+  // Painel de Avaliação do Curador no detalhe exibe Data da Curadoria
+  const detalheTsx = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/DetalheAtendimento.tsx'),
+    'utf8'
+  );
+  assert.match(detalheTsx, /avaliacao\.curadaEm/);
+  assert.match(detalheTsx, /formatarQuando\(avaliacao\.curadaEm\)/);
+  assert.match(detalheTsx, /Data da Curadoria:/);
 });
 
 test('GET /atendimentos retorna notaIa e notaCurador conforme o estado da curadoria', async () => {
@@ -149,6 +165,38 @@ test('atendimentoListItemSchema inclui notaIa, notaCurador e preserva nota', () 
   };
   assert.throws(() => atendimentoListItemSchema.parse(itemSemNotaIa));
 });
+
+test('contratos de listagem e detalhe da curadoria expõem curadaEm', () => {
+  const itemComCuradaEm = {
+    id: 'a2',
+    administradora: 'Alter',
+    agente: 'Clara Alter',
+    agenteId: 'alter-1',
+    iniciadoEm: '2026-10-10T10:00:00-03:00',
+    motivo: 'Boleto',
+    nota: 6.0,
+    notaIa: 6.0,
+    notaCurador: 6.0,
+    status: 'Concluído',
+    curadoria: true,
+    curadaEm: '2026-10-10T10:30:00-03:00',
+    conversa: 'conv-2'
+  };
+  const parseadoItem = atendimentoListItemSchema.parse(itemComCuradaEm);
+  assert.equal(parseadoItem.curadaEm, '2026-10-10T10:30:00-03:00');
+
+  const avaliacaoCuradorComCuradaEm = {
+    nota: 6.0,
+    aprovacao: 'Aprovado' as const,
+    criterios: [{ nome: 'Saudação', estado: 'Atendido' as const, pontos: 1.0, critico: false }],
+    notaDaAvaliacaoDaIa: 6.0,
+    curador: 'Carla Mendes',
+    curadaEm: '2026-10-10T10:30:00-03:00'
+  };
+  const parseadoAvaliacao = avaliacaoDoCuradorSchema.parse(avaliacaoCuradorComCuradaEm);
+  assert.equal(parseadoAvaliacao.curadaEm, '2026-10-10T10:30:00-03:00');
+});
+
 
 test('mapa GEAP de filtros por página e motivo fechado', () => {
   assert.ok(motivosDeContato.includes('Não informado'));
@@ -1353,3 +1401,127 @@ test('POST /atendimentos/:id/avaliacao-da-ia descarta falha em branco', async ()
     await app.close();
   }
 });
+
+test('GET /atendimentos filtra por tipoData=curadoria alternando entre data do Atendimento e Data da Curadoria', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+
+    // Injeta um atendimento com início em agosto/2026 e curadoria realizada em outubro/2026
+    const lista = (await app.atendimentos.listar()) as RegistroDeAtendimento[];
+    lista.push({
+      id: 'atend-antigo-curado-recente',
+      administradora: 'Affix',
+      agente: 'Clara Affix 0800',
+      agenteId: 'affix-0800',
+      iniciadoEm: '2026-08-10T14:00:00-03:00',
+      motivo: 'Boleto',
+      nota: 7.0,
+      notaIa: 7.0,
+      notaCurador: 8.0,
+      status: 'Concluído',
+      curadoria: true,
+      curadaEm: '2026-10-15T16:00:00-03:00',
+      curadorDaRevisao: { id: 'perfil-carla', nome: 'Carla Mendes' },
+      avaliacaoDoCurador: {
+        nota: 8.0,
+        aprovacao: 'Aprovado',
+        criterios: [{ nome: 'Saudação', estado: 'Atendido', pontos: 1.0, critico: false }],
+        notaDaAvaliacaoDaIa: 7.0,
+        curador: 'Carla Mendes',
+        curadaEm: '2026-10-15T16:00:00-03:00'
+      },
+      conversa: 'conv-antigo-recente',
+      transcricao: []
+    });
+
+    // 1. Filtrando outubro por data de Atendimento (padrão): o atendimento de agosto NÃO deve vir
+    const resAtendimentoOutubro = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?inicio=2026-10-01&fim=2026-10-31',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resAtendimentoOutubro.statusCode, 200);
+    const itensAtendimento = resAtendimentoOutubro.json().itens;
+    assert.equal(
+      itensAtendimento.some((it: { id: string }) => it.id === 'atend-antigo-curado-recente'),
+      false,
+      'Não deve aparecer no filtro por data do Atendimento em outubro'
+    );
+
+    // 2. Filtrando outubro por tipoData=curadoria: o atendimento DEVE vir (curado em 15/10/2026)
+    const resCuradoriaOutubro = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?inicio=2026-10-01&fim=2026-10-31&tipoData=curadoria',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resCuradoriaOutubro.statusCode, 200);
+    const itensCuradoria = resCuradoriaOutubro.json().itens;
+    assert.equal(
+      itensCuradoria.some((it: { id: string }) => it.id === 'atend-antigo-curado-recente'),
+      true,
+      'Deve aparecer no filtro por tipoData=curadoria em outubro'
+    );
+    // Atendimentos sem curadoria NÃO devem vir com tipoData=curadoria
+    assert.equal(
+      itensCuradoria.some((it: { id: string }) => it.id === 'a1'),
+      false,
+      'Atendimentos sem curadoria não devem passar no filtro tipoData=curadoria'
+    );
+
+    // 3. Filtrando agosto por tipoData=curadoria: o atendimento NÃO deve vir (curadoria foi em outubro)
+    const resCuradoriaAgosto = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?inicio=2026-08-01&fim=2026-08-31&tipoData=curadoria',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resCuradoriaAgosto.statusCode, 200);
+    const itensCuradoriaAgosto = resCuradoriaAgosto.json().itens;
+    assert.equal(
+      itensCuradoriaAgosto.some((it: { id: string }) => it.id === 'atend-antigo-curado-recente'),
+      false,
+      'Não deve aparecer na curadoria de agosto pois foi curado em outubro'
+    );
+
+    // 4. Funciona em /curadorias-realizadas e /minhas-curadorias com tipoData=curadoria
+    const resRealizadas = await app.inject({
+      method: 'GET',
+      url: '/curadorias-realizadas?inicio=2026-10-01&fim=2026-10-31&tipoData=curadoria',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(resRealizadas.statusCode, 200);
+    assert.equal(
+      resRealizadas.json().itens.some((it: { id: string }) => it.id === 'atend-antigo-curado-recente'),
+      true
+    );
+
+    const resMinhas = await app.inject({
+      method: 'GET',
+      url: '/minhas-curadorias?inicio=2026-10-01&fim=2026-10-31&tipoData=curadoria',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(resMinhas.statusCode, 200);
+    assert.equal(
+      resMinhas.json().itens.some((it: { id: string }) => it.id === 'atend-antigo-curado-recente'),
+      true
+    );
+
+    // 5. Ignora tipoData=curadoria quando Curador consulta /atendimentos ou /fila-de-curadoria
+    const resAtendimentosCurador = await app.inject({
+      method: 'GET',
+      url: '/atendimentos?inicio=2026-10-01&fim=2026-10-31&tipoData=curadoria',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(resAtendimentosCurador.statusCode, 200);
+    assert.equal(
+      resAtendimentosCurador.json().itens.some((it: { id: string }) => it.id === 'a1'),
+      true,
+      'Para Curador em /atendimentos, tipoData=curadoria é ignorado e os pendentes do período são listados'
+    );
+  } finally {
+    await app.close();
+  }
+});
+

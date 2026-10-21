@@ -16,6 +16,7 @@ import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-ro
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { PaginacaoCompacta } from '../atendimentos/PaginacaoCompacta';
+import { formatarQuando } from '../atendimentos/formatar-quando';
 import {
   analisarPassivoDeCancelamentos,
   buscarPainelDeCancelamentos,
@@ -33,24 +34,6 @@ const EVIDENCIAS_POR_PAGINA = 4;
 
 function formatarPercentual(valor: number) {
   return `${Number.isInteger(valor) ? String(valor) : valor.toFixed(1).replace('.', ',')}%`;
-}
-
-function formatarQuando(iso: string) {
-  try {
-    const parts = new Intl.DateTimeFormat('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).formatToParts(new Date(iso));
-    const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
-      parts.find((part) => part.type === tipo)?.value ?? '';
-
-    return `${valor('day')}/${valor('month')} ${valor('hour')}:${valor('minute')}`;
-  } catch {
-    return iso;
-  }
 }
 
 function destinoDoDetalhe(id: string, search: string, lista: string) {
@@ -516,7 +499,7 @@ export function CancelamentosPage() {
 
           {/* BLOCO 2 — Gráficos Interativos */}
           <section
-            className="dashboard-paineis cancelamentos-graficos-grid"
+            className="cancelamentos-graficos-grid"
             aria-label="Gráficos de Causas e Concorrentes"
           >
             {/* Painel Causas de Cancelamento */}
@@ -854,7 +837,7 @@ export function CancelamentosPage() {
                 />
               </label>
 
-              <label>
+              <label className="cancelamentos-filtro-busca">
                 Busca textual
                 <input
                   type="search"
@@ -930,9 +913,18 @@ export function CancelamentosPage() {
                             </div>
                           </td>
                           <td className="cancelamentos-col-diagnostico">
-                            <p className="cancelamentos-diagnostico-resumo">
-                              {item.diagnosticoCancelamento.diagnostico ?? 'Sem diagnóstico.'}
-                            </p>
+                            {(() => {
+                              const diagnosticoTexto =
+                                item.diagnosticoCancelamento.diagnostico ?? 'Sem diagnóstico.';
+                              return (
+                                <p
+                                  className="cancelamentos-diagnostico-resumo"
+                                  title={diagnosticoTexto}
+                                >
+                                  {diagnosticoTexto}
+                                </p>
+                              );
+                            })()}
                           </td>
                           <td className="cancelamentos-col-acoes">
                             <Link

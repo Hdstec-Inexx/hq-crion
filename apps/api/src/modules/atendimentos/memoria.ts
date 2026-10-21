@@ -17,14 +17,18 @@ import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
 import {
   aprovacaoDaAvaliacao,
+  autorDaConferencia,
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
   criteriosComChave,
+  metadadosDeCuradoriaECpf,
   notasDoAtendimento,
   recusaDaAvaliacao,
   recusaDaConferencia,
+  transicaoDoComentarioNaConferencia,
   type RegistroDeAtendimento
 } from './registro.js';
+import { extrairCpf } from '@hq-crion/contracts/cpf';
 
 function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendimento) {
   const motivosExistentes = registros.map((registro) => registro.motivo).filter(Boolean);
@@ -34,9 +38,14 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
   if (!atual) {
     registros.push({
       ...novo,
-      motivo: motivoCanonico
+      motivo: motivoCanonico,
+      cpf: novo.cpf ?? extrairCpf(novo)
     });
     return;
+  }
+
+  if (novo.cpf !== undefined) {
+    atual.cpf = novo.cpf;
   }
 
   if (novo.motivo !== undefined) {
@@ -73,6 +82,18 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
 
   if (novo.notaCurador !== undefined) {
     atual.notaCurador = novo.notaCurador;
+  }
+
+  if (novo.curadaEm !== undefined) {
+    atual.curadaEm = novo.curadaEm;
+  }
+
+  if (novo.curadoria !== undefined) {
+    atual.curadoria = novo.curadoria;
+  }
+
+  if (novo.avaliacaoDoCurador !== undefined) {
+    atual.avaliacaoDoCurador = novo.avaliacaoDoCurador;
   }
 
   if (novo.audio) {
@@ -113,9 +134,11 @@ export function repositorioEmMemoria(
 
   for (const item of base) {
     const motivosExistentes = registros.map((r) => r.motivo).filter(Boolean);
+    const cpf = item.cpf ?? extrairCpf(item);
     registros.push({
       ...item,
-      motivo: canonicalizarMotivo(item.motivo, motivosExistentes)
+      motivo: canonicalizarMotivo(item.motivo, motivosExistentes),
+      cpf
     });
   }
 
@@ -169,10 +192,18 @@ export function repositorioEmMemoria(
     },
     async buscarPorId(id) {
       const registro = registros.find((item) => item.id === id);
-      if (registro?.avaliacaoDaIa && !registro.avaliacaoDaIa.diagnosticoCancelamento) {
-        const diag = resolverDiagnosticoParaAvaliacao(registro);
-        if (diag) {
-          registro.avaliacaoDaIa.diagnosticoCancelamento = diag;
+      if (registro) {
+        if (!registro.cpf) {
+          const cpf = extrairCpf(registro);
+          if (cpf) {
+            registro.cpf = cpf;
+          }
+        }
+        if (registro.avaliacaoDaIa && !registro.avaliacaoDaIa.diagnosticoCancelamento) {
+          const diag = resolverDiagnosticoParaAvaliacao(registro);
+          if (diag) {
+            registro.avaliacaoDaIa.diagnosticoCancelamento = diag;
+          }
         }
       }
       return registro;
@@ -319,22 +350,52 @@ export function repositorioEmMemoria(
         return recusa ?? 'indisponivel';
       }
 
+      const curadorExistente =
+        item.curadorDaRevisao ??
+        (item.avaliacaoDoCurador
+          ? {
+              id: item.avaliacaoDoCurador.curador,
+              nome: item.avaliacaoDoCurador.curador
+            }
+          : undefined);
+      const curadorFinal = autorDaConferencia(entrada, curadorExistente);
+
+      const curadaEm = new Date().toISOString();
       item.curadoria = true;
-      item.curadorDaRevisao = entrada.curador;
+      item.curadaEm = curadaEm;
+      item.curadorDaRevisao = curadorFinal;
       item.notaCurador = entrada.nota;
+
       const criterios = criteriosComChave(entrada.criterios);
+      const transicao = transicaoDoComentarioNaConferencia(
+        entrada.comentario,
+        item.avaliacaoDoCurador?.comentario
+      );
+
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
         aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
         criterios,
         notaDaAvaliacaoDaIa: item.avaliacaoDaIa.nota,
-        curador: entrada.curador.nome,
-        ...(entrada.comentario ? { comentario: entrada.comentario } : {})
+        curador: curadorFinal.nome,
+        curadaEm,
+        ...(transicao.acao !== 'excluir' ? { comentario: transicao.texto } : {})
       };
 
-      if (entrada.comentario) {
+      if (transicao.acao === 'manter') {
+        item.comentarioId = item.comentarioId ?? item.id;
+      } else if (transicao.acao === 'criar' || transicao.acao === 'reabrir') {
         item.comentarioStatus = 'Pendente';
-        item.comentarioId = item.id;
+        item.comentarioId = item.comentarioId ?? item.id;
+        item.comentarioResolvidoPorId = undefined;
+        item.comentarioResolvidoPorNome = undefined;
+        item.comentarioResolvidoEm = undefined;
+      } else {
+        item.comentarioStatus = undefined;
+        item.comentarioId = undefined;
+        item.comentarioResolvidoPorId = undefined;
+        item.comentarioResolvidoPorNome = undefined;
+        item.comentarioResolvidoEm = undefined;
       }
 
       return 'ok';
@@ -362,9 +423,12 @@ export function repositorioEmMemoria(
       return itens.map((item) => {
         const info = resolverFavoritos(favoritos, item.id, perfilId);
         const notas = notasDoAtendimento(item);
+        const { curadaEm, cpf } = metadadosDeCuradoriaECpf(item);
         return {
           ...item,
           ...notas,
+          ...(cpf ? { cpf } : {}),
+          curadaEm,
           favoritadoPeloUsuario: info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)
@@ -379,9 +443,12 @@ export function repositorioEmMemoria(
       const mapearItem = (item: RegistroDeAtendimento) => {
         const info = resolverFavoritos(favoritos, item.id, perfil.id);
         const notas = notasDoAtendimento(item);
+        const { curadaEm, cpf } = metadadosDeCuradoriaECpf(item);
         return {
           ...item,
           ...notas,
+          ...(cpf ? { cpf } : {}),
+          curadaEm,
           favoritadoPeloUsuario: perfil.papel === 'Curador' ? true : info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)

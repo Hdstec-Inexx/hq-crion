@@ -7,6 +7,8 @@ import {
   type CriterioDaConferencia,
   type EstadoDoCriterio
 } from '@hq-crion/contracts/atendimento';
+import { extrairCpf } from '@hq-crion/contracts/cpf';
+import type { Papel } from '@hq-crion/contracts/perfil';
 import { reguaUnica } from '../regua/regua-unica.js';
 
 export type FerramentasDoAtendimento = {
@@ -21,6 +23,7 @@ export type CuradorDaRevisao = {
 
 export type RegistroDeAtendimento = AtendimentoDetalhe & {
   curadorDaRevisao?: CuradorDaRevisao;
+  curadaEm?: string | null;
   concluidoEm?: string;
   comentarioStatus?: 'Pendente' | 'Resolvido';
   comentarioId?: string;
@@ -156,11 +159,7 @@ export function recusaDaConferencia(item: RegistroDeAtendimento | undefined) {
     return 'ausente' as const;
   }
 
-  if (
-    item.status !== 'Concluído' ||
-    !avaliacaoDaIaTemVeredito(item) ||
-    item.avaliacaoDoCurador
-  ) {
+  if (item.status !== 'Concluído' || !avaliacaoDaIaTemVeredito(item)) {
     return 'indisponivel' as const;
   }
 
@@ -177,6 +176,56 @@ export function avaliacaoDaIaTemVeredito(
       (criterio) => criterio.estado === 'Atendido' || criterio.estado === 'Não atendido'
     ) ?? false
   );
+}
+
+export function autorDaConferencia(
+  entrada: { curador: CuradorDaRevisao; papel?: Papel },
+  curadorExistente?: CuradorDaRevisao
+): CuradorDaRevisao {
+  if (curadorExistente && entrada.papel === 'Admin') {
+    return curadorExistente;
+  }
+  return entrada.curador;
+}
+
+export type TransicaoDoComentarioNaConferencia =
+  | { acao: 'manter'; texto: string }
+  | { acao: 'criar'; texto: string }
+  | { acao: 'reabrir'; texto: string }
+  | { acao: 'excluir' };
+
+export function transicaoDoComentarioNaConferencia(
+  comentarioEnviado: string | undefined,
+  textoExistente: string | undefined
+): TransicaoDoComentarioNaConferencia {
+  const novoTexto = comentarioEnviado?.trim() || undefined;
+  const anterior = textoExistente?.trim() || undefined;
+
+  if (!novoTexto) {
+    return { acao: 'excluir' };
+  }
+
+  if (!anterior) {
+    return { acao: 'criar', texto: novoTexto };
+  }
+
+  if (novoTexto === anterior) {
+    return { acao: 'manter', texto: novoTexto };
+  }
+
+  return { acao: 'reabrir', texto: novoTexto };
+}
+
+export function metadadosDeCuradoriaECpf(item: {
+  curadaEm?: string | null;
+  avaliacaoDoCurador?: { curadaEm?: string };
+  cpf?: string | null;
+  transcricao?: unknown;
+  ferramentas?: unknown;
+}): { curadaEm: string | null; cpf: string | undefined } {
+  const curadaEm = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm ?? null;
+  const cpf = item.cpf ?? extrairCpf(item);
+  return { curadaEm, cpf };
 }
 
 export function notasDoAtendimento(item: {
@@ -208,10 +257,21 @@ export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe 
   } = item;
 
   const notas = notasDoAtendimento(item);
+  const { curadaEm, cpf } = metadadosDeCuradoriaECpf(item);
 
   return {
     ...publico,
-    ...notas
+    ...notas,
+    ...(cpf ? { cpf } : {}),
+    curadaEm,
+    ...(item.avaliacaoDoCurador
+      ? {
+          avaliacaoDoCurador: {
+            ...item.avaliacaoDoCurador,
+            curadaEm: item.avaliacaoDoCurador.curadaEm ?? (curadaEm ?? undefined)
+          }
+        }
+      : {})
   };
 }
 

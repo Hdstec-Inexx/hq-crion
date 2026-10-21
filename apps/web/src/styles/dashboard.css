@@ -471,6 +471,18 @@
 
 .cancelamentos-pagina {
   width: min(1240px, 100%);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.cancelamentos-pagina .pagina-head,
+.cancelamentos-pagina .recorte,
+.cancelamentos-kpis .dashboard-kpi {
+  min-width: 0;
+}
+
+.cancelamentos-pagina .recorte {
+  flex-wrap: wrap;
 }
 
 .cancelamentos-kpis {
@@ -493,8 +505,10 @@
 }
 
 .cancelamentos-graficos-grid {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
+  align-items: stretch;
   margin-bottom: 28px;
 }
 
@@ -502,6 +516,7 @@
 .cancelamentos-painel-concorrentes {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .cancelamentos-painel-header {
@@ -993,6 +1008,8 @@
 /* Bloco 4: Listagem Filtrável */
 .cancelamentos-listagem-secao {
   margin-bottom: 40px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .cancelamentos-listagem-header {
@@ -1036,6 +1053,16 @@
   color: var(--ink);
 }
 
+.cancelamentos-filtro-busca {
+  flex: 1 1 320px;
+  min-width: min(320px, 100%);
+}
+
+.cancelamentos-filtro-busca input {
+  width: 100%;
+  min-width: 0;
+}
+
 .cancelamentos-btn-limpar-filtros {
   background: #f4f7f6;
   border: 1px solid var(--line);
@@ -1055,6 +1082,8 @@
 }
 
 .cancelamentos-tabela-container {
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -1078,6 +1107,7 @@
   color: var(--mute);
   background: #fafcfb;
   border-bottom: 1px solid var(--line);
+  white-space: nowrap;
 }
 
 .cancelamentos-tabela td {
@@ -1101,7 +1131,27 @@
 }
 
 .cancelamentos-col-motivo {
+  min-width: 130px;
+  max-width: 190px;
+}
+
+.cancelamentos-col-causa {
+  min-width: 150px;
+  max-width: 210px;
+}
+
+.cancelamentos-col-alertas {
+  min-width: 110px;
+}
+
+.cancelamentos-col-diagnostico {
+  min-width: 260px;
+  width: 32%;
+}
+
+.cancelamentos-col-acoes {
   white-space: nowrap;
+  width: 1%;
 }
 
 .cancelamentos-tag-causa {
@@ -1149,7 +1199,13 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--ink);
-  max-width: 380px;
+  max-width: 420px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cancelamentos-btn-abrir {

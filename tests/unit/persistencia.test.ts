@@ -130,9 +130,40 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '014_canonicalizar_motivos.sql',
       '015_canonicalizar_motivos_acentuados.sql',
       '016_diagnostico_de_cancelamento.sql',
-      '017_sanear_concorrentes_cancelamento.sql'
+      '017_sanear_concorrentes_cancelamento.sql',
+      '018_edicao_de_conferencia.sql'
     ]
   );
+});
+
+test('a migration 018_edicao_de_conferencia remove os triggers de imutabilidade da avaliação, critérios e ajusta a trigger do comentário', () => {
+  const migracao = listarMigracoes().find((m) => m.nome === '018_edicao_de_conferencia.sql');
+  assert.ok(migracao, 'migration 018_edicao_de_conferencia.sql ausente');
+  const sql = migracao.sql;
+  assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_avaliacao_do_curador_imutavel\s+ON\s+hq_avaliacao_do_curador/i);
+  assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_criterio_da_avaliacao_do_curador_imutavel\s+ON\s+hq_criterio_da_avaliacao_do_curador/i);
+  assert.match(sql, /DROP\s+TRIGGER\s+IF\s+EXISTS\s+hq_comentario_so_status\s+ON\s+hq_comentario/i);
+  assert.match(sql, /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+hq_comentario_so_status\(\)/i);
+  assert.match(sql, /IF\s+TG_OP\s*=\s*'DELETE'\s+THEN\s+RETURN\s+OLD/i);
+  assert.match(sql, /CREATE\s+TRIGGER\s+hq_comentario_so_status/i);
+});
+
+test('a migration 018_edicao_de_conferencia é aplicada no fluxo de migração do banco', async () => {
+  const comandos: string[] = [];
+  const { pool } = poolDeTeste((texto) => {
+    comandos.push(texto);
+    if (texto.includes('SELECT nome FROM hq_migracao')) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  await aplicarMigracoes(pool);
+
+  const migracao018 = comandos.find(
+    (cmd) => cmd.includes('hq_avaliacao_do_curador_imutavel') && cmd.includes('DROP TRIGGER')
+  );
+  assert.ok(migracao018, 'migration 018 deve ser executada');
 });
 
 test('a migration 011_resolucao_da_demanda_critica atualiza a Régua e critérios históricos com desativação de trigger', () => {
@@ -514,4 +545,134 @@ test('montarLeitorDeMidia recorre a ElevenLabs quando R2 falha com erro', async 
   const caminho = await leitor.descobrirMidia('conv_erro');
   assert.equal(caminho, undefined);
 });
+
+test('repositorioPostgres consulta curadaEm, filtra por tipoData=curadoria e atualiza criada_em na conferência', async () => {
+  const { repositorioPostgres } = await import(
+    '../../apps/api/src/modules/atendimentos/postgres.js'
+  );
+
+  const consultas: Array<{ sql: string; valores?: unknown[] }> = [];
+  const fakePool = {
+    async query(sql: string, valores?: unknown[]) {
+      consultas.push({ sql, valores });
+      if (sql.includes('SELECT') && sql.includes('hq_atendimento')) {
+        return {
+          rows: [
+            {
+              id: 'a3',
+              agente_id: 'conecta-1',
+              agente: 'Clara Conectaplan',
+              administradora: 'Conectaplan',
+              status: 'Concluído',
+              iniciado_em: '2026-08-10T10:00:00-03:00',
+              concluido_em: '2026-08-10T10:05:00-03:00',
+              duracao_em_segundos: 300,
+              transcricao: [],
+              audio: null,
+              motivo: 'Boleto',
+              transferencia: false,
+              custo: null,
+              tempo_de_espera_em_segundos: 15,
+              ferramentas: null,
+              nota_ia: 8.0,
+              ia_resumo_atendimento: null,
+              ia_falhas_identificadas: null,
+              avaliacao_curador_id: 'rev-a3',
+              nota_curador: '8.0',
+              nota_da_avaliacao_da_ia: '8.0',
+              curador_id: 'perfil-carla',
+              curador_nome: 'Carla Mendes',
+              curada_em: '2026-10-15T14:30:00-03:00',
+              comentario_vigente: 'ok',
+              comentario_status_vigente: 'Pendente',
+              tem_curadoria: true,
+              favoritado_pelo_usuario: false,
+              favoritos_count: 0,
+              favoritos_perfis: []
+            }
+          ]
+        };
+      }
+      if (sql.includes('SELECT id, curador_id, curador_nome FROM hq_avaliacao_do_curador')) {
+        return {
+          rows: [
+            { id: 'rev-a3', curador_id: 'perfil-carla', curador_nome: 'Carla Mendes' }
+          ]
+        };
+      }
+      if (sql.includes('SELECT atendimento_id, chave, nome')) {
+        return {
+          rows: [
+            {
+              atendimento_id: 'a3',
+              chave: 'saudacao',
+              nome: 'Saudação',
+              estado: 'Atendido',
+              pontos: '1.0',
+              critico: false
+            }
+          ]
+        };
+      }
+      if (sql.includes('SELECT avaliacao_id, chave, nome')) {
+        return {
+          rows: [
+            {
+              avaliacao_id: 'rev-a3',
+              chave: 'saudacao',
+              nome: 'Saudação',
+              estado: 'Atendido',
+              pontos: '1.0',
+              critico: false
+            }
+          ]
+        };
+      }
+      return { rows: [] };
+    },
+    async connect() {
+      return {
+        query: fakePool.query,
+        release() {}
+      };
+    }
+  };
+
+  const repo = repositorioPostgres(fakePool as any);
+
+  // 1. Consulta com tipoData=curadoria passa 'curadoria' para o SQL
+  const itens = await repo.consultarListagem(
+    { administradora: null, agente: null },
+    { inicio: '2026-10-01', fim: '2026-10-31', tipoData: 'curadoria' },
+    'todos',
+    'p1',
+    'Admin'
+  );
+  assert.equal(itens.length, 1);
+  assert.equal(itens[0].curadaEm, '2026-10-15T17:30:00.000Z');
+  assert.equal(itens[0].avaliacaoDoCurador?.curadaEm, '2026-10-15T17:30:00.000Z');
+
+  const consultaListagem = consultas.find((c) => c.sql.includes('hq_atendimento'));
+  assert.ok(consultaListagem, 'deve executar leituraSql');
+  assert.equal(consultaListagem.valores?.[5], 'curadoria', '$6 deve ser curadoria quando tipoData=curadoria');
+  assert.match(consultaListagem.sql, /vig\.criada_em\s+AS\s+curada_em/i);
+
+  // 2. Edição de conferência executa UPDATE com criada_em = now()
+  consultas.length = 0;
+  const resultadoConferencia = await repo.conferir('a3', {
+    curador: { id: 'perfil-carla', nome: 'Carla Mendes' },
+    papel: 'Admin',
+    nota: 8.0,
+    criterios: [
+      { nome: 'Saudação', chave: 'saudacao', estado: 'Atendido', pontos: 1.0, critico: false }
+    ],
+    comentario: 'atualizado'
+  });
+  assert.equal(resultadoConferencia, 'ok');
+
+  const updateAvaliacao = consultas.find((c) => c.sql.includes('UPDATE hq_avaliacao_do_curador'));
+  assert.ok(updateAvaliacao, 'deve executar UPDATE na hq_avaliacao_do_curador');
+  assert.match(updateAvaliacao.sql, /criada_em\s*=\s*now\(\)/i, 'UPDATE deve atualizar criada_em para now()');
+});
+
 

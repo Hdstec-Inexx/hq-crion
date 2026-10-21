@@ -298,3 +298,53 @@ test('slider Nota da IA Avaliadora usa range 0–10 com passo 0,5 e output visí
   assert.match(slider, /step="0\.5"/);
   assert.match(slider, /<output/);
 });
+
+test('seletor de referência de data (tipoData) em camposVisiveis, queryAposFiltrar, limpar e BarraDeFiltrosDaListagem', () => {
+  // Rotas e papéis que exibem tipoData
+  const atendimentosAdmin = camposVisiveisDaListagem('/atendimentos', 'Admin');
+  const atendimentosGestao = camposVisiveisDaListagem('/atendimentos', 'Gestão');
+  const atendimentosCurador = camposVisiveisDaListagem('/atendimentos', 'Curador');
+  const minhasCuradorias = camposVisiveisDaListagem('/minhas-curadorias', 'Curador');
+  const curadoriasRealizadas = camposVisiveisDaListagem('/curadorias-realizadas', 'Admin');
+  const filaCuradoria = camposVisiveisDaListagem('/fila-de-curadoria', 'Curador');
+  const manutencao = camposVisiveisDaListagem('/manutencao', 'Admin');
+
+  assert.equal(atendimentosAdmin.includes('tipoData'), true);
+  assert.equal(atendimentosGestao.includes('tipoData'), true);
+  assert.equal(atendimentosCurador.includes('tipoData'), false);
+  assert.equal(minhasCuradorias.includes('tipoData'), true);
+  assert.equal(curadoriasRealizadas.includes('tipoData'), true);
+  assert.equal(filaCuradoria.includes('tipoData'), false);
+  assert.equal(manutencao.includes('tipoData'), false);
+
+  // queryAposFiltrar com tipoData=curadoria
+  const dadosCuradoria = new FormData();
+  dadosCuradoria.set('tipoData', 'curadoria');
+  const proximaCuradoria = queryAposFiltrar(new URLSearchParams(''), dadosCuradoria);
+  assert.equal(proximaCuradoria.get('tipoData'), 'curadoria');
+
+  // queryAposFiltrar com tipoData=atendimento (default deve ser omitido)
+  const dadosAtendimento = new FormData();
+  dadosAtendimento.set('tipoData', 'atendimento');
+  const proximaAtendimento = queryAposFiltrar(
+    new URLSearchParams('tipoData=curadoria'),
+    dadosAtendimento
+  );
+  assert.equal(proximaAtendimento.has('tipoData'), false);
+
+  // limparFiltrosDaQuery remove tipoData
+  const limpa = limparFiltrosDaQuery(new URLSearchParams('tipoData=curadoria&motivo=Boleto'));
+  assert.equal(limpa.has('tipoData'), false);
+
+  // BarraDeFiltrosDaListagem renderiza o seletor com Atendimento e Curadoria
+  const barra = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/BarraDeFiltrosDaListagem.tsx'),
+    'utf8'
+  );
+  assert.match(barra, /campoVisivel\('tipoData'\)/);
+  assert.match(barra, /name="tipoData"/);
+  assert.match(barra, /value="atendimento"/);
+  assert.match(barra, /value="curadoria"/);
+  assert.match(barra, /key=\{`tipoData-\$\{searchParams\.get\('tipoData'\)/);
+});
+

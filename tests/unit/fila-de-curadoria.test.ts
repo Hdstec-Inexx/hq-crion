@@ -613,7 +613,7 @@ test('conferência recusa checklist acima do teto da gravação da IA', async ()
   }
 });
 
-test('segunda conferência do mesmo Atendimento é recusada', async () => {
+test('segunda conferência edita a avaliação do Curador existente', async () => {
   const app = await buildApp();
 
   try {
@@ -636,19 +636,175 @@ test('segunda conferência do mesmo Atendimento é recusada', async () => {
     });
 
     assert.equal(primeira.statusCode, 200, primeira.body);
-    assert.equal(segunda.statusCode, 409, segunda.body);
-    assert.equal(segunda.json().avaliacaoDoCurador, undefined);
+    assert.equal(segunda.statusCode, 200, segunda.body);
+    assert.equal(segunda.json().avaliacaoDoCurador.nota, 0);
+    assert.equal(segunda.json().avaliacaoDoCurador.comentario, 'nova leitura');
     const detalhe = await app.inject({
       method: 'GET',
       url: '/atendimentos/a3',
       headers
     });
-    assert.equal(detalhe.json().avaliacaoDoCurador.nota, 10);
-    assert.equal('comentario' in detalhe.json().avaliacaoDoCurador, false);
+    assert.equal(detalhe.json().avaliacaoDoCurador.nota, 0);
+    assert.equal(detalhe.json().avaliacaoDoCurador.comentario, 'nova leitura');
   } finally {
     await app.close();
   }
 });
+
+test('edição de conferência por Curador e Admin: permissões, métodos POST/PUT e autoria', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCuradorCarla = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+    const sessaoGestao = await sessaoDe(app, 'ana.souza@crion');
+
+    // Admin cria um segundo Curador (Marcos)
+    const novoCuradorRes = await app.inject({
+      method: 'POST',
+      url: '/perfis',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: {
+        nome: 'Marcos Curador',
+        email: 'marcos.curador@crion',
+        papel: 'Curador',
+        senha: 'senha-marcos-123'
+      }
+    });
+    assert.equal(novoCuradorRes.statusCode, 201);
+
+    const loginMarcos = await app.inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'marcos.curador@crion', senha: 'senha-marcos-123' }
+    });
+    const sessaoCuradorMarcos = loginMarcos.json().sessao;
+
+    // 1. Carla cria conferência inicial em a3
+    const criacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCuradorCarla}` },
+      payload: { checklist: checklistDaConferencia(() => 'Atendido') }
+    });
+    assert.equal(criacao.statusCode, 200, criacao.body);
+    assert.equal(criacao.json().avaliacaoDoCurador.curador, 'Carla Mendes');
+
+    // 2. Marcos (outro Curador) edita conferência existente via PUT: autoria transfere para Marcos
+    const edicaoMarcos = await app.inject({
+      method: 'PUT',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCuradorMarcos}` },
+      payload: { checklist: checklistDaConferencia(() => 'Atendido'), comentario: 'revisado por marcos' }
+    });
+    assert.equal(edicaoMarcos.statusCode, 200, edicaoMarcos.body);
+    assert.equal(edicaoMarcos.json().avaliacaoDoCurador.curador, 'Marcos Curador');
+    assert.equal(edicaoMarcos.json().avaliacaoDoCurador.comentario, 'revisado por marcos');
+
+    // 3. Admin edita conferência existente via POST: autoria de Marcos é preservada
+    const edicaoAdmin = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: { checklist: checklistDaConferencia(() => 'Atendido'), comentario: 'ajuste operacional do admin' }
+    });
+    assert.equal(edicaoAdmin.statusCode, 200, edicaoAdmin.body);
+    assert.equal(edicaoAdmin.json().avaliacaoDoCurador.curador, 'Marcos Curador');
+    assert.equal(edicaoAdmin.json().avaliacaoDoCurador.comentario, 'ajuste operacional do admin');
+
+    // 4. Gestão tenta editar conferência existente: 403 Forbidden
+    const edicaoGestao = await app.inject({
+      method: 'PUT',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoGestao}` },
+      payload: { checklist: checklistDaConferencia(() => 'Atendido') }
+    });
+    assert.equal(edicaoGestao.statusCode, 403);
+
+    // 5. Admin tenta criar conferência inicial em atendimento sem avaliação prévia: 403 Forbidden
+    const criacaoAdminSemAvaliacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a1/conferencia',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: { checklist: checklistDaConferencia(() => 'Atendido') }
+    });
+    assert.equal(criacaoAdminSemAvaliacao.statusCode, 403);
+  } finally {
+    await app.close();
+  }
+});
+
+test('curadaEm é exposto na conferência inicial e atualizado ao editar a conferência', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+
+    // 1. Carla cria conferência inicial em a3
+    const criacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: { checklist: checklistDaConferencia(() => 'Atendido') }
+    });
+    assert.equal(criacao.statusCode, 200);
+    const corpoCriacao = criacao.json();
+    assert.ok(corpoCriacao.curadaEm, 'corpo da criação deve ter curadaEm na raiz');
+    assert.ok(corpoCriacao.avaliacaoDoCurador?.curadaEm, 'avaliacaoDoCurador deve ter curadaEm');
+    const t1 = new Date(corpoCriacao.curadaEm).getTime();
+    assert.ok(!Number.isNaN(t1), 'curadaEm deve ser um timestamp ISO válido');
+
+    // Aguarda um instante para garantir timestamps distintos
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // 2. Admin edita conferência existente: curadaEm deve refletir o instante da edição
+    const edicao = await app.inject({
+      method: 'PUT',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: {
+        checklist: checklistDaConferencia(() => 'Atendido'),
+        comentario: 'edição com nova data'
+      }
+    });
+    assert.equal(edicao.statusCode, 200);
+    const corpoEdicao = edicao.json();
+    assert.ok(corpoEdicao.curadaEm, 'corpo da edição deve ter curadaEm na raiz');
+    assert.ok(corpoEdicao.avaliacaoDoCurador?.curadaEm, 'avaliacaoDoCurador deve ter curadaEm atualizado');
+    const t2 = new Date(corpoEdicao.curadaEm).getTime();
+    assert.ok(t2 >= t1, 'curadaEm atualizado deve ser maior ou igual a t1');
+
+    // 3. GET /atendimentos/a3 deve refletir a data atualizada
+    const detalhe = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a3',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(detalhe.statusCode, 200);
+    const corpoDetalhe = detalhe.json();
+    assert.equal(corpoDetalhe.curadaEm, corpoEdicao.curadaEm);
+    assert.equal(corpoDetalhe.avaliacaoDoCurador.curadaEm, corpoEdicao.avaliacaoDoCurador.curadaEm);
+
+    // 4. Listagem /atendimentos inclui curadaEm para curados e null para pendentes
+    const listagem = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(listagem.statusCode, 200);
+    const itens = listagem.json().itens;
+    const itemA3 = itens.find((it: { id: string }) => it.id === 'a3');
+    const itemA1 = itens.find((it: { id: string }) => it.id === 'a1');
+    assert.ok(itemA3);
+    assert.equal(itemA3.curadaEm, corpoEdicao.curadaEm);
+    assert.ok(itemA1);
+    assert.equal(itemA1.curadaEm, null);
+  } finally {
+    await app.close();
+  }
+});
+
 
 test('Concordância por nota compara a nota gravada da IA com a soma derivada', async () => {
   const app = await buildApp();
@@ -719,4 +875,23 @@ test('o formulário da Conferência humana é a lista e esconde a Avaliação da
 
   assert.ok(lista >= 0 && lista < selo, 'o selo fica depois das linhas');
   assert.ok(selo < notaDaIa && notaDaIa < falhas && falhas < resumo);
+});
+
+test('DetalheAtendimento oferece ação Editar conferência para Curador e Admin com Cancelar e pré-preenchimento', () => {
+  const detalhe = readFileSync(
+    join(raiz, 'apps/web/src/features/atendimentos/DetalheAtendimento.tsx'),
+    'utf8'
+  );
+
+  // Botão "Editar conferência"
+  assert.match(detalhe, /Editar conferência/);
+  // Verificação de permissão: Curador e Admin podem editar, Gestão não
+  assert.match(detalhe, /perfil\.papel === 'Curador' \|\| perfil\.papel === 'Admin'/);
+  assert.match(detalhe, /atendimento\.avaliacaoDoCurador/);
+  // Botão "Cancelar"
+  assert.match(detalhe, /Cancelar/);
+  // Pré-preenchimento dos estados do Curador quando em edição
+  assert.match(detalhe, /atendimento\.avaliacaoDoCurador\.criterios/);
+  // Pré-preenchimento do comentário vigente
+  assert.match(detalhe, /defaultValue=\{atendimento\.avaliacaoDoCurador\?\.comentario \?\? ''\}/);
 });
