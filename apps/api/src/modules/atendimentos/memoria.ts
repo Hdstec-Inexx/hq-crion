@@ -319,22 +319,49 @@ export function repositorioEmMemoria(
         return recusa ?? 'indisponivel';
       }
 
+      const jaTinhaAvaliacao = Boolean(item.avaliacaoDoCurador);
+      const curadorOriginal = item.curadorDaRevisao ?? (item.avaliacaoDoCurador ? {
+        id: item.avaliacaoDoCurador.curador,
+        nome: item.avaliacaoDoCurador.curador
+      } : undefined);
+
+      const curadorFinal = (jaTinhaAvaliacao && entrada.papel === 'Admin' && curadorOriginal)
+        ? curadorOriginal
+        : entrada.curador;
+
       item.curadoria = true;
-      item.curadorDaRevisao = entrada.curador;
+      item.curadorDaRevisao = curadorFinal;
       item.notaCurador = entrada.nota;
+
       const criterios = criteriosComChave(entrada.criterios);
+      const novoTextoComentario = entrada.comentario?.trim() || undefined;
+      const textoComentarioAnterior = item.avaliacaoDoCurador?.comentario?.trim() || undefined;
+
       item.avaliacaoDoCurador = {
         nota: entrada.nota,
         aprovacao: aprovacaoDaAvaliacao(entrada.nota, criterios),
         criterios,
         notaDaAvaliacaoDaIa: item.avaliacaoDaIa.nota,
-        curador: entrada.curador.nome,
-        ...(entrada.comentario ? { comentario: entrada.comentario } : {})
+        curador: curadorFinal.nome,
+        ...(novoTextoComentario ? { comentario: novoTextoComentario } : {})
       };
 
-      if (entrada.comentario) {
-        item.comentarioStatus = 'Pendente';
-        item.comentarioId = item.id;
+      if (novoTextoComentario) {
+        if (novoTextoComentario === textoComentarioAnterior) {
+          item.comentarioId = item.comentarioId ?? item.id;
+        } else {
+          item.comentarioStatus = 'Pendente';
+          item.comentarioId = item.comentarioId ?? item.id;
+          item.comentarioResolvidoPorId = undefined;
+          item.comentarioResolvidoPorNome = undefined;
+          item.comentarioResolvidoEm = undefined;
+        }
+      } else {
+        item.comentarioStatus = undefined;
+        item.comentarioId = undefined;
+        item.comentarioResolvidoPorId = undefined;
+        item.comentarioResolvidoPorNome = undefined;
+        item.comentarioResolvidoEm = undefined;
       }
 
       return 'ok';

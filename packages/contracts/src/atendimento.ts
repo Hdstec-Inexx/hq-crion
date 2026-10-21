@@ -186,7 +186,7 @@ const criterioDaConferenciaSchema = z.object({
 
 export const conferenciaRequestSchema = z.object({
   checklist: z.array(criterioDaConferenciaSchema).min(1).max(30),
-  comentario: z.string().trim().min(1).optional()
+  comentario: z.string().trim().optional()
 });
 
 export function notaDerivada(

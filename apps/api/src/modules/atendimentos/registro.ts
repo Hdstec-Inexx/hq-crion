@@ -156,11 +156,7 @@ export function recusaDaConferencia(item: RegistroDeAtendimento | undefined) {
     return 'ausente' as const;
   }
 
-  if (
-    item.status !== 'Concluído' ||
-    !avaliacaoDaIaTemVeredito(item) ||
-    item.avaliacaoDoCurador
-  ) {
+  if (item.status !== 'Concluído' || !avaliacaoDaIaTemVeredito(item)) {
     return 'indisponivel' as const;
   }
 

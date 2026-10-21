@@ -14,6 +14,7 @@ export type EntradaDeConferencia = {
   nota: number;
   criterios: CriterioAvaliado[];
   comentario?: string;
+  papel?: Papel;
 };
 
 export type ResultadoDaAvaliacao = 'ok' | 'ausente' | 'em-andamento';

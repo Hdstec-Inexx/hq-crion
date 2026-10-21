@@ -450,13 +450,13 @@ if (!rodaAceite) {
           filaDepois.json().itens.some((item: { id: string }) => item.id === 'conv-ok'),
           false
         );
-        assert.equal(segunda.statusCode, 409, segunda.body);
+        assert.equal(segunda.statusCode, 200, segunda.body);
         assert.equal(iaMuda.statusCode, 200, iaMuda.body);
         assert.equal(silencio.statusCode, 200, silencio.body);
         assert.equal(silencio.json().avaliacaoDoCurador.comentario, undefined);
         assert.equal(gestaoNaFila.statusCode, 403);
         assert.equal(detalheGestao.statusCode, 200, detalheGestao.body);
-        assert.equal(detalheGestao.json().avaliacaoDoCurador.comentario, 'primeiro');
+        assert.equal(detalheGestao.json().avaliacaoDoCurador.comentario, 'segundo');
         assert.equal('custo' in curadorNoDetalhe.json(), false);
         assert.equal('downloadDeAudio' in curadorNoDetalhe.json(), false);
         assert.equal(curadorNoDetalhe.json().downloadDeAudio, undefined);
