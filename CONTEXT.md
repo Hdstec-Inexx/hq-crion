@@ -49,7 +49,7 @@ A restrição opcional da leitura, em dois níveis em cascata no header da pági
 _Avoid_: tenant, workspace, contexto da casca, troca de HQ
 
 **Período**:
-A janela de leitura em dias civis (America/Sao_Paulo). Nas listagens, sem data é o mês civil corrente, do dia 1 ao último, com os campos vazios; só a inicial é esse único dia; as duas datas são o intervalo fechado. No Dashboard as duas datas são exigidas e os campos mostram a janela: sem data na URL, vai do dia 1 do mês corrente até hoje. A final pode no máximo um ano depois da inicial. Só a final, inicial posterior à final, ou mais de um ano não é Período — a leitura não acontece.
+A janela de leitura em dias civis (America/Sao_Paulo). Nas listagens, sem data é o mês civil corrente, do dia 1 ao último, com os campos vazios; só a inicial é esse único dia; as duas datas são o intervalo fechado. Nas telas Minhas Curadorias, Curadorias realizadas e Listagem de Atendimentos (Admin e Gestão), o bloco conta com o seletor de referência de data (**Atendimento** | **Curadoria**), filtrando pelo dia civil da data de início do Atendimento ou da Data da Curadoria em America/Sao_Paulo. No Dashboard as duas datas são exigidas e os campos mostram a janela: sem data na URL, vai do dia 1 do mês corrente até hoje. A final pode no máximo um ano depois da inicial. Só a final, inicial posterior à final, ou mais de um ano não é Período — a leitura não acontece.
 _Avoid_: fim aberto, range
 
 **Atendimento**:
@@ -113,6 +113,9 @@ _Avoid_: Nota da Régua (número digitado na Conferência)
 **Conferência**:
 O ato do Curador que produz a Avaliação do Curador. Pode ser editado no detalhe do Atendimento por Curador (transferindo a autoria da avaliação) e por Admin (preservando a autoria original), enquanto Gestão permanece em leitura. O formulário se chama **Conferência humana**, com o rótulo **Checklist do Curador** e a orientação de que os estados começam iguais aos da IA (ou refletem a avaliação vigente em edição) para confirmar ou corrigir cada Critério. Cada linha mostra o nome, o peso em pontos e, se for o caso, **crítico**; o estado é **Atendido**, **Não atendido** ou, só quando a Régua admite, **Não se aplica**. O selo recalcula a nota e **Aprovado** ou **Reprovado** a cada correção, no tratamento visual da Crion. Abaixo, em leitura, a nota da IA, as **Falhas Identificadas** e o **Resumo do Atendimento**; o **Comentário** é o único texto que se escreve, com o rótulo “Comentário da revisão (opcional)”. O botão é “Salvar conferência” e, em edição, conta com o botão “Cancelar”. Na edição, o comentário gerencia seu ciclo na Fila de Manutenção (novo vira Pendente, inalterado preserva status e resolução, alterado reabre como Pendente e vazio exclui da fila). Enquanto o formulário está aberto, o painel da Avaliação da IA não aparece.
 _Avoid_: reavaliação, histórico de revisão, Conferência da Avaliação da IA, Nota da Avaliação da IA editável
+
+**Data da Curadoria**:
+O instante em que a Conferência foi realizada ou editada. Exibida nas linhas com curadoria realizada nas listagens e no painel Avaliação do Curador no detalhe do Atendimento, formatada em `America/Sao_Paulo`. Na edição de conferência, atualiza-se para o instante da última alteração.
 
 **Resumo do Atendimento**:
 A síntese textual do contato gerada pela IA Avaliadora, descrevendo o objetivo do cliente e o desfecho da interação. Exibida na caixa de notas da Avaliação da IA, em container com rolagem própria, e em leitura na Conferência. Sem parágrafo, a caixa permanece, com a frase “Resumo não informado.” O Curador não a reescreve.
@@ -179,13 +182,13 @@ _Avoid_: Nota mínima, limiar ≥, passo 0,1, Nota da Avaliação da IA (conceit
 A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador escolhe quais revisar (modelo pull). Na casca: “Fila de curadoria”. O Período é o termo **Período**; a lista vai do mais antigo ao mais novo. Filtros: Recorte, período, id da conversa, motivo, **Filtro de Nota da IA**, Limpar — o mesmo recorte operacional da fila GEAP, sem critérios nem curador.
 
 **Listagem de Atendimentos**:
-A lista operacional de Atendimentos. O Período é o termo **Período**: campos vazios até submeter; final em branco significa o dia da inicial. Recorte no header. Filtros da página: período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos** (dois multi-selects compactos da Régua), status da curadoria (realizada/pendente; omitido para o Curador, cujos atendimentos já curados são ocultados nesta tela), curador, **Filtro de Nota da IA**, Limpar — e **Status** do Atendimento (Concluído / Em andamento). Não usa o booleano “Curadoria feita”.
+A lista operacional de Atendimentos. O Período é o termo **Período**: campos vazios até submeter; final em branco significa o dia da inicial; seletor de referência de data (**Atendimento** | **Curadoria**) para Admin e Gestão. Recorte no header. Filtros da página: período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos** (dois multi-selects compactos da Régua), status da curadoria (realizada/pendente; omitido para o Curador, cujos atendimentos já curados são ocultados nesta tela), curador, **Filtro de Nota da IA**, Limpar — e **Status** do Atendimento (Concluído / Em andamento). Não usa o booleano “Curadoria feita”.
 
 **Motivo**:
 A classificação temática da demanda do Atendimento. Normalizado a partir do catálogo oficial dos 16 motivos da Clara e consolidado com novos termos da base via chave canônica por regex (remoção de acentos, ordinais, pontuação e espaços múltiplos). O filtro por motivo consome dinamicamente as opções existentes no banco.
 
 **Minhas Curadorias / Curadorias realizadas**:
-Listas de Atendimentos já conferidos. Filtros como no GEAP: Recorte, período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos**, **Filtro de Nota da IA**, Limpar; curador só em Curadorias realizadas (não em Minhas).
+Listas de Atendimentos já conferidos. Filtros como no GEAP: Recorte, período (com seletor de referência **Atendimento** | **Curadoria**), id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos**, **Filtro de Nota da IA**, Limpar; curador só em Curadorias realizadas (não em Minhas).
 
 **Fila de Manutenção**:
 A lista de Comentários da conferência — pendentes e resolvidos — da qual o Admin trabalha a manutenção dos Agentes de Voz. Filtro por status e data; cada item liga ao Atendimento de origem. Só o Admin opera a fila. Na casca: “Manutenção”. Recorte igual às outras listagens. O Período é o termo **Período**.

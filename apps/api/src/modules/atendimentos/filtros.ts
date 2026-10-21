@@ -155,7 +155,19 @@ export function passaNosFiltros(
     return false;
   }
 
-  const quando = modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm;
+  const queryTipoData = query.tipoData?.trim();
+  const filtrarPorCuradoria = queryTipoData === 'curadoria';
+  const dataCuradoria = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm;
+
+  if (filtrarPorCuradoria) {
+    if (!item.curadoria || !dataCuradoria) {
+      return false;
+    }
+  }
+
+  const quando = filtrarPorCuradoria
+    ? (dataCuradoria as string)
+    : (modo === 'fila' ? (item.concluidoEm ?? item.iniciadoEm) : item.iniciadoEm);
 
   if (!passaNoRecorteEPeriodo(item, recorte, query, quando)) {
     return false;

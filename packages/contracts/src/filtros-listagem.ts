@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export const motivosDeContato = [
   'Boleto',
   'Carência',
@@ -9,8 +11,13 @@ export type MotivoDeContato = string;
 
 export const statusDaCuradoria = ['pendente', 'feita'] as const;
 
+export const tiposData = ['atendimento', 'curadoria'] as const;
+export const tipoDataSchema = z.enum(tiposData);
+export type TipoData = z.infer<typeof tipoDataSchema>;
+
 export type CampoVisivelDaListagem =
   | 'periodo'
+  | 'tipoData'
   | 'conversa'
   | 'motivo'
   | 'criterios'
@@ -24,6 +31,7 @@ export type CampoVisivelDaListagem =
 const camposPorRota: Record<string, readonly CampoVisivelDaListagem[]> = {
   '/atendimentos': [
     'periodo',
+    'tipoData',
     'conversa',
     'motivo',
     'criterios',
@@ -39,9 +47,18 @@ const camposPorRota: Record<string, readonly CampoVisivelDaListagem[]> = {
     'limpar'
   ],
   '/fila-de-curadoria': ['periodo', 'conversa', 'motivo', 'notaIa', 'limpar'],
-  '/minhas-curadorias': ['periodo', 'conversa', 'motivo', 'criterios', 'notaIa', 'limpar'],
+  '/minhas-curadorias': [
+    'periodo',
+    'tipoData',
+    'conversa',
+    'motivo',
+    'criterios',
+    'notaIa',
+    'limpar'
+  ],
   '/curadorias-realizadas': [
     'periodo',
+    'tipoData',
     'conversa',
     'motivo',
     'criterios',
@@ -61,7 +78,9 @@ export function camposVisiveisDaListagem(
   }
   const campos = camposPorRota[rota] ?? ['periodo', 'limpar'];
   if (rota === '/atendimentos' && papel === 'Curador') {
-    return campos.filter((campo) => campo !== 'statusCuradoria');
+    return campos.filter(
+      (campo) => campo !== 'statusCuradoria' && campo !== 'tipoData'
+    );
   }
   return campos;
 }
@@ -69,6 +88,7 @@ export function camposVisiveisDaListagem(
 const chavesLimpaveis = [
   'inicio',
   'fim',
+  'tipoData',
   'status',
   'nota',
   'motivo',

@@ -21,6 +21,7 @@ export type CuradorDaRevisao = {
 
 export type RegistroDeAtendimento = AtendimentoDetalhe & {
   curadorDaRevisao?: CuradorDaRevisao;
+  curadaEm?: string | null;
   concluidoEm?: string;
   comentarioStatus?: 'Pendente' | 'Resolvido';
   comentarioId?: string;
@@ -204,10 +205,20 @@ export function detalhePublico(item: RegistroDeAtendimento): AtendimentoDetalhe 
   } = item;
 
   const notas = notasDoAtendimento(item);
+  const curadaEm = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm ?? null;
 
   return {
     ...publico,
-    ...notas
+    ...notas,
+    curadaEm,
+    ...(item.avaliacaoDoCurador
+      ? {
+          avaliacaoDoCurador: {
+            ...item.avaliacaoDoCurador,
+            curadaEm: item.avaliacaoDoCurador.curadaEm ?? (curadaEm ?? undefined)
+          }
+        }
+      : {})
   };
 }
 

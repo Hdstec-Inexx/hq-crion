@@ -42,6 +42,7 @@ const catalogoBase: AtendimentoListItem[] = [
     notaCurador: 6.0,
     status: 'Concluído',
     curadoria: true,
+    curadaEm: iniciadoNoMesCorrente(11, '10:30:00'),
     conversa: 'conv-a2',
     custo: 'R$ 0,98'
   },
@@ -288,10 +289,12 @@ function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
             ...avaliacaoDe(6, true),
             notaDaAvaliacaoDaIa: item.nota,
             curador: 'Carla Mendes',
+            curadaEm: item.curadaEm ?? item.iniciadoEm,
             ...(item.id === 'a2'
               ? { comentario: 'Rever o prompt de boleto na Clara Alter.' }
               : {})
           },
+          curadaEm: item.curadaEm ?? item.iniciadoEm,
           curadorDaRevisao: { id: 'perfil-carla', nome: 'Carla Mendes' },
           ...(item.id === 'a2' ? { comentarioStatus: 'Pendente' as const } : {})
         }

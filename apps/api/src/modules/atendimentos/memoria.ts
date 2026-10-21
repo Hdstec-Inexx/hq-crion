@@ -75,6 +75,18 @@ function incorporar(registros: RegistroDeAtendimento[], novo: RegistroDeAtendime
     atual.notaCurador = novo.notaCurador;
   }
 
+  if (novo.curadaEm !== undefined) {
+    atual.curadaEm = novo.curadaEm;
+  }
+
+  if (novo.curadoria !== undefined) {
+    atual.curadoria = novo.curadoria;
+  }
+
+  if (novo.avaliacaoDoCurador !== undefined) {
+    atual.avaliacaoDoCurador = novo.avaliacaoDoCurador;
+  }
+
   if (novo.audio) {
     Object.assign(atual, camposDeMidia(novo.audio));
   }
@@ -329,7 +341,9 @@ export function repositorioEmMemoria(
         ? curadorOriginal
         : entrada.curador;
 
+      const curadaEm = new Date().toISOString();
       item.curadoria = true;
+      item.curadaEm = curadaEm;
       item.curadorDaRevisao = curadorFinal;
       item.notaCurador = entrada.nota;
 
@@ -343,6 +357,7 @@ export function repositorioEmMemoria(
         criterios,
         notaDaAvaliacaoDaIa: item.avaliacaoDaIa.nota,
         curador: curadorFinal.nome,
+        curadaEm,
         ...(novoTextoComentario ? { comentario: novoTextoComentario } : {})
       };
 
@@ -389,9 +404,11 @@ export function repositorioEmMemoria(
       return itens.map((item) => {
         const info = resolverFavoritos(favoritos, item.id, perfilId);
         const notas = notasDoAtendimento(item);
+        const curadaEm = item.curadaEm ?? item.avaliacaoDoCurador?.curadaEm ?? null;
         return {
           ...item,
           ...notas,
+          curadaEm,
           favoritadoPeloUsuario: info.favoritadoPeloUsuario,
           favoritosCount: info.favoritos.count,
           favoritosPerfis: info.favoritos.perfis.map((p) => p.nome)

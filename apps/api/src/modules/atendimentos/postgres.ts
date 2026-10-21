@@ -74,6 +74,7 @@ SELECT
   vig.nota_da_avaliacao_da_ia,
   vig.curador_id,
   vig.curador_nome,
+  vig.criada_em AS curada_em,
   com.texto AS comentario_vigente,
   com.status AS comentario_status_vigente,
   EXISTS (
@@ -87,7 +88,7 @@ FROM hq_atendimento a
 JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
 LEFT JOIN hq_avaliacao_da_ia ia ON ia.atendimento_id = a.id
 LEFT JOIN LATERAL (
-  SELECT id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome
+  SELECT id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome, criada_em
   FROM hq_avaliacao_do_curador revisao
   WHERE revisao.atendimento_id = a.id
   ORDER BY revisao.criada_em DESC, revisao.id DESC
@@ -109,11 +110,14 @@ WHERE ($7::text IS NULL OR a.id = $7)
   AND (
     $3::boolean = false
     OR (
-      ((CASE
+      ($6::text != 'curadoria' OR vig.id IS NOT NULL)
+      AND ((CASE
+          WHEN $6::text = 'curadoria' THEN vig.criada_em
           WHEN $6::text = 'conclusao' THEN COALESCE(a.concluido_em, a.iniciado_em)
           ELSE a.iniciado_em
         END) AT TIME ZONE 'America/Sao_Paulo')::date >= $4::date
       AND ((CASE
+          WHEN $6::text = 'curadoria' THEN vig.criada_em
           WHEN $6::text = 'conclusao' THEN COALESCE(a.concluido_em, a.iniciado_em)
           ELSE a.iniciado_em
         END) AT TIME ZONE 'America/Sao_Paulo')::date <= $5::date
@@ -265,6 +269,7 @@ function montarRegistro(
     nota_da_avaliacao_da_ia: unknown;
     curador_id: string | null;
     curador_nome: string | null;
+    curada_em?: unknown;
     comentario_vigente: string | null;
     comentario_status_vigente: 'Pendente' | 'Resolvido' | null;
     tem_curadoria: boolean;
@@ -323,6 +328,7 @@ function montarRegistro(
     linha.nota_curador === null || linha.nota_curador === undefined
       ? undefined
       : numero(linha.nota_curador);
+  const curadaEm = linha.curada_em ? iso(linha.curada_em) : null;
   const avaliacaoDoCurador =
     linha.avaliacao_curador_id && notaCurador !== undefined && linha.curador_nome
       ? {
@@ -334,6 +340,7 @@ function montarRegistro(
           criterios: criteriosCurador.get(linha.avaliacao_curador_id) ?? [],
           notaDaAvaliacaoDaIa: numero(linha.nota_da_avaliacao_da_ia),
           curador: linha.curador_nome,
+          curadaEm: curadaEm ?? undefined,
           ...(linha.comentario_vigente ? { comentario: linha.comentario_vigente } : {})
         }
       : undefined;
@@ -352,6 +359,7 @@ function montarRegistro(
     notaCurador: notaCurador ?? null,
     status: linha.status,
     curadoria: Boolean(linha.tem_curadoria),
+    curadaEm,
     conversa: linha.id,
     favoritadoPeloUsuario: Boolean(linha.favoritado_pelo_usuario),
     favoritosCount: numero(linha.favoritos_count ?? 0),
@@ -407,13 +415,17 @@ async function lerRegistros(
   const periodo = periodoDaQuery(query, modo === 'dashboard' ? 'dashboard' : 'listagem');
   const aplicarPeriodo = entrada.id ? false : modo !== 'monitoramento';
   const recorte = entrada.recorte ?? { administradora: null, agente: null };
+  const queryTipoData = query.tipoData?.trim();
+  const referenciaData = queryTipoData === 'curadoria'
+    ? 'curadoria'
+    : (modo === 'fila' ? 'conclusao' : 'inicio');
   const resultado = await cliente.query(leituraSql, [
     recorte.administradora,
     recorte.agente,
     aplicarPeriodo,
     aplicarPeriodo ? (periodo?.inicio ?? '9999-12-31') : '1970-01-01',
     aplicarPeriodo ? (periodo?.fim ?? '1970-01-01') : '9999-12-31',
-    modo === 'fila' ? 'conclusao' : 'inicio',
+    referenciaData,
     entrada.id ?? null,
     entrada.perfilId ?? null
   ]);
@@ -661,17 +673,19 @@ async function inserirDemonstracao(cliente: ExecutorSql, registro: RegistroDeAte
   }
 
   const avaliacaoId = `revisao-${registro.id}`;
+  const curadaEm = registro.curadaEm ?? registro.avaliacaoDoCurador.curadaEm ?? null;
   await cliente.query(
     `INSERT INTO hq_avaliacao_do_curador
-       (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+       (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome, criada_em)
+     VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()))`,
     [
       avaliacaoId,
       registro.id,
       registro.avaliacaoDoCurador.nota,
       registro.avaliacaoDoCurador.notaDaAvaliacaoDaIa,
       registro.curadorDaRevisao.id,
-      registro.curadorDaRevisao.nome
+      registro.curadorDaRevisao.nome,
+      curadaEm
     ]
   );
   await inserirCriterios(
@@ -892,7 +906,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
 
             await cliente.query(
               `UPDATE hq_avaliacao_do_curador
-               SET nota = $1, curador_id = $2, curador_nome = $3
+               SET nota = $1, curador_id = $2, curador_nome = $3, criada_em = now()
                WHERE id = $4`,
               [entrada.nota, curadorId, curadorNome, avaliacaoId]
             );
@@ -908,8 +922,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
 
             await cliente.query(
               `INSERT INTO hq_avaliacao_do_curador
-                 (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome)
-               VALUES ($1, $2, $3, $4, $5, $6)`,
+                 (id, atendimento_id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome, criada_em)
+               VALUES ($1, $2, $3, $4, $5, $6, now())`,
               [
                 avaliacaoId,
                 id,
@@ -1156,6 +1170,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             vig.nota_da_avaliacao_da_ia,
             vig.curador_id,
             vig.curador_nome,
+            vig.criada_em AS curada_em,
             com.texto AS comentario_vigente,
             com.status AS comentario_status_vigente,
             EXISTS (
@@ -1170,7 +1185,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
           JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
           LEFT JOIN hq_avaliacao_da_ia ia ON ia.atendimento_id = a.id
           LEFT JOIN LATERAL (
-            SELECT id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome
+            SELECT id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome, criada_em
             FROM hq_avaliacao_do_curador revisao
             WHERE revisao.atendimento_id = a.id
             ORDER BY revisao.criada_em DESC, revisao.id DESC
@@ -1213,6 +1228,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             vig.nota_da_avaliacao_da_ia,
             vig.curador_id,
             vig.curador_nome,
+            vig.criada_em AS curada_em,
             com.texto AS comentario_vigente,
             com.status AS comentario_status_vigente,
             EXISTS (
@@ -1231,7 +1247,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
           JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
           LEFT JOIN hq_avaliacao_da_ia ia ON ia.atendimento_id = a.id
           LEFT JOIN LATERAL (
-            SELECT id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome
+            SELECT id, nota, nota_da_avaliacao_da_ia, curador_id, curador_nome, criada_em
             FROM hq_avaliacao_do_curador revisao
             WHERE revisao.atendimento_id = a.id
             ORDER BY revisao.criada_em DESC, revisao.id DESC

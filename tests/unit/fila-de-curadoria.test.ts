@@ -734,6 +734,78 @@ test('edição de conferência por Curador e Admin: permissões, métodos POST/P
   }
 });
 
+test('curadaEm é exposto na conferência inicial e atualizado ao editar a conferência', async () => {
+  const app = await buildApp();
+
+  try {
+    const sessaoCurador = await sessaoDe(app, 'carla.mendes@crion');
+    const sessaoAdmin = await sessaoDe(app, 'bruno.alves@crion');
+
+    // 1. Carla cria conferência inicial em a3
+    const criacao = await app.inject({
+      method: 'POST',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoCurador}` },
+      payload: { checklist: checklistDaConferencia(() => 'Atendido') }
+    });
+    assert.equal(criacao.statusCode, 200);
+    const corpoCriacao = criacao.json();
+    assert.ok(corpoCriacao.curadaEm, 'corpo da criação deve ter curadaEm na raiz');
+    assert.ok(corpoCriacao.avaliacaoDoCurador?.curadaEm, 'avaliacaoDoCurador deve ter curadaEm');
+    const t1 = new Date(corpoCriacao.curadaEm).getTime();
+    assert.ok(!Number.isNaN(t1), 'curadaEm deve ser um timestamp ISO válido');
+
+    // Aguarda um instante para garantir timestamps distintos
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // 2. Admin edita conferência existente: curadaEm deve refletir o instante da edição
+    const edicao = await app.inject({
+      method: 'PUT',
+      url: '/atendimentos/a3/conferencia',
+      headers: { authorization: `Bearer ${sessaoAdmin}` },
+      payload: {
+        checklist: checklistDaConferencia(() => 'Atendido'),
+        comentario: 'edição com nova data'
+      }
+    });
+    assert.equal(edicao.statusCode, 200);
+    const corpoEdicao = edicao.json();
+    assert.ok(corpoEdicao.curadaEm, 'corpo da edição deve ter curadaEm na raiz');
+    assert.ok(corpoEdicao.avaliacaoDoCurador?.curadaEm, 'avaliacaoDoCurador deve ter curadaEm atualizado');
+    const t2 = new Date(corpoEdicao.curadaEm).getTime();
+    assert.ok(t2 >= t1, 'curadaEm atualizado deve ser maior ou igual a t1');
+
+    // 3. GET /atendimentos/a3 deve refletir a data atualizada
+    const detalhe = await app.inject({
+      method: 'GET',
+      url: '/atendimentos/a3',
+      headers: { authorization: `Bearer ${sessaoCurador}` }
+    });
+    assert.equal(detalhe.statusCode, 200);
+    const corpoDetalhe = detalhe.json();
+    assert.equal(corpoDetalhe.curadaEm, corpoEdicao.curadaEm);
+    assert.equal(corpoDetalhe.avaliacaoDoCurador.curadaEm, corpoEdicao.avaliacaoDoCurador.curadaEm);
+
+    // 4. Listagem /atendimentos inclui curadaEm para curados e null para pendentes
+    const listagem = await app.inject({
+      method: 'GET',
+      url: '/atendimentos',
+      headers: { authorization: `Bearer ${sessaoAdmin}` }
+    });
+    assert.equal(listagem.statusCode, 200);
+    const itens = listagem.json().itens;
+    const itemA3 = itens.find((it: { id: string }) => it.id === 'a3');
+    const itemA1 = itens.find((it: { id: string }) => it.id === 'a1');
+    assert.ok(itemA3);
+    assert.equal(itemA3.curadaEm, corpoEdicao.curadaEm);
+    assert.ok(itemA1);
+    assert.equal(itemA1.curadaEm, null);
+  } finally {
+    await app.close();
+  }
+});
+
+
 test('Concordância por nota compara a nota gravada da IA com a soma derivada', async () => {
   const app = await buildApp();
 
