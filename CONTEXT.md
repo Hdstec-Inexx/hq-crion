@@ -179,16 +179,16 @@ Nas listagens o controle chama-se **Nota da IA Avaliadora**. Recorta pela **nota
 _Avoid_: Nota mínima, limiar ≥, passo 0,1, Nota da Avaliação da IA (conceito GEAP de calibração do avaliador — este HQ não o usa no filtro)
 
 **Fila de Curadoria**:
-A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador escolhe quais revisar (modelo pull). Na casca: “Fila de curadoria”. O Período é o termo **Período**; a lista vai do mais antigo ao mais novo. Filtros: Recorte, período, id da conversa, motivo, **Filtro de Nota da IA**, Limpar — o mesmo recorte operacional da fila GEAP, sem critérios nem curador.
+A lista de Atendimentos concluídos e já avaliados pela IA, da qual o Curador escolhe quais revisar (modelo pull). Na casca: “Fila de curadoria”. O Período é o termo **Período**; a lista vai do mais antigo ao mais novo. Filtros: Recorte, período, id da conversa, CPF, motivo, **Filtro de Nota da IA**, Limpar — o mesmo recorte operacional da fila GEAP, sem critérios nem curador.
 
 **Listagem de Atendimentos**:
-A lista operacional de Atendimentos. O Período é o termo **Período**: campos vazios até submeter; final em branco significa o dia da inicial; seletor de referência de data (**Atendimento** | **Curadoria**) para Admin e Gestão. Recorte no header. Filtros da página: período, id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos** (dois multi-selects compactos da Régua), status da curadoria (realizada/pendente; omitido para o Curador, cujos atendimentos já curados são ocultados nesta tela), curador, **Filtro de Nota da IA**, Limpar — e **Status** do Atendimento (Concluído / Em andamento). Não usa o booleano “Curadoria feita”.
+A lista operacional de Atendimentos. O Período é o termo **Período**: campos vazios até submeter; final em branco significa o dia da inicial; seletor de referência de data (**Atendimento** | **Curadoria**) para Admin e Gestão. Recorte no header. Filtros da página: período, id da conversa, CPF, motivo, **Critérios Não Atendidos** e **Critérios Atendidos** (dois multi-selects compactos da Régua), status da curadoria (realizada/pendente; omitido para o Curador, cujos atendimentos já curados são ocultados nesta tela), curador, **Filtro de Nota da IA**, Limpar — e **Status** do Atendimento (Concluído / Em andamento). Não usa o booleano “Curadoria feita”.
 
 **Motivo**:
 A classificação temática da demanda do Atendimento. Normalizado a partir do catálogo oficial dos 16 motivos da Clara e consolidado com novos termos da base via chave canônica por regex (remoção de acentos, ordinais, pontuação e espaços múltiplos). O filtro por motivo consome dinamicamente as opções existentes no banco.
 
 **Minhas Curadorias / Curadorias realizadas**:
-Listas de Atendimentos já conferidos. Filtros como no GEAP: Recorte, período (com seletor de referência **Atendimento** | **Curadoria**), id da conversa, motivo, **Critérios Não Atendidos** e **Critérios Atendidos**, **Filtro de Nota da IA**, Limpar; curador só em Curadorias realizadas (não em Minhas).
+Listas de Atendimentos já conferidos. Filtros como no GEAP: Recorte, período (com seletor de referência **Atendimento** | **Curadoria**), id da conversa, CPF, motivo, **Critérios Não Atendidos** e **Critérios Atendidos**, **Filtro de Nota da IA**, Limpar; curador só em Curadorias realizadas (não em Minhas).
 
 **Fila de Manutenção**:
 A lista de Comentários da conferência — pendentes e resolvidos — da qual o Admin trabalha a manutenção dos Agentes de Voz. Filtro por status e data; cada item liga ao Atendimento de origem. Só o Admin opera a fila. Na casca: “Manutenção”. Recorte igual às outras listagens. O Período é o termo **Período**.
