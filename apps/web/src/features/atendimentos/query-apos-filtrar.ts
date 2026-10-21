@@ -9,6 +9,7 @@ export function queryAposFiltrar(
   const filtrosDeValorUnico = [
     'inicio',
     'fim',
+    'tipoData',
     'status',
     'motivo',
     'conversa',
@@ -19,6 +20,15 @@ export function queryAposFiltrar(
 
   for (const campo of filtrosDeValorUnico) {
     const valor = String(data.get(campo) ?? '').trim();
+
+    if (campo === 'tipoData') {
+      if (valor === 'curadoria') {
+        proxima.set(campo, 'curadoria');
+      } else {
+        proxima.delete(campo);
+      }
+      continue;
+    }
 
     if (campo === 'notaIa') {
       const notaIa = notaIaDaQuery(valor);

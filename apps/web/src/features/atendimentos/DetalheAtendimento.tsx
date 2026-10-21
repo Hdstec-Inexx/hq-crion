@@ -30,6 +30,7 @@ import { BadgeFavoritos } from './BadgeFavoritos';
 import { BotaoFavorito } from './BotaoFavorito';
 import { buscarAtendimento, buscarObjetoDaMidia, buscarPercursoDaFila, gravarConferencia, marcarComentarioResolvido } from './api';
 import { ReproducaoDoAtendimento } from './TranscricaoDoAtendimento';
+import { formatarQuando } from './formatar-quando';
 
 function formatarNota(nota: number) {
   return nota.toFixed(1).replace('.', ',');
@@ -98,8 +99,11 @@ function PainelAvaliacao({
       </header>
       {doCurador ? (
         <p className="avaliacao-snapshot">
-          Curador: {avaliacao.curador}. Nota da Avaliação da IA no snapshot:{' '}
-          {formatarNota(avaliacao.notaDaAvaliacaoDaIa)}
+          Curador: {avaliacao.curador}.
+          {'curadaEm' in avaliacao && avaliacao.curadaEm
+            ? ` Data da Curadoria: ${formatarQuando(avaliacao.curadaEm)}.`
+            : ''}{' '}
+          Nota da Avaliação da IA no snapshot: {formatarNota(avaliacao.notaDaAvaliacaoDaIa)}
         </p>
       ) : null}
       <div className="criterio-grid">

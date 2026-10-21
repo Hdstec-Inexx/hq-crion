@@ -88,6 +88,7 @@ function curadoresDaListagem(itens: RegistroDeAtendimento[]) {
 
 export function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem {
   const { notaIa, notaCurador } = notasDoAtendimento(detalhe);
+  const curadaEm = detalhe.curadaEm ?? detalhe.avaliacaoDoCurador?.curadaEm ?? null;
 
   return {
     id: detalhe.id,
@@ -101,6 +102,7 @@ export function itemDaListagem(detalhe: AtendimentoDetalhe): AtendimentoListItem
     notaCurador,
     status: detalhe.status,
     curadoria: detalhe.curadoria,
+    curadaEm,
     conversa: detalhe.conversa,
     ...(detalhe.custo ? { custo: detalhe.custo } : {}),
     favoritadoPeloUsuario: detalhe.favoritadoPeloUsuario ?? false,
