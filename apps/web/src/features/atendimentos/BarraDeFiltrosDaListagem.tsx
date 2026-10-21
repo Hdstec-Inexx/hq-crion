@@ -166,6 +166,17 @@ export function BarraDeFiltrosDaListagem({
           />
         </label>
       ) : null}
+      {campoVisivel('cpf') ? (
+        <label>
+          CPF
+          <input
+            name="cpf"
+            placeholder="Buscar por CPF"
+            defaultValue={searchParams.get('cpf') ?? ''}
+            key={`cpf-${searchParams.get('cpf') ?? ''}`}
+          />
+        </label>
+      ) : null}
       {campoVisivel('criterios') ? (
         <>
           <MultiselectCriterios

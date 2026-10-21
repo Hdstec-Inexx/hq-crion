@@ -13,6 +13,7 @@ export function queryAposFiltrar(
     'status',
     'motivo',
     'conversa',
+    'cpf',
     'notaIa',
     'statusCuradoria',
     'curador'

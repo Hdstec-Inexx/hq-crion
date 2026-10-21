@@ -261,6 +261,42 @@ function detalheDe(item: AtendimentoListItem): RegistroDeAtendimento {
     };
   }
 
+  if (item.id === 'a3') {
+    return {
+      ...item,
+      transcricao: [
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:04',
+          texto: `Olá, aqui é a ${item.agente} da ${item.administradora}. Em que posso ajudar?`
+        },
+        {
+          locutor: 'Cliente',
+          quando: '0:12',
+          texto: 'Preciso consultar minha situação cadastral. Meu CPF é 999.888.777-66.'
+        },
+        {
+          locutor: 'Agente de Voz',
+          quando: '0:20',
+          texto:
+            'Vou consultar seus dados agora.\n[Chamada de Ferramenta: consultar_cpf]\n[Resultado da Ferramenta: consultar_cpf - Sucesso]',
+          detalhes: [
+            {
+              tipo: 'Ferramenta',
+              nome: 'consultar_cpf',
+              nomeDaFerramenta: 'consultar_cpf',
+              parametros: '{"cpf":"99988877766"}',
+              resposta: '{"sucesso":true,"cpf":"999.888.777-66"}'
+            }
+          ]
+        }
+      ],
+      avaliacaoDaIa: avaliacaoDe(item.nota, item.curadoria),
+      ...fatosInternos(item),
+      ...(concluido ? { concluidoEm: item.iniciadoEm } : {})
+    };
+  }
+
   return {
     ...item,
     transcricao: [

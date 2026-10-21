@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { falhasIdentificadasDe, type CriterioAvaliado } from '@hq-crion/contracts/atendimento';
+import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Recorte } from '@hq-crion/contracts/recorte';
 import {
   aplicarConsultaDaListagem,
@@ -122,6 +123,10 @@ WHERE ($7::text IS NULL OR a.id = $7)
           ELSE a.iniciado_em
         END) AT TIME ZONE 'America/Sao_Paulo')::date <= $5::date
     )
+  )
+  AND (
+    $9::text IS NULL
+    OR REPLACE(REPLACE(a.transcricao::text || ' ' || COALESCE(a.ferramentas::text, ''), '.', ''), '-', '') ILIKE '%' || REPLACE(REPLACE($9, '.', ''), '-', '') || '%'
   )
 `;
 
@@ -346,6 +351,10 @@ function montarRegistro(
       : undefined;
 
   const custo = formatarCusto(linha.custo);
+  const cpf = extrairCpf({
+    transcricao: linha.transcricao,
+    ferramentas: linha.ferramentas
+  });
 
   return {
     id: linha.id,
@@ -360,6 +369,7 @@ function montarRegistro(
     status: linha.status,
     curadoria: Boolean(linha.tem_curadoria),
     curadaEm,
+    cpf,
     conversa: linha.id,
     favoritadoPeloUsuario: Boolean(linha.favoritado_pelo_usuario),
     favoritosCount: numero(linha.favoritos_count ?? 0),
@@ -427,7 +437,8 @@ async function lerRegistros(
     aplicarPeriodo ? (periodo?.fim ?? '1970-01-01') : '9999-12-31',
     referenciaData,
     entrada.id ?? null,
-    entrada.perfilId ?? null
+    entrada.perfilId ?? null,
+    query.cpf && query.cpf.trim() ? query.cpf.trim() : null
   ]);
   const linhas = resultado.rows as Parameters<typeof montarRegistro>[0][];
   const criteriosIa = await mapaDeCriterios(
