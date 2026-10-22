@@ -224,6 +224,16 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
       );
     }
 
+    if (filtros.comConcorrente === 'sim') {
+      itensFiltrados = itensFiltrados.filter(
+        (i) => Boolean(i.diagnosticoCancelamento.concorrenteCitado)
+      );
+    } else if (filtros.comConcorrente === 'nao') {
+      itensFiltrados = itensFiltrados.filter(
+        (i) => !i.diagnosticoCancelamento.concorrenteCitado
+      );
+    }
+
     if (filtros.concorrente) {
       const concFiltro = filtros.concorrente.toLowerCase();
       itensFiltrados = itensFiltrados.filter((i) =>

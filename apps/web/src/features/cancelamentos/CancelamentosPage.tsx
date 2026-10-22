@@ -139,6 +139,7 @@ export function CancelamentosPage() {
   // Filtros da listagem / gráficos
   const causaNaUrl = searchParams.get('causa') ?? '';
   const vendaMalFeitaNaUrl = searchParams.get('vendaMalFeita') ?? 'todos';
+  const comConcorrenteNaUrl = searchParams.get('comConcorrente') ?? '';
   const concorrenteNaUrl = searchParams.get('concorrente') ?? '';
   const buscaNaUrl = searchParams.get('busca') ?? '';
 
@@ -177,7 +178,7 @@ export function CancelamentosPage() {
 
   useEffect(() => {
     setPaginaAtual(1);
-  }, [causaNaUrl, vendaMalFeitaNaUrl, concorrenteNaUrl, buscaNaUrl]);
+  }, [causaNaUrl, vendaMalFeitaNaUrl, comConcorrenteNaUrl, concorrenteNaUrl, buscaNaUrl]);
 
   // Debounce para inputs textuais de busca e concorrente
   useEffect(() => {
@@ -294,6 +295,9 @@ export function CancelamentosPage() {
 
     if (limpo && limpo !== 'todos') {
       proxima.set(chave, limpo);
+      if (chave === 'vendaMalFeita' && limpo === 'sim') {
+        proxima.delete('comConcorrente');
+      }
     } else {
       proxima.delete(chave);
     }
@@ -317,10 +321,33 @@ export function CancelamentosPage() {
     }
   }
 
+  function alternarCardVendaMalFeita() {
+    const proxima = new URLSearchParams(searchParams);
+    proxima.delete('comConcorrente');
+    if (vendaMalFeitaNaUrl === 'sim') {
+      proxima.delete('vendaMalFeita');
+    } else {
+      proxima.set('vendaMalFeita', 'sim');
+    }
+    setSearchParams(proxima, { replace: true });
+  }
+
+  function alternarCardMigracao() {
+    const proxima = new URLSearchParams(searchParams);
+    proxima.delete('vendaMalFeita');
+    if (comConcorrenteNaUrl === 'sim') {
+      proxima.delete('comConcorrente');
+    } else {
+      proxima.set('comConcorrente', 'sim');
+    }
+    setSearchParams(proxima, { replace: true });
+  }
+
   function limparFiltrosListagem() {
     const proxima = new URLSearchParams(searchParams);
     proxima.delete('causa');
     proxima.delete('vendaMalFeita');
+    proxima.delete('comConcorrente');
     proxima.delete('concorrente');
     proxima.delete('busca');
     setConcorrenteRascunho('');
@@ -331,9 +358,14 @@ export function CancelamentosPage() {
   const temFiltroListagemAtivo = Boolean(
     causaNaUrl ||
       (vendaMalFeitaNaUrl && vendaMalFeitaNaUrl !== 'todos') ||
+      (comConcorrenteNaUrl && comConcorrenteNaUrl !== 'todos') ||
       concorrenteNaUrl ||
       buscaNaUrl
   );
+
+  const isCancelamentosAtivo = !temFiltroListagemAtivo;
+  const isVendaMalFeitaAtivo = vendaMalFeitaNaUrl === 'sim';
+  const isMigracaoAtivo = comConcorrenteNaUrl === 'sim';
 
   async function dispararPesquisaIa(perguntaTexto: string) {
     const limpa = perguntaTexto.trim();
@@ -470,23 +502,38 @@ export function CancelamentosPage() {
             className="dashboard-kpis cancelamentos-kpis"
             aria-label="Indicadores de Cancelamento"
           >
-            <div className="dashboard-kpi">
+            <button
+              type="button"
+              className={`dashboard-kpi cancelamentos-kpi-clicavel ${isCancelamentosAtivo ? 'is-ativo' : ''}`}
+              onClick={limparFiltrosListagem}
+              aria-pressed={isCancelamentosAtivo}
+            >
               <small>Cancelamentos Identificados</small>
               <strong>{painel.kpis.totalCancelamentos}</strong>
               <em>
                 {formatarPercentual(painel.kpis.percentualCancelamentos)} dos atendimentos ({painel.kpis.totalAtendimentos})
               </em>
-            </div>
+            </button>
 
-            <div className="dashboard-kpi">
+            <button
+              type="button"
+              className={`dashboard-kpi cancelamentos-kpi-clicavel ${isVendaMalFeitaAtivo ? 'is-ativo' : ''}`}
+              onClick={alternarCardVendaMalFeita}
+              aria-pressed={isVendaMalFeitaAtivo}
+            >
               <small>Venda Mal Feita</small>
               <strong>{painel.kpis.totalVendaMalFeita}</strong>
               <em>
                 {formatarPercentual(painel.kpis.percentualVendaMalFeita)} dos cancelamentos
               </em>
-            </div>
+            </button>
 
-            <div className="dashboard-kpi">
+            <button
+              type="button"
+              className={`dashboard-kpi cancelamentos-kpi-clicavel ${isMigracaoAtivo ? 'is-ativo' : ''}`}
+              onClick={alternarCardMigracao}
+              aria-pressed={isMigracaoAtivo}
+            >
               <small>Migração para Concorrente</small>
               <strong>{painel.kpis.totalConcorrencia}</strong>
               <em>
@@ -494,7 +541,7 @@ export function CancelamentosPage() {
                   ? `Principal: ${painel.kpis.principalConcorrente}`
                   : 'Nenhum concorrente citado'}
               </em>
-            </div>
+            </button>
           </section>
 
           {/* BLOCO 2 — Gráficos Interativos */}
