@@ -1,13 +1,13 @@
 const colunasDoAtendimento = `
   id, agente_id, status, iniciado_em, concluido_em, duracao_em_segundos,
   transcricao, audio, motivo, transferencia, custo, evento_na_fonte_em,
-  tempo_de_espera_em_segundos, ferramentas
+  tempo_de_espera_em_segundos, ferramentas, administradora
 `;
 
 const valoresDoAtendimento = `
   $1, $2, $3, $4, $5, $6,
   $7::jsonb, $8, $9, $10, $11, $12,
-  $13, $14::jsonb
+  $13, $14::jsonb, $15
 `;
 
 export const inserirAtendimentoSql = `
@@ -35,5 +35,6 @@ ON CONFLICT (id) DO UPDATE SET
   transferencia = CASE
     WHEN EXCLUDED.transcricao = '[]'::jsonb THEN hq_atendimento.transferencia
     ELSE EXCLUDED.transferencia
-  END
+  END,
+  administradora = COALESCE(hq_atendimento.administradora, EXCLUDED.administradora)
 `;
