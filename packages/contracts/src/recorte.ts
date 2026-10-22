@@ -49,6 +49,13 @@ export const agentesDeVoz: AgenteDeVoz[] = [
   { id: 'conecta-1', administradora: 'Conectaplan', nome: 'Clara Conectaplan' }
 ];
 
+export const idsSementeAgentes = new Set<string>([
+  'affix-0800',
+  'affix-wa',
+  'alter-1',
+  'conecta-1'
+]);
+
 export function queryDoRecorte(recorte: Recorte): URLSearchParams {
   const query = new URLSearchParams();
 

@@ -69,3 +69,9 @@ CREATE TRIGGER trg_hq_atendimento_agente_e_administradora
   BEFORE INSERT OR UPDATE ON hq_atendimento
   FOR EACH ROW
   EXECUTE FUNCTION hq_trg_atendimento_agente_e_administradora();
+
+CREATE INDEX IF NOT EXISTS hq_atendimento_administradora
+  ON hq_atendimento (administradora);
+
+CREATE INDEX IF NOT EXISTS hq_atendimento_agente_administradora
+  ON hq_atendimento (agente_id, administradora);

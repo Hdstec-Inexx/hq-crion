@@ -4,6 +4,7 @@ import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   agentesDeVoz,
+  idsSementeAgentes,
   type Administradora,
   type AgenteDeVoz,
   type Recorte
@@ -1378,7 +1379,6 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         ORDER BY ag.nome ASC
       `);
 
-      const idsSemente = new Set(['affix-0800', 'affix-wa', 'alter-1', 'conecta-1']);
       const linhas = resultado.rows as Array<{
         id: string;
         nome: string;
@@ -1386,9 +1386,9 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         administradoras_atendidas: Administradora[];
       }>;
 
-      const temAgentesReais = linhas.some((l) => !idsSemente.has(l.id));
+      const temAgentesReais = linhas.some((l) => !idsSementeAgentes.has(l.id));
       const selecionadas = temAgentesReais
-        ? linhas.filter((l) => !idsSemente.has(l.id))
+        ? linhas.filter((l) => !idsSementeAgentes.has(l.id))
         : linhas;
 
       if (selecionadas.length === 0) {

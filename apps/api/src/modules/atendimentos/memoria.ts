@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   administradoraNoNomeDoAgente,
   agentesDeVoz,
+  idsSementeAgentes,
   type Administradora,
   type AgenteDeVoz
 } from '@hq-crion/contracts/recorte';
@@ -548,7 +549,6 @@ export function repositorioEmMemoria(
       return consultaDoPercurso(registros, atual, recorte, query);
     },
     async listarAgentes(): Promise<AgenteDeVoz[]> {
-      const idsSemente = new Set(['affix-0800', 'affix-wa', 'alter-1', 'conecta-1']);
       const mapa = new Map<
         string,
         {
@@ -590,9 +590,9 @@ export function repositorioEmMemoria(
         administradorasAtendidas: [...e.administradorasAtendidas].sort()
       }));
 
-      const temAgentesReais = lista.some((item) => !idsSemente.has(item.id));
+      const temAgentesReais = lista.some((item) => !idsSementeAgentes.has(item.id));
       const filtrados = temAgentesReais
-        ? lista.filter((item) => !idsSemente.has(item.id))
+        ? lista.filter((item) => !idsSementeAgentes.has(item.id))
         : lista;
 
       if (filtrados.length === 0) {

@@ -18,7 +18,8 @@ import { extrairCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   administradoraNoNomeDoAgente,
-  catalogoAgentesResponseSchema
+  catalogoAgentesResponseSchema,
+  idsSementeAgentes
 } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
@@ -26,7 +27,6 @@ import {
   transcricaoPrecisaDeReleitura,
   transcricaoRelida
 } from '../ingestao/elevenlabs.js';
-import { idsSementeAgentes } from '../ingestao/sincronizacao-agentes.js';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
 import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
@@ -205,8 +205,21 @@ function responderDetalhe(
   });
 }
 
+const LIMITE_CONVERSAS_VERIFICADAS = 2_000;
 export const conversasSemChamadaEstruturada = new Set<string>();
 export const conversasComAgenteVerificado = new Set<string>();
+
+export function registrarConversaVerificada(conversaId: string) {
+  if (conversasComAgenteVerificado.size >= LIMITE_CONVERSAS_VERIFICADAS) {
+    const iter = conversasComAgenteVerificado.values();
+    for (let i = 0; i < 500; i++) {
+      const next = iter.next();
+      if (next.done) break;
+      conversasComAgenteVerificado.delete(next.value);
+    }
+  }
+  conversasComAgenteVerificado.add(conversaId);
+}
 
 const atendimentoRoutes: FastifyPluginAsync = async (app) => {
   async function listar(
@@ -442,7 +455,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
           esperaMs: 5_000
         });
 
-        conversasComAgenteVerificado.add(item.conversa);
+        registrarConversaVerificada(item.conversa);
 
         if (payload?.agent_id && (payload.agent_id !== item.agenteId || precisaSincronizarAgente)) {
           const nomeReal = payload.agent_name?.trim() || payload.agent_id;
@@ -468,7 +481,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
           }
         }
       } catch {
-        conversasComAgenteVerificado.add(item.conversa);
+        registrarConversaVerificada(item.conversa);
         item.transcricao = encontrado.transcricao;
       }
     }

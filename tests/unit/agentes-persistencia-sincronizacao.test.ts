@@ -311,3 +311,16 @@ test('consultas de Atendimento e Manutenção preservam filtro por Administrador
     await app.close();
   }
 });
+
+test('ADR 0015 documenta agentes compartilhados, administradora no atendimento e sincronização', async () => {
+  const { readFileSync, existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const adrPath = join(process.cwd(), 'docs/adr/0015-agentes-de-voz-compartilhados-e-administradora-no-atendimento.md');
+  assert.ok(existsSync(adrPath), 'ADR 0015 deve existir');
+
+  const conteudo = readFileSync(adrPath, 'utf8');
+  assert.match(conteudo, /Agentes de Voz Compartilhados/i);
+  assert.match(conteudo, /hq_atendimento\.administradora/i);
+  assert.match(conteudo, /019_administradora_no_atendimento_e_agentes_compartilhados\.sql/i);
+  assert.match(conteudo, /salva-atendimento\.sql/i);
+});
