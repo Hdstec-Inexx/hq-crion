@@ -23,7 +23,9 @@ import {
 import {
   administradoras,
   agentesDeVoz,
+  buscarAgenteNoCatalogo,
   type Administradora,
+  type AgenteDeVoz,
   type Recorte
 } from '@hq-crion/contracts/recorte';
 import { camposDeMidia, type RegistroDeAtendimento } from '../atendimentos/registro.js';
@@ -366,7 +368,8 @@ export function administradoraNoNomeDoAgente(nome: string): Administradora | nul
 
 export function cabeNoRecorteAoVivo(
   item: { administradora: Administradora | null; agente: string; agenteId: string },
-  recorte: Recorte
+  recorte: Recorte,
+  catalogoOuAgente?: AgenteDeVoz[] | AgenteDeVoz
 ) {
   if (!recorte.administradora && !recorte.agente) {
     return true;
@@ -386,7 +389,9 @@ export function cabeNoRecorteAoVivo(
     return true;
   }
 
-  const doCatalogo = agentesDeVoz.find((agente) => agente.id === recorte.agente);
+  const doCatalogo = Array.isArray(catalogoOuAgente)
+    ? buscarAgenteNoCatalogo(recorte.agente, catalogoOuAgente)
+    : (catalogoOuAgente ?? buscarAgenteNoCatalogo(recorte.agente));
 
   return doCatalogo
     ? item.agente.toLocaleLowerCase('pt-BR').includes(doCatalogo.nome.toLocaleLowerCase('pt-BR'))

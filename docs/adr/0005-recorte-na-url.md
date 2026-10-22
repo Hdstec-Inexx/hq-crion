@@ -1,3 +1,5 @@
 # Recorte vive na URL da página, não na casca nem na sessão
 
+Status: accepted (emendado pela ADR 0016: o seletor de Agente de Voz permanece sempre ativo mesmo com Administradora em "Todas").
+
 O Recorte (Administradora → Agente de Voz) é query da rota atual, em cascata no header: o segundo nível só lista agentes da Administradora escolhida; “Todas” no primeiro desliga o segundo. Recarregar preserva. KPI, badge e volta à lista carregam os params. Navegar pela casca abre a área consolidada. Recorte em sessão faria a casca de seletor de carteira — o glossário já proíbe. Selects independentes permitiriam Agente da Alter com Administradora Affix.

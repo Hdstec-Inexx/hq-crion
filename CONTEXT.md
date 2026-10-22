@@ -45,7 +45,7 @@ Uma instância da Clara, pertencente a uma Administradora. É a unidade do segun
 _Avoid_: bot, assistente, inbox
 
 **Recorte**:
-A restrição opcional da leitura, em dois níveis em cascata no header da página: **Administradora**, depois **Agente de Voz** (ou todos os agentes daquela Administradora). “Todas” no primeiro nível é a leitura **consolidada** e desliga o segundo. Vale no dashboard e em todas as listagens. Vive na URL da página: F5 preserva; KPI, badge da linha e “voltar à lista” carregam Administradora e Agente; clique na casca abre a área **sem** Recorte. Não há combinação inválida (Agente de uma Administradora com outra selecionada).
+A restrição opcional da leitura, em dois níveis no header da página: **Administradora**, depois **Agente de Voz** (ou todos os agentes daquela Administradora). O seletor de **Agente de Voz** permanece sempre ativo, inclusive quando **Administradora** estiver em “Todas”, permitindo filtrar toda a operação por agentes dedicados e compartilhados. Vale no dashboard e em todas as listagens. Vive na URL da página: F5 preserva; KPI, badge da linha e “voltar à lista” carregam Administradora e Agente; clique na casca abre a área **sem** Recorte. Ao alternar a Administradora, o agente é preservado se for compatível ou redefinido para todos os agentes caso seja dedicado exclusivamente a outra Administradora. Não há combinação inválida (Agente dedicado de uma Administradora filtrado com outra selecionada).
 _Avoid_: tenant, workspace, contexto da casca, troca de HQ
 
 **Período**:

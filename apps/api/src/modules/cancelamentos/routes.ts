@@ -11,10 +11,10 @@ import {
   type CancelamentoPorConcorrente,
   type CategoriaCausaCancelamento
 } from '@hq-crion/contracts/cancelamento';
-import type { Recorte } from '@hq-crion/contracts/recorte';
+import type { AgenteDeVoz, Recorte } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { registroDaAutorizacao } from '../perfil/sessoes.js';
-import { periodoDaQuery, recorteDaQuery } from '../atendimentos/filtros.js';
+import { periodoDaQuery, recorteDaQuery, resolverRecorteDaQuery } from '../atendimentos/filtros.js';
 import { itemDaListagem } from '../atendimentos/routes.js';
 import { extrairDiagnosticoDeCancelamento } from './heuristica.js';
 import {
@@ -27,17 +27,19 @@ function semCache(reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
 }
 
-function resolverRecorteEPeriodo(
+async function resolverRecorteEPeriodo(
   dados: {
     administradora?: string | null;
     agente?: string | null;
     inicio?: string | null;
     fim?: string | null;
   },
-  query: Record<string, string | undefined>
-):
+  query: Record<string, string | undefined>,
+  obterCatalogo?: () => Promise<AgenteDeVoz[]>
+): Promise<
   | { ok: true; recorte: Recorte; periodo: { inicio: string; fim: string } }
-  | { ok: false; erro: 'recorte' | 'periodo' } {
+  | { ok: false; erro: 'recorte' | 'periodo' }
+> {
   const queryMesclada: Record<string, string | undefined> = {
     ...query,
     ...(dados.administradora !== undefined ? { administradora: dados.administradora ?? undefined } : {}),
@@ -46,7 +48,7 @@ function resolverRecorteEPeriodo(
     ...(dados.fim !== undefined ? { fim: dados.fim ?? undefined } : {})
   };
 
-  const recorte = recorteDaQuery(queryMesclada);
+  const recorte = await resolverRecorteDaQuery(queryMesclada, obterCatalogo);
   if (!recorte) {
     return { ok: false, erro: 'recorte' };
   }
@@ -74,7 +76,7 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const recorte = recorteDaQuery(query);
+    const recorte = await resolverRecorteDaQuery(query, () => app.atendimentos.listarAgentes());
     const periodo = periodoDaQuery(query, 'dashboard');
 
     if (!recorte || !periodo) {
@@ -294,7 +296,7 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const resolvido = resolverRecorteEPeriodo(lido.data, query);
+    const resolvido = await resolverRecorteEPeriodo(lido.data, query, () => app.atendimentos.listarAgentes());
 
     if (!resolvido.ok) {
       return reply.code(400).send({
@@ -351,7 +353,7 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const resolvido = resolverRecorteEPeriodo(lido.data, query);
+    const resolvido = await resolverRecorteEPeriodo(lido.data, query, () => app.atendimentos.listarAgentes());
 
     if (!resolvido.ok) {
       return reply.code(400).send({

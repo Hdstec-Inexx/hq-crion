@@ -1,13 +1,14 @@
 const apiLocal = 'http://localhost:3000';
 
 export function urlDaApi() {
-  const definida = import.meta.env.VITE_API_URL?.trim();
+  const env = (import.meta as unknown as { env?: Record<string, string | boolean | undefined> }).env;
+  const definida = (typeof env?.VITE_API_URL === 'string' ? env.VITE_API_URL : undefined)?.trim();
 
   if (definida) {
     return definida.replace(/\/$/, '');
   }
 
-  if (import.meta.env.DEV) {
+  if (env?.DEV || !env) {
     return apiLocal;
   }
 

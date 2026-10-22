@@ -790,7 +790,7 @@ test('GET /favoritos suporta os três papéis, recorte, busca conversa, filtro p
     // 8. Recorte em cascata e par inválido
     const resRecorteInvalido = await app.inject({
       method: 'GET',
-      url: '/favoritos?administradora=Affix&agente=agente-inexistente',
+      url: '/favoritos?administradora=Affix&agente=alter-1',
       headers: { authorization: `Bearer ${sessaoAdmin}` }
     });
     assert.equal(resRecorteInvalido.statusCode, 400);
