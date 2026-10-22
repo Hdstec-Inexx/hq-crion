@@ -559,12 +559,7 @@ export function repositorioEmMemoria(
         }
       >();
 
-      const atendimentosAvaliados = registros.filter(
-        (r) => Boolean(r.avaliacaoDaIa || r.avaliacaoDoCurador || r.curadoria || (r.status === 'Concluído' && r.notaIa > 0))
-      );
-      const baseParaAgentes = atendimentosAvaliados.length > 0 ? atendimentosAvaliados : registros;
-
-      for (const r of baseParaAgentes) {
+      for (const r of registros) {
         if (!r.agenteId) continue;
         let entry = mapa.get(r.agenteId);
         if (!entry) {
@@ -590,19 +585,14 @@ export function repositorioEmMemoria(
         administradorasAtendidas: [...e.administradorasAtendidas].sort()
       }));
 
-      const temAgentesReais = lista.some((item) => !idsSementeAgentes.has(item.id));
-      const filtrados = temAgentesReais
-        ? lista.filter((item) => !idsSementeAgentes.has(item.id))
-        : lista;
-
-      if (filtrados.length === 0) {
+      if (lista.length === 0) {
         return agentesDeVoz.map((ag) => ({
           ...ag,
           administradorasAtendidas: ag.administradora ? [ag.administradora] : []
         }));
       }
 
-      return filtrados.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      return lista.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
     },
     async atualizarAgenteDoAtendimento(atendimentoId, agenteId, agenteNome, _administradoraDedicada) {
       const atendimento = registros.find((r) => r.id === atendimentoId);

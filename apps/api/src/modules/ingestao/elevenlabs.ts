@@ -649,6 +649,7 @@ export async function listarConversasElevenLabs(input: {
   maxPaginas?: number;
   signal?: AbortSignal;
   esperaMs?: number;
+  incluirConcluidas?: boolean;
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const conversas: PayloadElevenLabs[] = [];
@@ -657,12 +658,21 @@ export async function listarConversasElevenLabs(input: {
 
   for (let pagina = 0; pagina < maxPaginas; pagina += 1) {
     buscaCancelada(input.signal);
-    const exclusoes = ['done', 'failed', 'processing']
-      .map((status) => `exclude_statuses=${encodeURIComponent(status)}`)
-      .join('&');
-    const caminho = cursor
-      ? `/v1/convai/conversations?${exclusoes}&cursor=${encodeURIComponent(cursor)}`
-      : `/v1/convai/conversations?${exclusoes}`;
+    const params = new URLSearchParams();
+    if (!input.incluirConcluidas) {
+      for (const status of ['done', 'failed', 'processing']) {
+        params.append('exclude_statuses', status);
+      }
+    } else {
+      params.set('page_size', '100');
+    }
+    if (cursor) {
+      params.set('cursor', cursor);
+    }
+    const queryString = params.toString();
+    const caminho = queryString
+      ? `/v1/convai/conversations?${queryString}`
+      : '/v1/convai/conversations';
     const corpo = (await buscarJson(
       fetchImpl,
       urlDaFonte(input.baseUrl, caminho),

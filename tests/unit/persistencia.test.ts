@@ -132,9 +132,21 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '016_diagnostico_de_cancelamento.sql',
       '017_sanear_concorrentes_cancelamento.sql',
       '018_edicao_de_conferencia.sql',
-      '019_administradora_no_atendimento_e_agentes_compartilhados.sql'
+      '019_administradora_no_atendimento_e_agentes_compartilhados.sql',
+      '020_inferir_administradora_conecta_plan_e_agentes_salvos.sql'
     ]
   );
+});
+
+test('a migration 020_inferir_administradora_conecta_plan_e_agentes_salvos atualiza inferência e retroalimenta agentes', () => {
+  const migracao = listarMigracoes().find(
+    (m) => m.nome === '020_inferir_administradora_conecta_plan_e_agentes_salvos.sql'
+  );
+  assert.ok(migracao, 'migration 020 ausente');
+  const sql = migracao.sql;
+  assert.match(sql, /conecta\[\\s-\]\*plan/i);
+  assert.match(sql, /UPDATE\s+hq_agente_de_voz/i);
+  assert.match(sql, /UPDATE\s+hq_atendimento/i);
 });
 
 test('a migration 019_administradora_no_atendimento_e_agentes_compartilhados adiciona administradora no atendimento e trigger de auto-cadastro', () => {
