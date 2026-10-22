@@ -489,6 +489,12 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+button.dashboard-kpi {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+
 .cancelamentos-kpi-clicavel {
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -496,6 +502,11 @@
 
 .cancelamentos-kpi-clicavel:hover {
   border-color: var(--cyan);
+}
+
+.cancelamentos-kpi-clicavel:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
 }
 
 .cancelamentos-kpi-clicavel.is-ativo {

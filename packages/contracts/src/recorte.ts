@@ -15,9 +15,32 @@ export type Recorte = z.infer<typeof recorteSchema>;
 
 export type AgenteDeVoz = {
   id: string;
-  administradora: Administradora;
   nome: string;
+  administradora: Administradora | null;
+  administradorasAtendidas?: Administradora[];
 };
+
+export const agenteDeVozSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().min(1),
+  administradora: administradoraSchema.nullable(),
+  administradorasAtendidas: z.array(administradoraSchema).optional()
+});
+
+export const catalogoAgentesResponseSchema = z.array(agenteDeVozSchema);
+
+export function administradoraNoNomeDoAgente(nome: string): Administradora | null {
+  const texto = nome.toLocaleLowerCase('pt-BR');
+  const achadas = administradoras.filter((nomeAdm) =>
+    texto.includes(nomeAdm.toLocaleLowerCase('pt-BR'))
+  );
+
+  if (achadas.length === 0) {
+    return null;
+  }
+
+  return achadas.reduce((maior, atual) => (atual.length > maior.length ? atual : maior));
+}
 
 export const agentesDeVoz: AgenteDeVoz[] = [
   { id: 'affix-0800', administradora: 'Affix', nome: 'Clara Affix 0800' },
@@ -25,6 +48,51 @@ export const agentesDeVoz: AgenteDeVoz[] = [
   { id: 'alter-1', administradora: 'Alter', nome: 'Clara Alter' },
   { id: 'conecta-1', administradora: 'Conectaplan', nome: 'Clara Conectaplan' }
 ];
+
+export const idsSementeAgentes = new Set<string>([
+  'affix-0800',
+  'affix-wa',
+  'alter-1',
+  'conecta-1'
+]);
+
+export function buscarAgenteNoCatalogo(
+  id: string,
+  catalogo?: AgenteDeVoz[]
+): AgenteDeVoz | undefined {
+  return (
+    catalogo?.find((item) => item.id === id) ??
+    agentesDeVoz.find((item) => item.id === id)
+  );
+}
+
+export function agenteCompativelComAdministradora(
+  agente: AgenteDeVoz,
+  administradora: Administradora | null
+): boolean {
+  if (!administradora) {
+    return true;
+  }
+
+  if (agente.administradora !== null) {
+    return agente.administradora === administradora;
+  }
+
+  return Boolean(agente.administradorasAtendidas?.includes(administradora));
+}
+
+export function agentesCompativeisComAdministradora(
+  catalogo: AgenteDeVoz[],
+  administradora: Administradora | null
+): AgenteDeVoz[] {
+  if (!administradora) {
+    return catalogo;
+  }
+
+  return catalogo.filter((agente) =>
+    agenteCompativelComAdministradora(agente, administradora)
+  );
+}
 
 export function queryDoRecorte(recorte: Recorte): URLSearchParams {
   const query = new URLSearchParams();
@@ -44,11 +112,24 @@ export function escreverRecorteNaQuery(
   atual: URLSearchParams,
   administradora: string,
   agente: string,
-  opcoes?: { resetarPagina?: boolean }
+  opcoes?: { resetarPagina?: boolean; catalogo?: AgenteDeVoz[] }
 ): URLSearchParams {
+  const administradoraValida = administradoraSchema.safeParse(administradora).data ?? null;
+  const agenteTrim = agente?.trim();
+  const agenteLimpo = agenteTrim && agenteTrim.length <= 200 ? agenteTrim : null;
+
+  let agenteFinal = agenteLimpo;
+  if (administradoraValida && agenteLimpo) {
+    const agenteEncontrado = buscarAgenteNoCatalogo(agenteLimpo, opcoes?.catalogo);
+
+    if (agenteEncontrado && !agenteCompativelComAdministradora(agenteEncontrado, administradoraValida)) {
+      agenteFinal = null;
+    }
+  }
+
   const recorteQuery = queryDoRecorte({
-    administradora: administradoraSchema.safeParse(administradora).data ?? null,
-    agente: administradora && agente ? agente : null
+    administradora: administradoraValida,
+    agente: agenteFinal
   });
   const proxima = new URLSearchParams(atual);
   proxima.delete('administradora');
@@ -65,24 +146,32 @@ export function escreverRecorteNaQuery(
   return proxima;
 }
 
-export function lerRecorte(query: {
-  administradora?: string;
-  agente?: string;
-}): Recorte {
+export function lerRecorte(
+  query: {
+    administradora?: string;
+    agente?: string;
+  },
+  catalogo?: AgenteDeVoz[]
+): Recorte {
   const administradoraBruta = query.administradora?.trim() || undefined;
   const agente = query.agente?.trim() || undefined;
+
+  if (agente && agente.length > 200) {
+    throw new Error('Recorte inválido');
+  }
+
   const administradora = administradoraBruta
     ? administradoraSchema.parse(administradoraBruta)
     : null;
 
-  if (agente && !administradora) {
-    throw new Error('Recorte inválido');
-  }
-
   if (agente && administradora) {
-    const encontrado = agentesDeVoz.find((item) => item.id === agente);
+    const agenteEncontrado = buscarAgenteNoCatalogo(agente, catalogo);
 
-    if (!encontrado || encontrado.administradora !== administradora) {
+    if (
+      agenteEncontrado &&
+      agenteEncontrado.administradora !== null &&
+      agenteEncontrado.administradora !== administradora
+    ) {
       throw new Error('Recorte inválido');
     }
   }

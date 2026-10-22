@@ -21,9 +21,12 @@ import {
   type ItemDaFonte
 } from '../ferramenta/da-fonte.js';
 import {
+  administradoraNoNomeDoAgente,
   administradoras,
   agentesDeVoz,
+  buscarAgenteNoCatalogo,
   type Administradora,
+  type AgenteDeVoz,
   type Recorte
 } from '@hq-crion/contracts/recorte';
 import { camposDeMidia, type RegistroDeAtendimento } from '../atendimentos/registro.js';
@@ -351,22 +354,12 @@ export type LeituraAoVivo = {
   transcricao: TurnoDaTranscricao[];
 };
 
-export function administradoraNoNomeDoAgente(nome: string): Administradora | null {
-  const texto = nome.toLocaleLowerCase('pt-BR');
-  const achadas = administradoras.filter((nomeAdm) =>
-    texto.includes(nomeAdm.toLocaleLowerCase('pt-BR'))
-  );
-
-  if (achadas.length === 0) {
-    return null;
-  }
-
-  return achadas.reduce((maior, atual) => (atual.length > maior.length ? atual : maior));
-}
+export { administradoraNoNomeDoAgente };
 
 export function cabeNoRecorteAoVivo(
   item: { administradora: Administradora | null; agente: string; agenteId: string },
-  recorte: Recorte
+  recorte: Recorte,
+  catalogoOuAgente?: AgenteDeVoz[] | AgenteDeVoz
 ) {
   if (!recorte.administradora && !recorte.agente) {
     return true;
@@ -386,7 +379,9 @@ export function cabeNoRecorteAoVivo(
     return true;
   }
 
-  const doCatalogo = agentesDeVoz.find((agente) => agente.id === recorte.agente);
+  const doCatalogo = Array.isArray(catalogoOuAgente)
+    ? buscarAgenteNoCatalogo(recorte.agente, catalogoOuAgente)
+    : (catalogoOuAgente ?? buscarAgenteNoCatalogo(recorte.agente));
 
   return doCatalogo
     ? item.agente.toLocaleLowerCase('pt-BR').includes(doCatalogo.nome.toLocaleLowerCase('pt-BR'))
@@ -445,11 +440,9 @@ export function transcricaoRelida(
 }
 
 export function atendimentoDaFonteElevenLabs(
-  payload: PayloadElevenLabs
+  payload: PayloadElevenLabs & { administradora?: Administradora }
 ): RegistroDeAtendimento | undefined {
-  const agente = agentesDeVoz.find((item) => item.id === payload.agent_id);
-
-  if (!agente) {
+  if (!payload.conversation_id || !payload.agent_id?.trim()) {
     return undefined;
   }
 
@@ -470,11 +463,21 @@ export function atendimentoDaFonteElevenLabs(
   );
   const custo = custoDaFonte(payload);
 
+  const agenteConhecido = agentesDeVoz.find((item) => item.id === payload.agent_id);
+  const nomeDaFonte = payload.agent_name?.trim();
+  const nome = nomeDaFonte || agenteConhecido?.nome || payload.agent_id;
+  const dedicada = administradoraNoNomeDoAgente(nome);
+  const administradora =
+    dedicada ??
+    payload.administradora ??
+    agenteConhecido?.administradora ??
+    'Affix';
+
   return {
     id: payload.conversation_id,
-    administradora: agente.administradora,
-    agente: payload.agent_name ?? agente.nome,
-    agenteId: agente.id,
+    administradora,
+    agente: nome,
+    agenteId: payload.agent_id,
     iniciadoEm,
     motivo: 'Não informado',
     nota: 0,

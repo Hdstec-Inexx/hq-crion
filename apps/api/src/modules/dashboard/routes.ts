@@ -1,6 +1,6 @@
 import { dashboardResponseSchema } from '@hq-crion/contracts/dashboard';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
-import { periodoDaQuery, recorteDaQuery } from '../atendimentos/filtros.js';
+import { periodoDaQuery, recorteDaQuery, resolverRecorteDaQuery } from '../atendimentos/filtros.js';
 import { registroDaAutorizacao } from '../perfil/sessoes.js';
 import { pulsoDoDashboard } from './agregacao.js';
 
@@ -22,7 +22,7 @@ const dashboardRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const recorte = recorteDaQuery(query);
+    const recorte = await resolverRecorteDaQuery(query, () => app.atendimentos.listarAgentes());
 
     if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });

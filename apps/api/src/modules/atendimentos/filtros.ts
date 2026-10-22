@@ -6,9 +6,11 @@ import {
 import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
+  agentesDeVoz,
   lerRecorte,
   periodoDaListagem,
   periodoDoDashboard,
+  type AgenteDeVoz,
   type PeriodoFechado
 } from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
@@ -42,13 +44,44 @@ export function diaNoFuso(iso: string) {
 }
 
 export function recorteDaQuery(
-  query: Record<string, string | undefined>
+  query: Record<string, string | undefined>,
+  catalogo?: AgenteDeVoz[]
 ): ReturnType<typeof lerRecorte> | undefined {
   try {
-    return lerRecorte({
-      administradora: query.administradora,
-      agente: query.agente
-    });
+    return lerRecorte(
+      {
+        administradora: query.administradora,
+        agente: query.agente
+      },
+      catalogo
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+export async function resolverRecorteDaQuery(
+  query: Record<string, string | undefined>,
+  obterCatalogo?: () => Promise<AgenteDeVoz[]>
+): Promise<ReturnType<typeof lerRecorte> | undefined> {
+  const agente = query.agente?.trim();
+  const administradora = query.administradora?.trim();
+
+  // Sem agente ou sem administradora, lerRecorte não precisa de consulta ao banco
+  if (!agente || !administradora || !obterCatalogo) {
+    return recorteDaQuery(query);
+  }
+
+  // Se o agente já pertence à semente estática, o contrato já valida em memória sem consulta ao banco
+  const semente = agentesDeVoz.find((a) => a.id === agente);
+  if (semente) {
+    return recorteDaQuery(query);
+  }
+
+  // Apenas consulta o catálogo dinâmico quando for um agente dinâmico com administradora informada
+  try {
+    const catalogo = await obterCatalogo();
+    return recorteDaQuery(query, catalogo);
   } catch {
     return undefined;
   }

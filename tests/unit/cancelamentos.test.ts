@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { buildApp } from '../../apps/api/src/app.js';
 import { areasDaCasca } from '../../packages/contracts/src/casca.js';
 import {
+  filtrosCancelamentoQuerySchema,
   painelDeCancelamentosResponseSchema,
   pesquisaIaCancelamentoResponseSchema,
   analisarPassivoResponseSchema
@@ -509,6 +510,33 @@ test('KPIs, agrupamentos e filtros da listagem de cancelamentos refletem Recorte
     });
     const itensCausaDivergente = painelDeCancelamentosResponseSchema.parse(resCausaDivergente.json()).itens;
     assert.equal(itensCausaDivergente.some((i) => i.id === 'a1'), false);
+
+    // Filtro comConcorrente=sim deve retornar todos com concorrente citado e bater com totalConcorrencia
+    const resComConcorrenteSim = await app.inject({
+      method: 'GET',
+      url: `${urlBase}&comConcorrente=sim`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const itensComConcorrenteSim = painelDeCancelamentosResponseSchema.parse(resComConcorrenteSim.json()).itens;
+    assert.equal(itensComConcorrenteSim.length, dados.kpis.totalConcorrencia);
+    assert.ok(itensComConcorrenteSim.every((i) => Boolean(i.diagnosticoCancelamento.concorrenteCitado)));
+    assert.ok(itensComConcorrenteSim.some((i) => i.id === 'a1'));
+
+    // Filtro comConcorrente=nao deve retornar apenas os que não têm concorrente citado
+    const resComConcorrenteNao = await app.inject({
+      method: 'GET',
+      url: `${urlBase}&comConcorrente=nao`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    const itensComConcorrenteNao = painelDeCancelamentosResponseSchema.parse(resComConcorrenteNao.json()).itens;
+    assert.ok(itensComConcorrenteNao.every((i) => !i.diagnosticoCancelamento.concorrenteCitado));
+    assert.equal(itensComConcorrenteNao.some((i) => i.id === 'a1'), false);
+
+    // Contagem da lista com vendaMalFeita=sim bate exatamente com o KPI totalVendaMalFeita
+    assert.equal(itensVendaSim.length, dados.kpis.totalVendaMalFeita);
+
+    // Sem filtros locais, quantidade da lista bate com o KPI totalCancelamentos
+    assert.equal(dados.itens.length, dados.kpis.totalCancelamentos);
   } finally {
     await app.close();
   }
@@ -1027,5 +1055,124 @@ test('Recorte, período do Dashboard, idempotência do passivo e validação de 
     dashboardCss,
     /\.cancelamentos-diagnostico-resumo\s*\{[\s\S]*?-webkit-line-clamp:\s*2[\s\S]*?line-clamp:\s*2[\s\S]*?overflow:\s*hidden[\s\S]*?text-overflow:\s*ellipsis/
   );
+
+  // 8. Filtragem interativa pelos cards de KPI (Issue #174)
+  // Cards de KPI devem ser botões interativos com aria-pressed e classe is-ativo
+  assert.match(
+    cancelamentosPageTsx,
+    /<button[\s\S]*?className=\{`dashboard-kpi cancelamentos-kpi-clicavel[\s\S]*?aria-pressed=\{[\s\S]*?Cancelamentos Identificados/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /<button[\s\S]*?className=\{`dashboard-kpi cancelamentos-kpi-clicavel[\s\S]*?aria-pressed=\{[\s\S]*?Venda Mal Feita/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /<button[\s\S]*?className=\{`dashboard-kpi cancelamentos-kpi-clicavel[\s\S]*?aria-pressed=\{[\s\S]*?Migração para Concorrente/
+  );
+
+  // Alternância direta e limpeza de filtros locais
+  assert.match(cancelamentosPageTsx, /proxima\.delete\('comConcorrente'\)/);
+  assert.match(cancelamentosPageTsx, /proxima\.delete\('vendaMalFeita'\)/);
+  assert.match(cancelamentosPageTsx, /proxima\.set\('comConcorrente',\s*'sim'\)/);
+  assert.match(cancelamentosPageTsx, /proxima\.set\('vendaMalFeita',\s*'sim'\)/);
+  assert.match(
+    cancelamentosPageTsx,
+    /function alternarCardVendaMalFeita\(\)\s*\{[\s\S]*?setPaginaAtual\(1\)[\s\S]*?proxima\.delete\('comConcorrente'\)[\s\S]*?proxima\.delete\('concorrente'\)[\s\S]*?proxima\.delete\('causa'\)/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /function alternarCardMigracao\(\)\s*\{[\s\S]*?setPaginaAtual\(1\)[\s\S]*?proxima\.delete\('vendaMalFeita'\)[\s\S]*?proxima\.delete\('concorrente'\)[\s\S]*?proxima\.delete\('causa'\)/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /function limparFiltrosListagem\(\)\s*\{[\s\S]*?setPaginaAtual\(1\)[\s\S]*?proxima\.delete\('comConcorrente'\)/
+  );
+  const corpoAtualizarFiltro = cancelamentosPageTsx.match(/function atualizarFiltro[\s\S]*?\n  \}/)?.[0] ?? '';
+  assert.doesNotMatch(corpoAtualizarFiltro, /delete\('comConcorrente'\)/);
+
+  // Indicador de filtro ativo no cabeçalho do painel de Concorrentes Citados
+  assert.match(
+    cancelamentosPageTsx,
+    /comConcorrenteNaUrl === 'sim'\s*\?[\s\S]*?Filtro: Com concorrente citado/
+  );
+
+  // Estilos de hover, foco e estado ativo dos cards de KPI
+  assert.match(dashboardCss, /\.cancelamentos-kpi-clicavel\s*\{[\s\S]*?cursor:\s*pointer/);
+  assert.match(dashboardCss, /\.cancelamentos-kpi-clicavel:hover\s*\{[\s\S]*?border-color:\s*var\(--cyan\)/);
+  assert.match(dashboardCss, /\.cancelamentos-kpi-clicavel:focus-visible\s*\{[\s\S]*?outline:\s*2px\s+solid\s+var\(--cyan\)/);
+  assert.match(dashboardCss, /\.cancelamentos-kpi-clicavel\.is-ativo\s*\{[\s\S]*?border-color:\s*var\(--cyan\)/);
+});
+
+test('Filtragem interativa pelos cards de KPI na aba de Cancelamentos (Issue #174)', async () => {
+  // 1. Contrato e validação do schema de query
+  assert.equal(
+    filtrosCancelamentoQuerySchema.safeParse({ comConcorrente: 'sim' }).success,
+    true
+  );
+  assert.equal(
+    filtrosCancelamentoQuerySchema.safeParse({ comConcorrente: 'nao' }).success,
+    true
+  );
+  assert.equal(
+    filtrosCancelamentoQuerySchema.safeParse({ comConcorrente: 'todos' }).success,
+    true
+  );
+  assert.equal(
+    filtrosCancelamentoQuerySchema.safeParse({ comConcorrente: 'invalido' }).success,
+    false
+  );
+
+  // 2. Comportamento da API na alternância dos cards de KPI
+  const app = await buildApp();
+  const { inicio, fim } = periodoMesCivil(new Date());
+  const urlBase = `/api/cancelamentos?administradora=Affix&agente=affix-0800&inicio=${inicio}&fim=${fim}`;
+
+  try {
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+
+    // Estado padrão (Card Cancelamentos Identificados ativo):
+    // Sem filtros locais restritivos, a lista deve ter o total exato de totalCancelamentos
+    const resPadrao = await app.inject({
+      method: 'GET',
+      url: urlBase,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    assert.equal(resPadrao.statusCode, 200);
+    const dadosPadrao = painelDeCancelamentosResponseSchema.parse(resPadrao.json());
+    assert.equal(dadosPadrao.itens.length, dadosPadrao.kpis.totalCancelamentos);
+
+    // Card Venda Mal Feita:
+    // Com vendaMalFeita=sim, lista bate exatamente com o KPI totalVendaMalFeita
+    const resVenda = await app.inject({
+      method: 'GET',
+      url: `${urlBase}&vendaMalFeita=sim`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    assert.equal(resVenda.statusCode, 200);
+    const dadosVenda = painelDeCancelamentosResponseSchema.parse(resVenda.json());
+    assert.equal(dadosVenda.itens.length, dadosVenda.kpis.totalVendaMalFeita);
+    assert.ok(
+      dadosVenda.itens.every((i) => i.diagnosticoCancelamento.vendaMalFeita === true),
+      'Todos os itens filtrados por Venda Mal Feita devem possuir vendaMalFeita true'
+    );
+
+    // Card Migração para Concorrente:
+    // Com comConcorrente=sim, lista bate exatamente com o KPI totalConcorrencia
+    const resMigracao = await app.inject({
+      method: 'GET',
+      url: `${urlBase}&comConcorrente=sim`,
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+    assert.equal(resMigracao.statusCode, 200);
+    const dadosMigracao = painelDeCancelamentosResponseSchema.parse(resMigracao.json());
+    assert.equal(dadosMigracao.itens.length, dadosMigracao.kpis.totalConcorrencia);
+    assert.ok(
+      dadosMigracao.itens.every((i) => Boolean(i.diagnosticoCancelamento.concorrenteCitado)),
+      'Todos os itens filtrados por Migração para Concorrente devem possuir concorrenteCitado preenchido'
+    );
+  } finally {
+    await app.close();
+  }
 });
 

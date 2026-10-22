@@ -56,10 +56,37 @@ test('ingestão mínima ignora Agente de Voz que não pertence ao HQ', () => {
   assert.equal(
     atendimentoDaFonteElevenLabs({
       conversation_id: 'conv-el-x',
-      agent_id: 'agente-desconhecido'
+      agent_id: ''
     }),
     undefined
   );
+});
+
+test('ingestão aceita qualquer Agente de Voz válido e infere administradora dedicada ou compartilhada', () => {
+  const dedicado = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-dedicado',
+    agent_id: 'agente-alter-novo',
+    agent_name: 'Clara Alter VIP',
+    start_time_unix_secs: 1_715_000_000,
+    status: 'done'
+  });
+  assert.ok(dedicado);
+  assert.equal(dedicado.agenteId, 'agente-alter-novo');
+  assert.equal(dedicado.agente, 'Clara Alter VIP');
+  assert.equal(dedicado.administradora, 'Alter');
+
+  const compartilhado = atendimentoDaFonteElevenLabs({
+    conversation_id: 'conv-compartilhado',
+    agent_id: 'agente-central-router',
+    agent_name: 'Clara Triagem Central',
+    administradora: 'Conectaplan',
+    start_time_unix_secs: 1_715_000_000,
+    status: 'done'
+  });
+  assert.ok(compartilhado);
+  assert.equal(compartilhado.agenteId, 'agente-central-router');
+  assert.equal(compartilhado.agente, 'Clara Triagem Central');
+  assert.equal(compartilhado.administradora, 'Conectaplan');
 });
 
 test('ingestão sem o instante da fonte não grava o relógio atual', () => {

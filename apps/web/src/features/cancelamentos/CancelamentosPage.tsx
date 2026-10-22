@@ -139,6 +139,7 @@ export function CancelamentosPage() {
   // Filtros da listagem / gráficos
   const causaNaUrl = searchParams.get('causa') ?? '';
   const vendaMalFeitaNaUrl = searchParams.get('vendaMalFeita') ?? 'todos';
+  const comConcorrenteNaUrl = searchParams.get('comConcorrente') ?? '';
   const concorrenteNaUrl = searchParams.get('concorrente') ?? '';
   const buscaNaUrl = searchParams.get('busca') ?? '';
 
@@ -177,7 +178,7 @@ export function CancelamentosPage() {
 
   useEffect(() => {
     setPaginaAtual(1);
-  }, [causaNaUrl, vendaMalFeitaNaUrl, concorrenteNaUrl, buscaNaUrl]);
+  }, [causaNaUrl, vendaMalFeitaNaUrl, comConcorrenteNaUrl, concorrenteNaUrl, buscaNaUrl]);
 
   // Debounce para inputs textuais de busca e concorrente
   useEffect(() => {
@@ -317,10 +318,42 @@ export function CancelamentosPage() {
     }
   }
 
+  function alternarCardVendaMalFeita() {
+    setPaginaAtual(1);
+    const proxima = new URLSearchParams(searchParams);
+    proxima.delete('comConcorrente');
+    proxima.delete('concorrente');
+    proxima.delete('causa');
+    setConcorrenteRascunho('');
+    if (vendaMalFeitaNaUrl === 'sim') {
+      proxima.delete('vendaMalFeita');
+    } else {
+      proxima.set('vendaMalFeita', 'sim');
+    }
+    setSearchParams(proxima, { replace: true });
+  }
+
+  function alternarCardMigracao() {
+    setPaginaAtual(1);
+    const proxima = new URLSearchParams(searchParams);
+    proxima.delete('vendaMalFeita');
+    proxima.delete('concorrente');
+    proxima.delete('causa');
+    setConcorrenteRascunho('');
+    if (comConcorrenteNaUrl === 'sim') {
+      proxima.delete('comConcorrente');
+    } else {
+      proxima.set('comConcorrente', 'sim');
+    }
+    setSearchParams(proxima, { replace: true });
+  }
+
   function limparFiltrosListagem() {
+    setPaginaAtual(1);
     const proxima = new URLSearchParams(searchParams);
     proxima.delete('causa');
     proxima.delete('vendaMalFeita');
+    proxima.delete('comConcorrente');
     proxima.delete('concorrente');
     proxima.delete('busca');
     setConcorrenteRascunho('');
@@ -331,9 +364,15 @@ export function CancelamentosPage() {
   const temFiltroListagemAtivo = Boolean(
     causaNaUrl ||
       (vendaMalFeitaNaUrl && vendaMalFeitaNaUrl !== 'todos') ||
+      (comConcorrenteNaUrl && comConcorrenteNaUrl !== 'todos') ||
       concorrenteNaUrl ||
       buscaNaUrl
   );
+
+  const isCancelamentosAtivo = !temFiltroListagemAtivo;
+  const isVendaMalFeitaAtivo =
+    vendaMalFeitaNaUrl === 'sim' && comConcorrenteNaUrl !== 'sim';
+  const isMigracaoAtivo = comConcorrenteNaUrl === 'sim';
 
   async function dispararPesquisaIa(perguntaTexto: string) {
     const limpa = perguntaTexto.trim();
@@ -402,7 +441,8 @@ export function CancelamentosPage() {
   // Itens paginados
   const totalItens = painel?.itens.length ?? 0;
   const totalPaginas = Math.ceil(totalItens / ITENS_POR_PAGINA);
-  const indiceInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+  const paginaAtualNormalizada = totalPaginas > 0 ? Math.min(paginaAtual, totalPaginas) : 1;
+  const indiceInicio = (paginaAtualNormalizada - 1) * ITENS_POR_PAGINA;
   const itensPaginados = (painel?.itens ?? []).slice(
     indiceInicio,
     indiceInicio + ITENS_POR_PAGINA
@@ -470,23 +510,38 @@ export function CancelamentosPage() {
             className="dashboard-kpis cancelamentos-kpis"
             aria-label="Indicadores de Cancelamento"
           >
-            <div className="dashboard-kpi">
+            <button
+              type="button"
+              className={`dashboard-kpi cancelamentos-kpi-clicavel ${isCancelamentosAtivo ? 'is-ativo' : ''}`}
+              onClick={limparFiltrosListagem}
+              aria-pressed={isCancelamentosAtivo}
+            >
               <small>Cancelamentos Identificados</small>
               <strong>{painel.kpis.totalCancelamentos}</strong>
               <em>
                 {formatarPercentual(painel.kpis.percentualCancelamentos)} dos atendimentos ({painel.kpis.totalAtendimentos})
               </em>
-            </div>
+            </button>
 
-            <div className="dashboard-kpi">
+            <button
+              type="button"
+              className={`dashboard-kpi cancelamentos-kpi-clicavel ${isVendaMalFeitaAtivo ? 'is-ativo' : ''}`}
+              onClick={alternarCardVendaMalFeita}
+              aria-pressed={isVendaMalFeitaAtivo}
+            >
               <small>Venda Mal Feita</small>
               <strong>{painel.kpis.totalVendaMalFeita}</strong>
               <em>
                 {formatarPercentual(painel.kpis.percentualVendaMalFeita)} dos cancelamentos
               </em>
-            </div>
+            </button>
 
-            <div className="dashboard-kpi">
+            <button
+              type="button"
+              className={`dashboard-kpi cancelamentos-kpi-clicavel ${isMigracaoAtivo ? 'is-ativo' : ''}`}
+              onClick={alternarCardMigracao}
+              aria-pressed={isMigracaoAtivo}
+            >
               <small>Migração para Concorrente</small>
               <strong>{painel.kpis.totalConcorrencia}</strong>
               <em>
@@ -494,7 +549,7 @@ export function CancelamentosPage() {
                   ? `Principal: ${painel.kpis.principalConcorrente}`
                   : 'Nenhum concorrente citado'}
               </em>
-            </div>
+            </button>
           </section>
 
           {/* BLOCO 2 — Gráficos Interativos */}
@@ -561,6 +616,15 @@ export function CancelamentosPage() {
                     title="Remover filtro de concorrente"
                   >
                     Filtro: {concorrenteNaUrl} &times;
+                  </button>
+                ) : comConcorrenteNaUrl === 'sim' ? (
+                  <button
+                    type="button"
+                    className="cancelamentos-tag-limpar"
+                    onClick={() => atualizarFiltro('comConcorrente', '')}
+                    title="Remover filtro de migração para concorrente"
+                  >
+                    Filtro: Com concorrente citado &times;
                   </button>
                 ) : null}
               </header>
@@ -946,7 +1010,7 @@ export function CancelamentosPage() {
 
                 {totalPaginas > 1 ? (
                   <PaginacaoCompacta
-                    pagina={paginaAtual}
+                    pagina={paginaAtualNormalizada}
                     totalPaginas={totalPaginas}
                     irPara={setPaginaAtual}
                   />

@@ -121,6 +121,7 @@ export const filtrosCancelamentoQuerySchema = z.object({
   ...recorteEPeriodoFiltroFields,
   causa: categoriaCausaCancelamentoSchema.optional(),
   vendaMalFeita: z.enum(['sim', 'nao', 'todos']).optional(),
+  comConcorrente: z.enum(['sim', 'nao', 'todos']).optional(),
   concorrente: z.string().trim().max(200).optional(),
   busca: z.string().trim().max(200).optional()
 });

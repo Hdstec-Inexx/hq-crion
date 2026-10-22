@@ -45,10 +45,12 @@ import {
 } from '../modules/perfil/repositorio.js';
 import { aplicarRegua, lerReguaDoDeposito } from '../modules/regua/regua-unica.js';
 import type { PortaDeAtendimentos } from '../modules/atendimentos/porta.js';
+import { sincronizarAgentesDosAtendimentos } from '../modules/ingestao/sincronizacao-agentes.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
     atendimentos: PortaDeAtendimentos;
+    sincronizarAgentesPendentes?: () => Promise<void>;
   }
 }
 
@@ -266,6 +268,14 @@ export default fp(
       );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);
+      app.decorate('sincronizarAgentesPendentes', () =>
+        sincronizarAgentesDosAtendimentos({
+          apiKey: app.config.ELEVENLABS_API_KEY,
+          baseUrl: app.config.ELEVENLABS_BASE_URL,
+          atendimentos: app.atendimentos,
+          log: app.log
+        })
+      );
       return;
     }
 
@@ -317,6 +327,26 @@ export default fp(
       );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);
+      app.decorate('sincronizarAgentesPendentes', () =>
+        sincronizarAgentesDosAtendimentos({
+          apiKey: app.config.ELEVENLABS_API_KEY,
+          baseUrl: app.config.ELEVENLABS_BASE_URL,
+          atendimentos: app.atendimentos,
+          pool,
+          log: app.log
+        })
+      );
+      if (app.config.ELEVENLABS_API_KEY) {
+        void sincronizarAgentesDosAtendimentos({
+          apiKey: app.config.ELEVENLABS_API_KEY,
+          baseUrl: app.config.ELEVENLABS_BASE_URL,
+          atendimentos: app.atendimentos,
+          pool,
+          log: app.log
+        }).catch((err) => {
+          app.log.warn({ err }, 'Sincronização de agentes em background falhou');
+        });
+      }
       if (!ingestaoEsperaOPlugin(fonte)) {
         void ingerirElevenLabs(pool, app.config, app.log).catch((error) => {
           app.log.warn(

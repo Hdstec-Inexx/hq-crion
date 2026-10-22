@@ -41,11 +41,11 @@ A linha de Agentes de Voz avaliada neste HQ. Cada Administradora opera uma ou ma
 _Avoid_: Lívia (GEAP), bot, assistente, chatbot
 
 **Agente de Voz**:
-Uma instância da Clara, pertencente a uma Administradora. É a unidade do segundo nível do Recorte e o “avaliado” concreto de cada Atendimento.
+Uma instância da Clara avaliada neste HQ. Quando o nome do agente contém o nome de uma Administradora (Affix, Alter ou Conectaplan), ele é dedicado a ela; quando não contém o nome de nenhuma Administradora, é um agente compartilhado entre elas. É a unidade do segundo nível do Recorte e o “avaliado” concreto de cada Atendimento.
 _Avoid_: bot, assistente, inbox
 
 **Recorte**:
-A restrição opcional da leitura, em dois níveis em cascata no header da página: **Administradora**, depois **Agente de Voz** (ou todos os agentes daquela Administradora). “Todas” no primeiro nível é a leitura **consolidada** e desliga o segundo. Vale no dashboard e em todas as listagens. Vive na URL da página: F5 preserva; KPI, badge da linha e “voltar à lista” carregam Administradora e Agente; clique na casca abre a área **sem** Recorte. Não há combinação inválida (Agente de uma Administradora com outra selecionada).
+A restrição opcional da leitura, em dois níveis no header da página: **Administradora** e **Agente de Voz**. O seletor de **Agente de Voz** permanece sempre ativo, inclusive quando **Administradora** estiver em “Todas” (leitura consolidada), permitindo filtrar toda a operação por agentes dedicados e compartilhados. Quando uma Administradora é selecionada, o segundo nível lista os agentes dedicados a ela e os agentes compartilhados que atuaram nela. Vale no dashboard e em todas as listagens. Vive na URL da página: F5 preserva; KPI, badge da linha e “voltar à lista” carregam Administradora e Agente; clique na casca abre a área **sem** Recorte. Ao alternar a Administradora, o agente é preservado se for compatível ou redefinido para todos os agentes caso seja dedicado exclusivamente a outra Administradora. Não há combinação inválida (Agente dedicado de uma Administradora filtrado com outra selecionada).
 _Avoid_: tenant, workspace, contexto da casca, troca de HQ
 
 **Período**:
@@ -204,7 +204,7 @@ O conjunto estruturado de fatos sobre a perda ou intenção de saída do cliente
 _Avoid_: Churn genérico sem vínculo com Atendimento, formulário manual do Curador, operadora do plano atual tratada como concorrente de destino
 
 **Cancelamentos**:
-A área analítica e investigativa na Casca Autenticada (`/cancelamentos`, título **Diagnóstico de Cancelamentos**, visível para Admin e Gestão) sob Recorte e Período. Reúne KPIs de perda (Total de Cancelamentos e taxa sobre o volume, Venda Mal Feita, Migração para Concorrente), gráficos interativos de Causas de Cancelamento e Concorrentes Citados (cujo clique filtra a listagem da própria tela), a **Pesquisa por IA** e a listagem filtrável dos Atendimentos com intenção de cancelamento.
+A área analítica e investigativa na Casca Autenticada (`/cancelamentos`, título **Diagnóstico de Cancelamentos**, visível para Admin e Gestão) sob Recorte e Período. Reúne KPIs interativos de perda (Total de Cancelamentos e taxa sobre o volume, Venda Mal Feita, Migração para Concorrente) e gráficos interativos de Causas de Cancelamento e Concorrentes Citados — cujo clique filtra a listagem da própria tela —, além da **Pesquisa por IA** e da listagem filtrável dos Atendimentos com intenção de cancelamento.
 
 **Pesquisa por IA**:
 A investigação em linguagem natural dentro da área de Cancelamentos, operada por Admin e Gestão sobre o universo de Atendimentos do Recorte e Período (ex.: *"Quem cancelou e foi para a Hapvida?"*, *"O problema do cancelamento é venda mal feita?"*). Utiliza o modelo configurado no OpenRouter (`deepseek/deepseek-v4.1-flash` por padrão, com fallback analítico local se a chave não estiver configurada) para sintetizar uma resposta executiva estruturada em parágrafos e tópicos de linguagem de negócio (sem expor nomes técnicos de campos) e devolver, paginada de 4 em 4 cards, a lista estrita de Atendimentos que comprovam a resposta — sem listar cancelamentos alheios quando a condição pesquisada não tiver ocorrências. O Admin dispõe ainda da ação de analisar/atualizar o passivo do período via IA para persistir o Diagnóstico de Cancelamento nos Atendimentos concluídos.

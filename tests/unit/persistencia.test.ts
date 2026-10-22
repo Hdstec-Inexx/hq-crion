@@ -131,9 +131,23 @@ test('as migrations numeradas cobrem o depósito, os fatos, a mídia, o boot e f
       '015_canonicalizar_motivos_acentuados.sql',
       '016_diagnostico_de_cancelamento.sql',
       '017_sanear_concorrentes_cancelamento.sql',
-      '018_edicao_de_conferencia.sql'
+      '018_edicao_de_conferencia.sql',
+      '019_administradora_no_atendimento_e_agentes_compartilhados.sql'
     ]
   );
+});
+
+test('a migration 019_administradora_no_atendimento_e_agentes_compartilhados adiciona administradora no atendimento e trigger de auto-cadastro', () => {
+  const migracao = listarMigracoes().find(
+    (m) => m.nome === '019_administradora_no_atendimento_e_agentes_compartilhados.sql'
+  );
+  assert.ok(migracao, 'migration 019 ausente');
+  const sql = migracao.sql;
+  assert.match(sql, /ALTER\s+TABLE\s+hq_atendimento\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+administradora/i);
+  assert.match(sql, /ALTER\s+TABLE\s+hq_agente_de_voz\s+ALTER\s+COLUMN\s+administradora\s+DROP\s+NOT\s+NULL/i);
+  assert.match(sql, /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+hq_inferir_administradora_do_agente/i);
+  assert.match(sql, /CREATE\s+TRIGGER\s+trg_hq_atendimento_agente_e_administradora/i);
+  assert.match(sql, /BEFORE\s+INSERT\s+OR\s+UPDATE\s+ON\s+hq_atendimento/i);
 });
 
 test('a migration 018_edicao_de_conferencia remove os triggers de imutabilidade da avaliação, critérios e ajusta a trigger do comentário', () => {
@@ -673,6 +687,71 @@ test('repositorioPostgres consulta curadaEm, filtra por tipoData=curadoria e atu
   const updateAvaliacao = consultas.find((c) => c.sql.includes('UPDATE hq_avaliacao_do_curador'));
   assert.ok(updateAvaliacao, 'deve executar UPDATE na hq_avaliacao_do_curador');
   assert.match(updateAvaliacao.sql, /criada_em\s*=\s*now\(\)/i, 'UPDATE deve atualizar criada_em para now()');
+});
+
+test('repositorioPostgres implementa listarAgentes e atualizarAgenteDoAtendimento', async () => {
+  const { repositorioPostgres, valoresDoAtendimento } = await import(
+    '../../apps/api/src/modules/atendimentos/postgres.js'
+  );
+
+  // 1. valoresDoAtendimento inclui 15 parâmetros (administradora no final)
+  const valores = valoresDoAtendimento({
+    id: 'atend-teste',
+    agenteId: 'agente-teste',
+    agente: 'Clara Affix',
+    administradora: 'Affix',
+    status: 'Concluído',
+    iniciadoEm: '2026-08-10T10:00:00-03:00',
+    motivo: 'Boleto',
+    nota: 8.0,
+    notaIa: 8.0,
+    curadoria: false,
+    conversa: 'conv-1',
+    transcricao: []
+  });
+  assert.equal(valores.length, 15);
+  assert.equal(valores[14], 'Affix');
+
+  // 2. listarAgentes e atualizarAgenteDoAtendimento
+  const consultas: Array<{ sql: string; valores?: unknown[] }> = [];
+  const fakePool = {
+    async query(sql: string, valores?: unknown[]) {
+      consultas.push({ sql, valores });
+      if (sql.includes('SELECT') && sql.includes('hq_agente_de_voz')) {
+        return {
+          rows: [
+            {
+              id: 'agente-real-1',
+              nome: 'Clara Roteador Central',
+              administradora: null,
+              administradoras_atendidas: ['Affix', 'Alter']
+            }
+          ]
+        };
+      }
+      return { rows: [] };
+    }
+  };
+
+  const repo = repositorioPostgres(fakePool as any);
+  const agentes = await repo.listarAgentes();
+  assert.equal(agentes.length, 1);
+  assert.equal(agentes[0].id, 'agente-real-1');
+  assert.equal(agentes[0].administradora, null);
+  assert.deepEqual(agentes[0].administradorasAtendidas, ['Affix', 'Alter']);
+
+  const consultaAgentes = consultas.find((c) => c.sql.includes('hq_agente_de_voz'));
+  assert.ok(consultaAgentes, 'deve executar query de agentes');
+  assert.match(consultaAgentes.sql, /COALESCE\(a\.administradora,\s*ag\.administradora\)/i);
+
+  // 3. atualizarAgenteDoAtendimento
+  consultas.length = 0;
+  await repo.atualizarAgenteDoAtendimento('atend-1', 'ag-novo', 'Clara Alter', 'Alter');
+  assert.equal(consultas.length, 2);
+  assert.match(consultas[0].sql, /INSERT\s+INTO\s+hq_agente_de_voz/i);
+  assert.match(consultas[0].sql, /ON\s+CONFLICT\s*\(id\)\s*DO\s+UPDATE/i);
+  assert.match(consultas[1].sql, /UPDATE\s+hq_atendimento\s+SET\s+agente_id\s*=\s*\$2/i);
+  assert.equal(consultas[1].sql.includes('administradora'), false, 'update não deve alterar administradora');
 });
 
 
