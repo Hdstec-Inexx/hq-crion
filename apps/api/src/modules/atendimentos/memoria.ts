@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import {
   administradoraNoNomeDoAgente,
   agentesDeVoz,
-  idsSementeAgentes,
   type Administradora,
   type AgenteDeVoz
 } from '@hq-crion/contracts/recorte';

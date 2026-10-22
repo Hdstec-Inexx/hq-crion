@@ -4,7 +4,6 @@ import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   agentesDeVoz,
-  idsSementeAgentes,
   type Administradora,
   type AgenteDeVoz,
   type Recorte
