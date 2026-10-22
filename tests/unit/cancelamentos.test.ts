@@ -1076,6 +1076,12 @@ test('Recorte, período do Dashboard, idempotência do passivo e validação de 
   assert.match(cancelamentosPageTsx, /proxima\.delete\('vendaMalFeita'\)/);
   assert.match(cancelamentosPageTsx, /proxima\.set\('comConcorrente',\s*'sim'\)/);
   assert.match(cancelamentosPageTsx, /proxima\.set\('vendaMalFeita',\s*'sim'\)/);
+  assert.match(
+    cancelamentosPageTsx,
+    /function limparFiltrosListagem\(\)\s*\{[\s\S]*?setPaginaAtual\(1\)[\s\S]*?proxima\.delete\('comConcorrente'\)/
+  );
+  const corpoAtualizarFiltro = cancelamentosPageTsx.match(/function atualizarFiltro[\s\S]*?\n  \}/)?.[0] ?? '';
+  assert.doesNotMatch(corpoAtualizarFiltro, /delete\('comConcorrente'\)/);
 
   // Estilos de hover, foco e estado ativo dos cards de KPI
   assert.match(dashboardCss, /\.cancelamentos-kpi-clicavel\s*\{[\s\S]*?cursor:\s*pointer/);

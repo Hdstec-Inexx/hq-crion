@@ -295,9 +295,6 @@ export function CancelamentosPage() {
 
     if (limpo && limpo !== 'todos') {
       proxima.set(chave, limpo);
-      if (chave === 'vendaMalFeita' && limpo === 'sim') {
-        proxima.delete('comConcorrente');
-      }
     } else {
       proxima.delete(chave);
     }
@@ -344,6 +341,7 @@ export function CancelamentosPage() {
   }
 
   function limparFiltrosListagem() {
+    setPaginaAtual(1);
     const proxima = new URLSearchParams(searchParams);
     proxima.delete('causa');
     proxima.delete('vendaMalFeita');
@@ -434,7 +432,8 @@ export function CancelamentosPage() {
   // Itens paginados
   const totalItens = painel?.itens.length ?? 0;
   const totalPaginas = Math.ceil(totalItens / ITENS_POR_PAGINA);
-  const indiceInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+  const paginaAtualNormalizada = totalPaginas > 0 ? Math.min(paginaAtual, totalPaginas) : 1;
+  const indiceInicio = (paginaAtualNormalizada - 1) * ITENS_POR_PAGINA;
   const itensPaginados = (painel?.itens ?? []).slice(
     indiceInicio,
     indiceInicio + ITENS_POR_PAGINA
@@ -993,7 +992,7 @@ export function CancelamentosPage() {
 
                 {totalPaginas > 1 ? (
                   <PaginacaoCompacta
-                    pagina={paginaAtual}
+                    pagina={paginaAtualNormalizada}
                     totalPaginas={totalPaginas}
                     irPara={setPaginaAtual}
                   />
