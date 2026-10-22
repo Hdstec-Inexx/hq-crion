@@ -319,8 +319,12 @@ export function CancelamentosPage() {
   }
 
   function alternarCardVendaMalFeita() {
+    setPaginaAtual(1);
     const proxima = new URLSearchParams(searchParams);
     proxima.delete('comConcorrente');
+    proxima.delete('concorrente');
+    proxima.delete('causa');
+    setConcorrenteRascunho('');
     if (vendaMalFeitaNaUrl === 'sim') {
       proxima.delete('vendaMalFeita');
     } else {
@@ -330,8 +334,12 @@ export function CancelamentosPage() {
   }
 
   function alternarCardMigracao() {
+    setPaginaAtual(1);
     const proxima = new URLSearchParams(searchParams);
     proxima.delete('vendaMalFeita');
+    proxima.delete('concorrente');
+    proxima.delete('causa');
+    setConcorrenteRascunho('');
     if (comConcorrenteNaUrl === 'sim') {
       proxima.delete('comConcorrente');
     } else {
@@ -362,7 +370,8 @@ export function CancelamentosPage() {
   );
 
   const isCancelamentosAtivo = !temFiltroListagemAtivo;
-  const isVendaMalFeitaAtivo = vendaMalFeitaNaUrl === 'sim';
+  const isVendaMalFeitaAtivo =
+    vendaMalFeitaNaUrl === 'sim' && comConcorrenteNaUrl !== 'sim';
   const isMigracaoAtivo = comConcorrenteNaUrl === 'sim';
 
   async function dispararPesquisaIa(perguntaTexto: string) {
@@ -607,6 +616,15 @@ export function CancelamentosPage() {
                     title="Remover filtro de concorrente"
                   >
                     Filtro: {concorrenteNaUrl} &times;
+                  </button>
+                ) : comConcorrenteNaUrl === 'sim' ? (
+                  <button
+                    type="button"
+                    className="cancelamentos-tag-limpar"
+                    onClick={() => atualizarFiltro('comConcorrente', '')}
+                    title="Remover filtro de migração para concorrente"
+                  >
+                    Filtro: Com concorrente citado &times;
                   </button>
                 ) : null}
               </header>

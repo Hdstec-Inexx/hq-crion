@@ -1078,10 +1078,24 @@ test('Recorte, período do Dashboard, idempotência do passivo e validação de 
   assert.match(cancelamentosPageTsx, /proxima\.set\('vendaMalFeita',\s*'sim'\)/);
   assert.match(
     cancelamentosPageTsx,
+    /function alternarCardVendaMalFeita\(\)\s*\{[\s\S]*?setPaginaAtual\(1\)[\s\S]*?proxima\.delete\('comConcorrente'\)[\s\S]*?proxima\.delete\('concorrente'\)[\s\S]*?proxima\.delete\('causa'\)/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /function alternarCardMigracao\(\)\s*\{[\s\S]*?setPaginaAtual\(1\)[\s\S]*?proxima\.delete\('vendaMalFeita'\)[\s\S]*?proxima\.delete\('concorrente'\)[\s\S]*?proxima\.delete\('causa'\)/
+  );
+  assert.match(
+    cancelamentosPageTsx,
     /function limparFiltrosListagem\(\)\s*\{[\s\S]*?setPaginaAtual\(1\)[\s\S]*?proxima\.delete\('comConcorrente'\)/
   );
   const corpoAtualizarFiltro = cancelamentosPageTsx.match(/function atualizarFiltro[\s\S]*?\n  \}/)?.[0] ?? '';
   assert.doesNotMatch(corpoAtualizarFiltro, /delete\('comConcorrente'\)/);
+
+  // Indicador de filtro ativo no cabeçalho do painel de Concorrentes Citados
+  assert.match(
+    cancelamentosPageTsx,
+    /comConcorrenteNaUrl === 'sim'\s*\?[\s\S]*?Filtro: Com concorrente citado/
+  );
 
   // Estilos de hover, foco e estado ativo dos cards de KPI
   assert.match(dashboardCss, /\.cancelamentos-kpi-clicavel\s*\{[\s\S]*?cursor:\s*pointer/);
