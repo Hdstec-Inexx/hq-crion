@@ -445,11 +445,9 @@ export function transcricaoRelida(
 }
 
 export function atendimentoDaFonteElevenLabs(
-  payload: PayloadElevenLabs
+  payload: PayloadElevenLabs & { administradora?: Administradora }
 ): RegistroDeAtendimento | undefined {
-  const agente = agentesDeVoz.find((item) => item.id === payload.agent_id);
-
-  if (!agente) {
+  if (!payload.conversation_id || !payload.agent_id?.trim()) {
     return undefined;
   }
 
@@ -470,11 +468,21 @@ export function atendimentoDaFonteElevenLabs(
   );
   const custo = custoDaFonte(payload);
 
+  const agenteConhecido = agentesDeVoz.find((item) => item.id === payload.agent_id);
+  const nomeDaFonte = payload.agent_name?.trim();
+  const nome = nomeDaFonte || agenteConhecido?.nome || payload.agent_id;
+  const dedicada = administradoraNoNomeDoAgente(nome);
+  const administradora =
+    dedicada ??
+    payload.administradora ??
+    agenteConhecido?.administradora ??
+    'Affix';
+
   return {
     id: payload.conversation_id,
-    administradora: agente.administradora,
-    agente: payload.agent_name ?? agente.nome,
-    agenteId: agente.id,
+    administradora,
+    agente: nome,
+    agenteId: payload.agent_id,
     iniciadoEm,
     motivo: 'Não informado',
     nota: 0,

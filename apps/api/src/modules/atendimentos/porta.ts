@@ -5,7 +5,7 @@ import type {
   TurnoDaTranscricao
 } from '@hq-crion/contracts/atendimento';
 import type { Papel } from '@hq-crion/contracts/perfil';
-import type { Recorte } from '@hq-crion/contracts/recorte';
+import type { Administradora, AgenteDeVoz, Recorte } from '@hq-crion/contracts/recorte';
 import type { ModoDaListagem } from './filtros.js';
 import type { CuradorDaRevisao, RegistroDeAtendimento } from './registro.js';
 
@@ -84,4 +84,11 @@ export type PortaDeAtendimentos = {
     recorte: Recorte,
     query: Record<string, string | undefined>
   ): Promise<PercursoDaFilaDeManutencao | 'ausente'>;
+  listarAgentes(): Promise<AgenteDeVoz[]>;
+  atualizarAgenteDoAtendimento(
+    atendimentoId: string,
+    agenteId: string,
+    agenteNome: string,
+    administradoraDedicada: Administradora | null
+  ): Promise<void>;
 };

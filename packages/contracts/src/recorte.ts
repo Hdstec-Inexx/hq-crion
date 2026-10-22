@@ -15,9 +15,32 @@ export type Recorte = z.infer<typeof recorteSchema>;
 
 export type AgenteDeVoz = {
   id: string;
-  administradora: Administradora;
   nome: string;
+  administradora: Administradora | null;
+  administradorasAtendidas?: Administradora[];
 };
+
+export const agenteDeVozSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().min(1),
+  administradora: administradoraSchema.nullable(),
+  administradorasAtendidas: z.array(administradoraSchema).optional()
+});
+
+export const catalogoAgentesResponseSchema = z.array(agenteDeVozSchema);
+
+export function administradoraNoNomeDoAgente(nome: string): Administradora | null {
+  const texto = nome.toLocaleLowerCase('pt-BR');
+  const achadas = administradoras.filter((nomeAdm) =>
+    texto.includes(nomeAdm.toLocaleLowerCase('pt-BR'))
+  );
+
+  if (achadas.length === 0) {
+    return null;
+  }
+
+  return achadas.reduce((maior, atual) => (atual.length > maior.length ? atual : maior));
+}
 
 export const agentesDeVoz: AgenteDeVoz[] = [
   { id: 'affix-0800', administradora: 'Affix', nome: 'Clara Affix 0800' },
@@ -82,7 +105,7 @@ export function lerRecorte(query: {
   if (agente && administradora) {
     const encontrado = agentesDeVoz.find((item) => item.id === agente);
 
-    if (!encontrado || encontrado.administradora !== administradora) {
+    if (!encontrado || (encontrado.administradora !== null && encontrado.administradora !== administradora)) {
       throw new Error('Recorte inválido');
     }
   }

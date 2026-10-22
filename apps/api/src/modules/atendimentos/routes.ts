@@ -16,12 +16,17 @@ import {
 } from '@hq-crion/contracts/atendimento';
 import { extrairCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
+import {
+  administradoraNoNomeDoAgente,
+  catalogoAgentesResponseSchema
+} from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
   buscarConversaElevenLabs,
   transcricaoPrecisaDeReleitura,
   transcricaoRelida
 } from '../ingestao/elevenlabs.js';
+import { idsSementeAgentes } from '../ingestao/sincronizacao-agentes.js';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
 import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
@@ -201,6 +206,7 @@ function responderDetalhe(
 }
 
 export const conversasSemChamadaEstruturada = new Set<string>();
+export const conversasComAgenteVerificado = new Set<string>();
 
 const atendimentoRoutes: FastifyPluginAsync = async (app) => {
   async function listar(
@@ -416,11 +422,17 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
     const item = { ...encontrado };
 
+    const precisaReleitura =
+      !conversasSemChamadaEstruturada.has(item.conversa) &&
+      transcricaoPrecisaDeReleitura(item.transcricao);
+    const precisaSincronizarAgente =
+      !conversasComAgenteVerificado.has(item.conversa) &&
+      idsSementeAgentes.has(item.agenteId);
+
     if (
       app.config.ELEVENLABS_API_KEY &&
       item.conversa &&
-      !conversasSemChamadaEstruturada.has(item.conversa) &&
-      transcricaoPrecisaDeReleitura(item.transcricao)
+      (precisaReleitura || precisaSincronizarAgente)
     ) {
       try {
         const payload = await buscarConversaElevenLabs({
@@ -429,15 +441,34 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
           id: item.conversa,
           esperaMs: 5_000
         });
-        const relida = payload ? transcricaoRelida(item.transcricao, payload) : item.transcricao;
 
-        if (relida !== item.transcricao) {
-          item.transcricao = [...relida];
-          await app.atendimentos.gravarTranscricao(item.id, item.transcricao);
-        } else {
-          conversasSemChamadaEstruturada.add(item.conversa);
+        conversasComAgenteVerificado.add(item.conversa);
+
+        if (payload?.agent_id && (payload.agent_id !== item.agenteId || precisaSincronizarAgente)) {
+          const nomeReal = payload.agent_name?.trim() || payload.agent_id;
+          const dedicada = administradoraNoNomeDoAgente(nomeReal);
+          await app.atendimentos.atualizarAgenteDoAtendimento(
+            item.id,
+            payload.agent_id,
+            nomeReal,
+            dedicada
+          );
+          item.agenteId = payload.agent_id;
+          item.agente = nomeReal;
+        }
+
+        if (precisaReleitura && !conversasSemChamadaEstruturada.has(item.conversa)) {
+          const relida = payload ? transcricaoRelida(item.transcricao, payload) : item.transcricao;
+
+          if (relida !== item.transcricao) {
+            item.transcricao = [...relida];
+            await app.atendimentos.gravarTranscricao(item.id, item.transcricao);
+          } else {
+            conversasSemChamadaEstruturada.add(item.conversa);
+          }
         }
       } catch {
+        conversasComAgenteVerificado.add(item.conversa);
         item.transcricao = encontrado.transcricao;
       }
     }
@@ -464,6 +495,25 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/atendimentos/:id', obterDetalhe);
   app.get('/api/atendimentos/:id', obterDetalhe);
+
+  const listarAgentesHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+    semCache(reply);
+    const registro = registroDaAutorizacao(request.headers.authorization);
+
+    if (!registro) {
+      return reply.code(401).send({ statusCode: 401 });
+    }
+
+    if (app.sincronizarAgentesPendentes) {
+      await app.sincronizarAgentesPendentes();
+    }
+
+    const agentes = await app.atendimentos.listarAgentes();
+    return catalogoAgentesResponseSchema.parse(agentes);
+  };
+
+  app.get('/agentes', listarAgentesHandler);
+  app.get('/api/agentes', listarAgentesHandler);
 
   const gravarConferenciaHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     semCache(reply);

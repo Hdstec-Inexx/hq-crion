@@ -1,4 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import {
+  administradoraNoNomeDoAgente,
+  agentesDeVoz,
+  type Administradora,
+  type AgenteDeVoz
+} from '@hq-crion/contracts/recorte';
 import { buscarPorId as buscarPerfilPorId } from '../perfil/repositorio.js';
 import { catalogoDeAtendimentos } from './catalogo.js';
 import {
@@ -540,6 +546,70 @@ export function repositorioEmMemoria(
       }
 
       return consultaDoPercurso(registros, atual, recorte, query);
+    },
+    async listarAgentes(): Promise<AgenteDeVoz[]> {
+      const idsSemente = new Set(['affix-0800', 'affix-wa', 'alter-1', 'conecta-1']);
+      const mapa = new Map<
+        string,
+        {
+          id: string;
+          nome: string;
+          administradora: Administradora | null;
+          administradorasAtendidas: Set<Administradora>;
+        }
+      >();
+
+      const atendimentosAvaliados = registros.filter(
+        (r) => Boolean(r.avaliacaoDaIa || r.avaliacaoDoCurador || r.curadoria || (r.status === 'Concluído' && r.notaIa > 0))
+      );
+      const baseParaAgentes = atendimentosAvaliados.length > 0 ? atendimentosAvaliados : registros;
+
+      for (const r of baseParaAgentes) {
+        if (!r.agenteId) continue;
+        let entry = mapa.get(r.agenteId);
+        if (!entry) {
+          const dedicada = administradoraNoNomeDoAgente(r.agente);
+          const agenteSemente = agentesDeVoz.find((a) => a.id === r.agenteId);
+          entry = {
+            id: r.agenteId,
+            nome: r.agente,
+            administradora: dedicada ?? agenteSemente?.administradora ?? null,
+            administradorasAtendidas: new Set<Administradora>()
+          };
+          mapa.set(r.agenteId, entry);
+        }
+        if (r.administradora) {
+          entry.administradorasAtendidas.add(r.administradora);
+        }
+      }
+
+      const lista = [...mapa.values()].map((e) => ({
+        id: e.id,
+        nome: e.nome,
+        administradora: e.administradora,
+        administradorasAtendidas: [...e.administradorasAtendidas].sort()
+      }));
+
+      const temAgentesReais = lista.some((item) => !idsSemente.has(item.id));
+      const filtrados = temAgentesReais
+        ? lista.filter((item) => !idsSemente.has(item.id))
+        : lista;
+
+      if (filtrados.length === 0) {
+        return agentesDeVoz.map((ag) => ({
+          ...ag,
+          administradorasAtendidas: ag.administradora ? [ag.administradora] : []
+        }));
+      }
+
+      return filtrados.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    },
+    async atualizarAgenteDoAtendimento(atendimentoId, agenteId, agenteNome, _administradoraDedicada) {
+      const atendimento = registros.find((r) => r.id === atendimentoId);
+      if (atendimento) {
+        atendimento.agenteId = agenteId;
+        atendimento.agente = agenteNome;
+      }
     }
   };
 }

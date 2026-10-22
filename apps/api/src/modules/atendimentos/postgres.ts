@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { falhasIdentificadasDe, type CriterioAvaliado } from '@hq-crion/contracts/atendimento';
 import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
-import type { Recorte } from '@hq-crion/contracts/recorte';
+import {
+  agentesDeVoz,
+  type Administradora,
+  type AgenteDeVoz,
+  type Recorte
+} from '@hq-crion/contracts/recorte';
 import {
   aplicarConsultaDaListagem,
   aplicarConsultaDaManutencao,
@@ -52,7 +57,7 @@ SELECT
   a.id,
   a.agente_id,
   ag.nome AS agente,
-  ag.administradora,
+  COALESCE(a.administradora, ag.administradora) AS administradora,
   a.status,
   a.iniciado_em,
   a.concluido_em,
@@ -109,7 +114,7 @@ LEFT JOIN LATERAL (
   WHERE fav.atendimento_id = a.id
 ) fav_agg ON true
 WHERE ($7::text IS NULL OR a.id = $7)
-  AND ($1::text IS NULL OR ag.administradora = $1)
+  AND ($1::text IS NULL OR COALESCE(a.administradora, ag.administradora) = $1)
   AND ($2::text IS NULL OR a.agente_id = $2)
   AND (
     $3::boolean = false
@@ -547,7 +552,7 @@ async function registrosDeComentario(
        a.id,
        a.agente_id,
        ag.nome AS agente,
-       ag.administradora,
+       COALESCE(a.administradora, ag.administradora) AS administradora,
        a.iniciado_em,
        a.motivo,
        a.status AS status_atendimento,
@@ -557,7 +562,7 @@ async function registrosDeComentario(
      JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
      LEFT JOIN hq_perfil p ON p.id = c.resolvido_por_id
      WHERE ($1::text IS NULL OR c.id = $1)
-       AND ($2::text IS NULL OR ag.administradora = $2)
+       AND ($2::text IS NULL OR COALESCE(a.administradora, ag.administradora) = $2)
        AND ($3::text IS NULL OR a.agente_id = $3)
        AND (
          $4::boolean = false
@@ -597,7 +602,7 @@ async function registrosPendentesDoPercurso(
        a.id,
        a.agente_id,
        ag.nome AS agente,
-       ag.administradora,
+       COALESCE(a.administradora, ag.administradora) AS administradora,
        a.iniciado_em,
        a.motivo,
        a.status AS status_atendimento,
@@ -609,7 +614,7 @@ async function registrosPendentesDoPercurso(
        AND (
          c.atendimento_id = $1
          OR (
-           ($2::text IS NULL OR ag.administradora = $2)
+           ($2::text IS NULL OR COALESCE(a.administradora, ag.administradora) = $2)
            AND ($3::text IS NULL OR a.agente_id = $3)
            AND (a.iniciado_em AT TIME ZONE 'America/Sao_Paulo')::date >= $4::date
            AND (a.iniciado_em AT TIME ZONE 'America/Sao_Paulo')::date <= $5::date
@@ -773,7 +778,8 @@ export function valoresDoAtendimento(registro: RegistroDeAtendimento) {
     custoNumerico(registro.custo),
     registro.iniciadoEm,
     registro.tempoDeEsperaEmSegundos ?? null,
-    registro.ferramentas ? JSON.stringify(registro.ferramentas) : null
+    registro.ferramentas ? JSON.stringify(registro.ferramentas) : null,
+    registro.administradora ?? null
   ];
 }
 
@@ -800,7 +806,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
            JOIN hq_agente_de_voz ag ON ag.id = a.agente_id
            WHERE a.motivo IS NOT NULL
              AND a.motivo <> ''
-             AND ($1::text IS NULL OR ag.administradora = $1)
+             AND ($1::text IS NULL OR COALESCE(a.administradora, ag.administradora) = $1)
              AND ($2::text IS NULL OR a.agente_id = $2)
            ORDER BY hq_chave_canonica_motivo(a.motivo),
                     (length(a.motivo) - length(regexp_replace(a.motivo, '[áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ]', '', 'g'))) DESC,
@@ -1165,7 +1171,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             a.id,
             a.agente_id,
             ag.nome AS agente,
-            ag.administradora,
+            COALESCE(a.administradora, ag.administradora) AS administradora,
             a.status,
             a.iniciado_em,
             a.concluido_em,
@@ -1223,7 +1229,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
             a.id,
             a.agente_id,
             ag.nome AS agente,
-            ag.administradora,
+            COALESCE(a.administradora, ag.administradora) AS administradora,
             a.status,
             a.iniciado_em,
             a.concluido_em,
@@ -1288,7 +1294,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
       }
 
       if (recorte.administradora) {
-        sql += ` AND ag.administradora = $${pIdx++}`;
+        sql += ` AND COALESCE(a.administradora, ag.administradora) = $${pIdx++}`;
         params.push(recorte.administradora);
       }
       if (recorte.agente) {
@@ -1353,6 +1359,72 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         query
       );
       return consultaDoPercurso(comentarios, atual, recorte, query);
+    },
+    async listarAgentes(): Promise<AgenteDeVoz[]> {
+      const resultado = await pool.query(`
+        SELECT
+          ag.id,
+          ag.nome,
+          ag.administradora,
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT COALESCE(a.administradora, ag.administradora)), NULL) AS administradoras_atendidas
+        FROM hq_agente_de_voz ag
+        JOIN hq_atendimento a ON a.agente_id = ag.id
+        WHERE EXISTS (
+          SELECT 1 FROM hq_avaliacao_da_ia ia WHERE ia.atendimento_id = a.id
+        ) OR EXISTS (
+          SELECT 1 FROM hq_avaliacao_do_curador ac WHERE ac.atendimento_id = a.id
+        )
+        GROUP BY ag.id, ag.nome, ag.administradora
+        ORDER BY ag.nome ASC
+      `);
+
+      const idsSemente = new Set(['affix-0800', 'affix-wa', 'alter-1', 'conecta-1']);
+      const linhas = resultado.rows as Array<{
+        id: string;
+        nome: string;
+        administradora: Administradora | null;
+        administradoras_atendidas: Administradora[];
+      }>;
+
+      const temAgentesReais = linhas.some((l) => !idsSemente.has(l.id));
+      const selecionadas = temAgentesReais
+        ? linhas.filter((l) => !idsSemente.has(l.id))
+        : linhas;
+
+      if (selecionadas.length === 0) {
+        return agentesDeVoz.map((ag) => ({
+          ...ag,
+          administradorasAtendidas: ag.administradora ? [ag.administradora] : []
+        }));
+      }
+
+      return selecionadas.map((l) => ({
+        id: l.id,
+        nome: l.nome,
+        administradora: l.administradora ?? null,
+        administradorasAtendidas: l.administradoras_atendidas ?? []
+      }));
+    },
+    async atualizarAgenteDoAtendimento(
+      atendimentoId: string,
+      agenteId: string,
+      agenteNome: string,
+      administradoraDedicada: Administradora | null
+    ) {
+      await pool.query(
+        `INSERT INTO hq_agente_de_voz (id, nome, administradora)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (id) DO UPDATE SET
+           nome = EXCLUDED.nome,
+           administradora = EXCLUDED.administradora`,
+        [agenteId, agenteNome, administradoraDedicada]
+      );
+      await pool.query(
+        `UPDATE hq_atendimento
+         SET agente_id = $2
+         WHERE id = $1`,
+        [atendimentoId, agenteId]
+      );
     }
   };
 }
