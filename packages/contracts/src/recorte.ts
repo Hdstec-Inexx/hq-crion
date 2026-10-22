@@ -31,15 +31,16 @@ export const catalogoAgentesResponseSchema = z.array(agenteDeVozSchema);
 
 export function administradoraNoNomeDoAgente(nome: string): Administradora | null {
   const texto = nome.toLocaleLowerCase('pt-BR');
-  const achadas = administradoras.filter((nomeAdm) =>
-    texto.includes(nomeAdm.toLocaleLowerCase('pt-BR'))
-  );
-
-  if (achadas.length === 0) {
-    return null;
+  if (/conecta[\s-]*plan/.test(texto)) {
+    return 'Conectaplan';
   }
-
-  return achadas.reduce((maior, atual) => (atual.length > maior.length ? atual : maior));
+  if (texto.includes('affix')) {
+    return 'Affix';
+  }
+  if (texto.includes('alter')) {
+    return 'Alter';
+  }
+  return null;
 }
 
 export const agentesDeVoz: AgenteDeVoz[] = [

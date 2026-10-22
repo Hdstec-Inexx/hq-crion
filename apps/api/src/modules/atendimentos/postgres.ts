@@ -4,7 +4,6 @@ import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   agentesDeVoz,
-  idsSementeAgentes,
   type Administradora,
   type AgenteDeVoz,
   type Recorte
@@ -1366,15 +1365,10 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         SELECT
           ag.id,
           ag.nome,
-          ag.administradora,
+          COALESCE(ag.administradora, hq_inferir_administradora_do_agente(ag.nome)) AS administradora,
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT COALESCE(a.administradora, ag.administradora)), NULL) AS administradoras_atendidas
         FROM hq_agente_de_voz ag
         JOIN hq_atendimento a ON a.agente_id = ag.id
-        WHERE EXISTS (
-          SELECT 1 FROM hq_avaliacao_da_ia ia WHERE ia.atendimento_id = a.id
-        ) OR EXISTS (
-          SELECT 1 FROM hq_avaliacao_do_curador ac WHERE ac.atendimento_id = a.id
-        )
         GROUP BY ag.id, ag.nome, ag.administradora
         ORDER BY ag.nome ASC
       `);
@@ -1386,19 +1380,14 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         administradoras_atendidas: Administradora[];
       }>;
 
-      const temAgentesReais = linhas.some((l) => !idsSementeAgentes.has(l.id));
-      const selecionadas = temAgentesReais
-        ? linhas.filter((l) => !idsSementeAgentes.has(l.id))
-        : linhas;
-
-      if (selecionadas.length === 0) {
+      if (linhas.length === 0) {
         return agentesDeVoz.map((ag) => ({
           ...ag,
           administradorasAtendidas: ag.administradora ? [ag.administradora] : []
         }));
       }
 
-      return selecionadas.map((l) => ({
+      return linhas.map((l) => ({
         id: l.id,
         nome: l.nome,
         administradora: l.administradora ?? null,

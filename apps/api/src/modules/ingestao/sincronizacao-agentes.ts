@@ -74,7 +74,8 @@ export async function sincronizarAgentesDosAtendimentos(input: {
       const conversas = await listarConversasElevenLabs({
         apiKey,
         baseUrl: input.baseUrl ?? 'https://api.elevenlabs.io',
-        fetchImpl: input.fetchImpl
+        fetchImpl: input.fetchImpl,
+        incluirConcluidas: true
       });
 
       const mapaConversas = new Map<string, { agent_id: string; agent_name?: string }>();

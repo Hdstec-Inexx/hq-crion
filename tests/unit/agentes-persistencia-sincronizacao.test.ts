@@ -33,6 +33,9 @@ test('classificação de agentes dedicados vs. compartilhados pelo nome', () => 
   assert.equal(administradoraNoNomeDoAgente('Clara Affix WhatsApp'), 'Affix');
   assert.equal(administradoraNoNomeDoAgente('Clara Alter Atendimento'), 'Alter');
   assert.equal(administradoraNoNomeDoAgente('Clara Conectaplan Central'), 'Conectaplan');
+  assert.equal(administradoraNoNomeDoAgente('Clara - Conecta Plan -skill'), 'Conectaplan');
+  assert.equal(administradoraNoNomeDoAgente('Clara - Affix -skill'), 'Affix');
+  assert.equal(administradoraNoNomeDoAgente('Clara - Roteador | Alter'), 'Alter');
   assert.equal(administradoraNoNomeDoAgente('AGENTE AFFIX ESPECIAL'), 'Affix');
 
   // Compartilhados (sem nome de Administradora)
@@ -209,6 +212,65 @@ test('sincronização via ElevenLabs atualiza agente mantendo intacta a Administ
     assert.ok(agenteSincronizado, 'agente sincronizado deve constar no catálogo');
     assert.equal(agenteSincronizado.administradora, null); // compartilhado
     assert.deepEqual(agenteSincronizado.administradorasAtendidas, ['Affix']);
+  } finally {
+    await app.close();
+  }
+});
+
+test('agentes de atendimentos salvos aparecem no catálogo dinâmico mesmo na presença de agentes novos', async () => {
+  const app = await buildApp();
+
+  try {
+    const agoraIso = new Date().toISOString();
+    const listaRegistros = (app.atendimentos as any).listar;
+    if (listaRegistros) {
+      const atendimentos = await app.atendimentos.listar();
+      (atendimentos as any[]).push({
+        id: 'atend-affix-salvo',
+        administradora: 'Affix' as const,
+        agente: 'Clara Affix 0800',
+        agenteId: 'affix-0800',
+        conversa: 'conv-affix-salvo',
+        status: 'Concluído',
+        iniciadoEm: agoraIso,
+        motivo: 'Boleto',
+        nota: 8,
+        notaIa: 8,
+        notaCurador: null,
+        curadoria: false,
+        transcricao: []
+      });
+      (atendimentos as any[]).push({
+        id: 'atend-novo-skill',
+        administradora: 'Conectaplan' as const,
+        agente: 'Clara - Conecta Plan -skill',
+        agenteId: 'conecta-plan-skill-id',
+        conversa: 'conv-conecta-skill',
+        status: 'Concluído',
+        iniciadoEm: agoraIso,
+        motivo: 'Boleto',
+        nota: 9,
+        notaIa: 9,
+        notaCurador: null,
+        curadoria: false,
+        transcricao: []
+      });
+    }
+
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const res = await app.inject({
+      method: 'GET',
+      url: '/agentes',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(res.statusCode, 200);
+    const lista = res.json();
+    const ids = lista.map((item: any) => item.id);
+    assert.ok(ids.includes('affix-0800'), 'agente salvo affix-0800 deve constar no catálogo');
+    assert.ok(ids.includes('conecta-plan-skill-id'), 'agente novo conecta-plan-skill-id deve constar no catálogo');
+    const conectaSkill = lista.find((item: any) => item.id === 'conecta-plan-skill-id');
+    assert.equal(conectaSkill.administradora, 'Conectaplan');
   } finally {
     await app.close();
   }
