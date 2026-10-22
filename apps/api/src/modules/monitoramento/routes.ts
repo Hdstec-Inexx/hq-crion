@@ -2,11 +2,11 @@ import {
   monitoramentoDetalheSchema,
   monitoramentoListagemResponseSchema
 } from '@hq-crion/contracts/atendimento';
-import type { Recorte } from '@hq-crion/contracts/recorte';
+import { buscarAgenteNoCatalogo, type Recorte } from '@hq-crion/contracts/recorte';
 import websocket from '@fastify/websocket';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import type { WebSocket } from 'ws';
-import { recorteDaQuery } from '../atendimentos/filtros.js';
+import { recorteDaQuery, resolverRecorteDaQuery } from '../atendimentos/filtros.js';
 import { paginaDaLista } from '../atendimentos/pagina.js';
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { enviarEvento, sessaoDaMensagem, urlDoMonitorDaFonte } from './canal.js';
@@ -106,8 +106,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const catalogo = await app.atendimentos.listarAgentes();
-    const recorte = recorteDaQuery(query, catalogo);
+    const recorte = await resolverRecorteDaQuery(query, () => app.atendimentos.listarAgentes());
 
     if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });
@@ -140,6 +139,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const candidatos: LeituraAoVivo[] = [];
+    const agenteAlvo = recorte.agente ? buscarAgenteNoCatalogo(recorte.agente) : undefined;
 
     for (const payload of fonte) {
       if (!conversaAtivaNaFonte(payload)) {
@@ -151,7 +151,7 @@ const monitoramentoRoutes: FastifyPluginAsync = async (app) => {
       if (
         !atendimento ||
         !idDeConversaAoVivo.test(atendimento.id) ||
-        !cabeNoRecorteAoVivo(atendimento, recorte, catalogo)
+        !cabeNoRecorteAoVivo(atendimento, recorte, agenteAlvo)
       ) {
         continue;
       }

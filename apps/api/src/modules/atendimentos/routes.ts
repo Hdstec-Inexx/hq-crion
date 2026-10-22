@@ -30,7 +30,7 @@ import {
 import { perfilDaAutorizacao, registroDaAutorizacao } from '../perfil/sessoes.js';
 import { buscarPorId } from '../perfil/repositorio.js';
 import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
-import { periodoDaQuery, recorteDaQuery, type ModoDaListagem } from './filtros.js';
+import { periodoDaQuery, recorteDaQuery, resolverRecorteDaQuery, type ModoDaListagem } from './filtros.js';
 import { paginaDaLista } from './pagina.js';
 import type { FavoritosDoAtendimento } from './porta.js';
 import {
@@ -243,8 +243,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const catalogo = await app.atendimentos.listarAgentes();
-    const recorte = recorteDaQuery(query, catalogo);
+    const recorte = await resolverRecorteDaQuery(query, () => app.atendimentos.listarAgentes());
 
     if (!recorte || !periodoDaQuery(query)) {
       return reply.code(400).send({
@@ -307,8 +306,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const catalogo = await app.atendimentos.listarAgentes();
-    const recorte = recorteDaQuery(query, catalogo);
+    const recorte = await resolverRecorteDaQuery(query, () => app.atendimentos.listarAgentes());
 
     if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });
@@ -360,8 +358,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const catalogo = await app.atendimentos.listarAgentes();
-    const recorte = recorteDaQuery(query, catalogo);
+    const recorte = await resolverRecorteDaQuery(query, () => app.atendimentos.listarAgentes());
 
     if (!recorte || !periodoDaQuery(query)) {
       return reply.code(400).send({
@@ -397,10 +394,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const catalogo = await app.atendimentos.listarAgentes();
     const atendimentoId =
       typeof query.atendimento === 'string' ? query.atendimento.trim() : '';
-    const recorte = recorteDaQuery(query, catalogo);
+    const recorte = await resolverRecorteDaQuery(query, () => app.atendimentos.listarAgentes());
 
     if (!atendimentoId || atendimentoId.length > 200 || !recorte || !periodoDaQuery(query)) {
       return reply.code(400).send({

@@ -14,6 +14,7 @@ import {
 } from '../../packages/contracts/src/recorte.js';
 import { buildApp } from '../../apps/api/src/app.js';
 import { loginResponseSchema } from '../../packages/contracts/src/perfil.js';
+import { resolverRecorteDaQuery } from '../../apps/api/src/modules/atendimentos/filtros.js';
 
 const raiz = process.cwd();
 
@@ -429,4 +430,65 @@ test('ADR 0016 documenta seletor de agente de voz sempre ativo e filtragem conte
   assert.match(adr, /compartilhados/i);
   assert.match(adr, /dedicados/i);
   assert.match(adr, /preservado|preservação/i);
+});
+
+test('segurança: parâmetros de agente com comprimento excessivo são rejeitados', () => {
+  const agenteGigante = 'a'.repeat(201);
+  assert.throws(
+    () => lerRecorte({ agente: agenteGigante }),
+    /Recorte inválido/
+  );
+
+  const query = escreverRecorteNaQuery(new URLSearchParams(), '', agenteGigante);
+  assert.equal(query.get('agente'), null, 'agente com mais de 200 caracteres deve ser descartado');
+});
+
+test('desempenho: resolverRecorteDaQuery não consulta o banco desnecessariamente', async () => {
+  let chamadasAoBanco = 0;
+  const mockObterCatalogo = async () => {
+    chamadasAoBanco += 1;
+    return catalogoExemplo;
+  };
+
+  // 1. Sem agente: 0 consultas ao banco
+  const r1 = await resolverRecorteDaQuery({ administradora: 'Affix' }, mockObterCatalogo);
+  assert.equal(r1?.administradora, 'Affix');
+  assert.equal(r1?.agente, null);
+  assert.equal(chamadasAoBanco, 0);
+
+  // 2. Sem administradora (Todas): 0 consultas ao banco
+  const r2 = await resolverRecorteDaQuery({ agente: 'agente-dinamico-xyz' }, mockObterCatalogo);
+  assert.equal(r2?.administradora, null);
+  assert.equal(r2?.agente, 'agente-dinamico-xyz');
+  assert.equal(chamadasAoBanco, 0);
+
+  // 3. Agente da semente estática: valida em memória com 0 consultas ao banco
+  const r3 = await resolverRecorteDaQuery({ administradora: 'Affix', agente: 'affix-0800' }, mockObterCatalogo);
+  assert.equal(r3?.administradora, 'Affix');
+  assert.equal(r3?.agente, 'affix-0800');
+  assert.equal(chamadasAoBanco, 0);
+
+  const r3Invalido = await resolverRecorteDaQuery({ administradora: 'Affix', agente: 'alter-1' }, mockObterCatalogo);
+  assert.equal(r3Invalido, undefined);
+  assert.equal(chamadasAoBanco, 0);
+
+  // 4. Apenas agente dinâmico com Administradora específica consulta o catálogo
+  const r4 = await resolverRecorteDaQuery(
+    { administradora: 'Affix', agente: 'agente-affix-dedicado' },
+    mockObterCatalogo
+  );
+  assert.equal(r4?.administradora, 'Affix');
+  assert.equal(r4?.agente, 'agente-affix-dedicado');
+  assert.equal(chamadasAoBanco, 1);
+});
+
+test('desempenho: buscarAgentes implementa cache em memória e reaproveitamento de promessa em voo', () => {
+  const codigoApi = readFileSync(
+    join(raiz, 'apps/web/src/features/recorte/api.ts'),
+    'utf8'
+  );
+
+  assert.match(codigoApi, /catalogoCache/);
+  assert.match(codigoApi, /promessaEmVoo/);
+  assert.match(codigoApi, /limparCacheCatalogoAgentes/);
 });

@@ -115,7 +115,8 @@ export function escreverRecorteNaQuery(
   opcoes?: { resetarPagina?: boolean; catalogo?: AgenteDeVoz[] }
 ): URLSearchParams {
   const administradoraValida = administradoraSchema.safeParse(administradora).data ?? null;
-  const agenteLimpo = agente?.trim() || null;
+  const agenteTrim = agente?.trim();
+  const agenteLimpo = agenteTrim && agenteTrim.length <= 200 ? agenteTrim : null;
 
   let agenteFinal = agenteLimpo;
   if (administradoraValida && agenteLimpo) {
@@ -154,6 +155,11 @@ export function lerRecorte(
 ): Recorte {
   const administradoraBruta = query.administradora?.trim() || undefined;
   const agente = query.agente?.trim() || undefined;
+
+  if (agente && agente.length > 200) {
+    throw new Error('Recorte inválido');
+  }
+
   const administradora = administradoraBruta
     ? administradoraSchema.parse(administradoraBruta)
     : null;

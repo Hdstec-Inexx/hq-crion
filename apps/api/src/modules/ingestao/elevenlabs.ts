@@ -369,7 +369,7 @@ export function administradoraNoNomeDoAgente(nome: string): Administradora | nul
 export function cabeNoRecorteAoVivo(
   item: { administradora: Administradora | null; agente: string; agenteId: string },
   recorte: Recorte,
-  catalogo?: AgenteDeVoz[]
+  catalogoOuAgente?: AgenteDeVoz[] | AgenteDeVoz
 ) {
   if (!recorte.administradora && !recorte.agente) {
     return true;
@@ -389,7 +389,9 @@ export function cabeNoRecorteAoVivo(
     return true;
   }
 
-  const doCatalogo = buscarAgenteNoCatalogo(recorte.agente, catalogo);
+  const doCatalogo = Array.isArray(catalogoOuAgente)
+    ? buscarAgenteNoCatalogo(recorte.agente, catalogoOuAgente)
+    : (catalogoOuAgente ?? buscarAgenteNoCatalogo(recorte.agente));
 
   return doCatalogo
     ? item.agente.toLocaleLowerCase('pt-BR').includes(doCatalogo.nome.toLocaleLowerCase('pt-BR'))
