@@ -9,6 +9,7 @@ import {
   lerRecorte,
   periodoDaListagem,
   periodoDoDashboard,
+  type AgenteDeVoz,
   type PeriodoFechado
 } from '@hq-crion/contracts/recorte';
 import { slaMaximoEmSegundos } from '../dashboard/sla.js';
@@ -42,13 +43,17 @@ export function diaNoFuso(iso: string) {
 }
 
 export function recorteDaQuery(
-  query: Record<string, string | undefined>
+  query: Record<string, string | undefined>,
+  catalogo?: AgenteDeVoz[]
 ): ReturnType<typeof lerRecorte> | undefined {
   try {
-    return lerRecorte({
-      administradora: query.administradora,
-      agente: query.agente
-    });
+    return lerRecorte(
+      {
+        administradora: query.administradora,
+        agente: query.agente
+      },
+      catalogo
+    );
   } catch {
     return undefined;
   }

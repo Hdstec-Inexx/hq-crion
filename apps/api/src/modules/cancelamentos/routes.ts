@@ -11,7 +11,7 @@ import {
   type CancelamentoPorConcorrente,
   type CategoriaCausaCancelamento
 } from '@hq-crion/contracts/cancelamento';
-import type { Recorte } from '@hq-crion/contracts/recorte';
+import type { AgenteDeVoz, Recorte } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { registroDaAutorizacao } from '../perfil/sessoes.js';
 import { periodoDaQuery, recorteDaQuery } from '../atendimentos/filtros.js';
@@ -34,7 +34,8 @@ function resolverRecorteEPeriodo(
     inicio?: string | null;
     fim?: string | null;
   },
-  query: Record<string, string | undefined>
+  query: Record<string, string | undefined>,
+  catalogo?: AgenteDeVoz[]
 ):
   | { ok: true; recorte: Recorte; periodo: { inicio: string; fim: string } }
   | { ok: false; erro: 'recorte' | 'periodo' } {
@@ -46,7 +47,7 @@ function resolverRecorteEPeriodo(
     ...(dados.fim !== undefined ? { fim: dados.fim ?? undefined } : {})
   };
 
-  const recorte = recorteDaQuery(queryMesclada);
+  const recorte = recorteDaQuery(queryMesclada, catalogo);
   if (!recorte) {
     return { ok: false, erro: 'recorte' };
   }
@@ -74,7 +75,8 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const recorte = recorteDaQuery(query);
+    const catalogo = await app.atendimentos.listarAgentes();
+    const recorte = recorteDaQuery(query, catalogo);
     const periodo = periodoDaQuery(query, 'dashboard');
 
     if (!recorte || !periodo) {
@@ -294,7 +296,8 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const resolvido = resolverRecorteEPeriodo(lido.data, query);
+    const catalogo = await app.atendimentos.listarAgentes();
+    const resolvido = resolverRecorteEPeriodo(lido.data, query, catalogo);
 
     if (!resolvido.ok) {
       return reply.code(400).send({
@@ -351,7 +354,8 @@ const cancelamentosRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const resolvido = resolverRecorteEPeriodo(lido.data, query);
+    const catalogo = await app.atendimentos.listarAgentes();
+    const resolvido = resolverRecorteEPeriodo(lido.data, query, catalogo);
 
     if (!resolvido.ok) {
       return reply.code(400).send({

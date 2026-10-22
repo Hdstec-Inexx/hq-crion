@@ -56,6 +56,44 @@ export const idsSementeAgentes = new Set<string>([
   'conecta-1'
 ]);
 
+export function buscarAgenteNoCatalogo(
+  id: string,
+  catalogo?: AgenteDeVoz[]
+): AgenteDeVoz | undefined {
+  return (
+    catalogo?.find((item) => item.id === id) ??
+    agentesDeVoz.find((item) => item.id === id)
+  );
+}
+
+export function agenteCompativelComAdministradora(
+  agente: AgenteDeVoz,
+  administradora: Administradora | null
+): boolean {
+  if (!administradora) {
+    return true;
+  }
+
+  if (agente.administradora !== null) {
+    return agente.administradora === administradora;
+  }
+
+  return Boolean(agente.administradorasAtendidas?.includes(administradora));
+}
+
+export function agentesCompativeisComAdministradora(
+  catalogo: AgenteDeVoz[],
+  administradora: Administradora | null
+): AgenteDeVoz[] {
+  if (!administradora) {
+    return catalogo;
+  }
+
+  return catalogo.filter((agente) =>
+    agenteCompativelComAdministradora(agente, administradora)
+  );
+}
+
 export function queryDoRecorte(recorte: Recorte): URLSearchParams {
   const query = new URLSearchParams();
 
@@ -74,11 +112,23 @@ export function escreverRecorteNaQuery(
   atual: URLSearchParams,
   administradora: string,
   agente: string,
-  opcoes?: { resetarPagina?: boolean }
+  opcoes?: { resetarPagina?: boolean; catalogo?: AgenteDeVoz[] }
 ): URLSearchParams {
+  const administradoraValida = administradoraSchema.safeParse(administradora).data ?? null;
+  const agenteLimpo = agente?.trim() || null;
+
+  let agenteFinal = agenteLimpo;
+  if (administradoraValida && agenteLimpo) {
+    const agenteEncontrado = buscarAgenteNoCatalogo(agenteLimpo, opcoes?.catalogo);
+
+    if (agenteEncontrado && !agenteCompativelComAdministradora(agenteEncontrado, administradoraValida)) {
+      agenteFinal = null;
+    }
+  }
+
   const recorteQuery = queryDoRecorte({
-    administradora: administradoraSchema.safeParse(administradora).data ?? null,
-    agente: administradora && agente ? agente : null
+    administradora: administradoraValida,
+    agente: agenteFinal
   });
   const proxima = new URLSearchParams(atual);
   proxima.delete('administradora');
@@ -95,24 +145,27 @@ export function escreverRecorteNaQuery(
   return proxima;
 }
 
-export function lerRecorte(query: {
-  administradora?: string;
-  agente?: string;
-}): Recorte {
+export function lerRecorte(
+  query: {
+    administradora?: string;
+    agente?: string;
+  },
+  catalogo?: AgenteDeVoz[]
+): Recorte {
   const administradoraBruta = query.administradora?.trim() || undefined;
   const agente = query.agente?.trim() || undefined;
   const administradora = administradoraBruta
     ? administradoraSchema.parse(administradoraBruta)
     : null;
 
-  if (agente && !administradora) {
-    throw new Error('Recorte inválido');
-  }
-
   if (agente && administradora) {
-    const encontrado = agentesDeVoz.find((item) => item.id === agente);
+    const agenteEncontrado = buscarAgenteNoCatalogo(agente, catalogo);
 
-    if (!encontrado || (encontrado.administradora !== null && encontrado.administradora !== administradora)) {
+    if (
+      agenteEncontrado &&
+      agenteEncontrado.administradora !== null &&
+      agenteEncontrado.administradora !== administradora
+    ) {
       throw new Error('Recorte inválido');
     }
   }

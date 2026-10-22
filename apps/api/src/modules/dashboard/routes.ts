@@ -22,7 +22,8 @@ const dashboardRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const recorte = recorteDaQuery(query);
+    const catalogo = await app.atendimentos.listarAgentes();
+    const recorte = recorteDaQuery(query, catalogo);
 
     if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });

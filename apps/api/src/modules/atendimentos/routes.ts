@@ -243,7 +243,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const recorte = recorteDaQuery(query);
+    const catalogo = await app.atendimentos.listarAgentes();
+    const recorte = recorteDaQuery(query, catalogo);
 
     if (!recorte || !periodoDaQuery(query)) {
       return reply.code(400).send({
@@ -306,7 +307,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const recorte = recorteDaQuery(query);
+    const catalogo = await app.atendimentos.listarAgentes();
+    const recorte = recorteDaQuery(query, catalogo);
 
     if (!recorte) {
       return reply.code(400).send({ statusCode: 400 });
@@ -358,7 +360,8 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
-    const recorte = recorteDaQuery(query);
+    const catalogo = await app.atendimentos.listarAgentes();
+    const recorte = recorteDaQuery(query, catalogo);
 
     if (!recorte || !periodoDaQuery(query)) {
       return reply.code(400).send({
@@ -394,9 +397,10 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const query = request.query as Record<string, string | undefined>;
+    const catalogo = await app.atendimentos.listarAgentes();
     const atendimentoId =
       typeof query.atendimento === 'string' ? query.atendimento.trim() : '';
-    const recorte = recorteDaQuery(query);
+    const recorte = recorteDaQuery(query, catalogo);
 
     if (!atendimentoId || atendimentoId.length > 200 || !recorte || !periodoDaQuery(query)) {
       return reply.code(400).send({
