@@ -6,8 +6,11 @@ import {
 import type { PortaDeAtendimentos } from '../atendimentos/porta.js';
 import type { PoolSql } from '../atendimentos/postgres.js';
 import {
+  buscarAgenteElevenLabs,
   buscarConversaElevenLabs,
-  listarConversasElevenLabs
+  listarAgentesElevenLabs,
+  listarConversasElevenLabs,
+  type AgenteElevenLabs
 } from './elevenlabs.js';
 
 let sincronizacaoEmAndamento: Promise<void> | null = null;
@@ -39,6 +42,102 @@ export async function sincronizarAgentesDosAtendimentos(input: {
 
   sincronizacaoEmAndamento = (async () => {
     try {
+      // 1. Obtém catálogo de agentes da ElevenLabs (/v1/convai/agents)
+      let agentesFonte: AgenteElevenLabs[] = [];
+      try {
+        agentesFonte = await listarAgentesElevenLabs({
+          apiKey,
+          baseUrl: input.baseUrl ?? 'https://api.elevenlabs.io',
+          fetchImpl: input.fetchImpl
+        });
+      } catch (err) {
+        input.log?.warn?.({ err }, 'Falha ao listar agentes na ElevenLabs');
+      }
+
+      const mapaAgentes = new Map<string, string>();
+      for (const ag of agentesFonte) {
+        if (ag.agent_id && ag.name?.trim()) {
+          mapaAgentes.set(ag.agent_id, ag.name.trim());
+        }
+      }
+
+      // 2. Persiste / atualiza agentes no repositório relacional ou memória
+      if (input.pool) {
+        for (const [agentId, nome] of mapaAgentes.entries()) {
+          const dedicada = administradoraNoNomeDoAgente(nome);
+          await input.pool.query(
+            `INSERT INTO hq_agente_de_voz (id, nome, administradora)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (id) DO UPDATE SET
+               nome = EXCLUDED.nome,
+               administradora = COALESCE(EXCLUDED.administradora, hq_agente_de_voz.administradora)`,
+            [agentId, nome, dedicada]
+          );
+          if (dedicada) {
+            await input.pool.query(
+              `UPDATE hq_atendimento
+               SET administradora = $2
+               WHERE agente_id = $1 AND administradora IS NULL`,
+              [agentId, dedicada]
+            );
+          }
+        }
+
+        // Verifica agentes em hq_agente_de_voz cujo nome é o id ou começa com agent_
+        const semNomeRes = await input.pool.query(
+          `SELECT id FROM hq_agente_de_voz WHERE nome = id OR nome LIKE 'agent_%'`
+        );
+        for (const row of semNomeRes.rows as Array<{ id: string }>) {
+          let nome = mapaAgentes.get(row.id);
+          if (!nome) {
+            try {
+              const ag = await buscarAgenteElevenLabs({
+                apiKey,
+                baseUrl: input.baseUrl ?? 'https://api.elevenlabs.io',
+                agentId: row.id,
+                fetchImpl: input.fetchImpl
+              });
+              if (ag?.name?.trim()) {
+                nome = ag.name.trim();
+                mapaAgentes.set(row.id, nome);
+              }
+            } catch {
+              // segue para o próximo
+            }
+          }
+          if (nome) {
+            const dedicada = administradoraNoNomeDoAgente(nome);
+            await input.pool.query(
+              `UPDATE hq_agente_de_voz SET nome = $2, administradora = COALESCE(administradora, $3) WHERE id = $1`,
+              [row.id, nome, dedicada]
+            );
+            if (dedicada) {
+              await input.pool.query(
+                `UPDATE hq_atendimento SET administradora = $2 WHERE agente_id = $1 AND administradora IS NULL`,
+                [row.id, dedicada]
+              );
+            }
+          }
+        }
+      } else {
+        const todos = await input.atendimentos.listar();
+        for (const a of todos) {
+          if (mapaAgentes.has(a.agenteId)) {
+            const nomeReal = mapaAgentes.get(a.agenteId)!;
+            const dedicada = administradoraNoNomeDoAgente(nomeReal);
+            if (a.agente !== nomeReal || (dedicada && !a.administradora)) {
+              await input.atendimentos.atualizarAgenteDoAtendimento(
+                a.id,
+                a.agenteId,
+                nomeReal,
+                dedicada
+              );
+            }
+          }
+        }
+      }
+
+      // 3. Atualiza atendimentos que ainda possuem agentes da semente
       let pendentes: Array<{ id: string; conversa: string; agenteId: string; administradora: string }> = [];
 
       if (input.pool) {
@@ -67,58 +166,75 @@ export async function sincronizarAgentesDosAtendimentos(input: {
           }));
       }
 
-      if (pendentes.length === 0) {
-        return;
-      }
+      if (pendentes.length > 0) {
+        const conversas = await listarConversasElevenLabs({
+          apiKey,
+          baseUrl: input.baseUrl ?? 'https://api.elevenlabs.io',
+          fetchImpl: input.fetchImpl,
+          incluirConcluidas: true
+        });
 
-      const conversas = await listarConversasElevenLabs({
-        apiKey,
-        baseUrl: input.baseUrl ?? 'https://api.elevenlabs.io',
-        fetchImpl: input.fetchImpl,
-        incluirConcluidas: true
-      });
-
-      const mapaConversas = new Map<string, { agent_id: string; agent_name?: string }>();
-      for (const c of conversas) {
-        if (c.conversation_id && c.agent_id) {
-          mapaConversas.set(c.conversation_id, {
-            agent_id: c.agent_id,
-            agent_name: c.agent_name
-          });
-        }
-      }
-
-      for (const pendente of pendentes) {
-        let dadosConversa = mapaConversas.get(pendente.conversa);
-        if (!dadosConversa) {
-          try {
-            const detalhe = await buscarConversaElevenLabs({
-              apiKey,
-              baseUrl: input.baseUrl ?? 'https://api.elevenlabs.io',
-              id: pendente.conversa,
-              fetchImpl: input.fetchImpl
+        const mapaConversas = new Map<string, { agent_id: string; agent_name?: string }>();
+        for (const c of conversas) {
+          if (c.conversation_id && c.agent_id) {
+            mapaConversas.set(c.conversation_id, {
+              agent_id: c.agent_id,
+              agent_name: c.agent_name
             });
-            if (detalhe?.agent_id) {
-              dadosConversa = {
-                agent_id: detalhe.agent_id,
-                agent_name: detalhe.agent_name
-              };
-            }
-          } catch {
-            // segue para a próxima conversa
           }
         }
 
-        if (dadosConversa?.agent_id) {
-          const nomeReal = dadosConversa.agent_name?.trim() || dadosConversa.agent_id;
-          const dedicada = administradoraNoNomeDoAgente(nomeReal);
+        for (const pendente of pendentes) {
+          let dadosConversa = mapaConversas.get(pendente.conversa);
+          if (!dadosConversa) {
+            try {
+              const detalhe = await buscarConversaElevenLabs({
+                apiKey,
+                baseUrl: input.baseUrl ?? 'https://api.elevenlabs.io',
+                id: pendente.conversa,
+                fetchImpl: input.fetchImpl
+              });
+              if (detalhe?.agent_id) {
+                dadosConversa = {
+                  agent_id: detalhe.agent_id,
+                  agent_name: detalhe.agent_name
+                };
+              }
+            } catch {
+              // segue para a próxima conversa
+            }
+          }
 
-          await input.atendimentos.atualizarAgenteDoAtendimento(
-            pendente.id,
-            dadosConversa.agent_id,
-            nomeReal,
-            dedicada
-          );
+          if (dadosConversa?.agent_id) {
+            let nomeReal =
+              mapaAgentes.get(dadosConversa.agent_id) ||
+              dadosConversa.agent_name?.trim();
+            if (!nomeReal || nomeReal === dadosConversa.agent_id) {
+              try {
+                const ag = await buscarAgenteElevenLabs({
+                  apiKey,
+                  baseUrl: input.baseUrl ?? 'https://api.elevenlabs.io',
+                  agentId: dadosConversa.agent_id,
+                  fetchImpl: input.fetchImpl
+                });
+                if (ag?.name?.trim()) {
+                  nomeReal = ag.name.trim();
+                  mapaAgentes.set(dadosConversa.agent_id, nomeReal);
+                }
+              } catch {
+                // fallback
+              }
+            }
+            nomeReal = nomeReal || dadosConversa.agent_id;
+            const dedicada = administradoraNoNomeDoAgente(nomeReal);
+
+            await input.atendimentos.atualizarAgenteDoAtendimento(
+              pendente.id,
+              dadosConversa.agent_id,
+              nomeReal,
+              dedicada
+            );
+          }
         }
       }
 

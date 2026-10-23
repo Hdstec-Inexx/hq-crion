@@ -4,6 +4,7 @@ import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   agentesDeVoz,
+  idsSementeAgentes,
   type Administradora,
   type AgenteDeVoz,
   type Recorte
@@ -1380,18 +1381,23 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         administradoras_atendidas: Administradora[];
       }>;
 
-      if (linhas.length === 0) {
+      const temAgentesReais = linhas.some((l) => !idsSementeAgentes.has(l.id));
+      const selecionadas = temAgentesReais
+        ? linhas.filter((l) => !idsSementeAgentes.has(l.id))
+        : linhas;
+
+      if (selecionadas.length === 0) {
         return agentesDeVoz.map((ag) => ({
           ...ag,
           administradorasAtendidas: ag.administradora ? [ag.administradora] : []
         }));
       }
 
-      return linhas.map((l) => ({
+      return selecionadas.map((l) => ({
         id: l.id,
         nome: l.nome,
         administradora: l.administradora ?? null,
-        administradorasAtendidas: l.administradoras_atendidas ?? []
+        administradorasAtendidas: (l.administradoras_atendidas ?? []).sort()
       }));
     },
     async atualizarAgenteDoAtendimento(
@@ -1404,8 +1410,8 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         `INSERT INTO hq_agente_de_voz (id, nome, administradora)
          VALUES ($1, $2, $3)
          ON CONFLICT (id) DO UPDATE SET
-           nome = EXCLUDED.nome,
-           administradora = EXCLUDED.administradora`,
+           nome = CASE WHEN EXCLUDED.nome IS NOT NULL AND EXCLUDED.nome <> EXCLUDED.id THEN EXCLUDED.nome ELSE hq_agente_de_voz.nome END,
+           administradora = COALESCE(EXCLUDED.administradora, hq_agente_de_voz.administradora)`,
         [agenteId, agenteNome, administradoraDedicada]
       );
       await pool.query(

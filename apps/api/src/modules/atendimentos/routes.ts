@@ -23,6 +23,7 @@ import {
 } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
+  buscarAgenteElevenLabs,
   buscarConversaElevenLabs,
   transcricaoPrecisaDeReleitura,
   transcricaoRelida
@@ -440,7 +441,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       transcricaoPrecisaDeReleitura(item.transcricao);
     const precisaSincronizarAgente =
       !conversasComAgenteVerificado.has(item.conversa) &&
-      idsSementeAgentes.has(item.agenteId);
+      (idsSementeAgentes.has(item.agenteId) ||
+        item.agente === item.agenteId ||
+        item.agente.startsWith('agent_'));
 
     if (
       app.config.ELEVENLABS_API_KEY &&
@@ -458,7 +461,23 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
         registrarConversaVerificada(item.conversa);
 
         if (payload?.agent_id && (payload.agent_id !== item.agenteId || precisaSincronizarAgente)) {
-          const nomeReal = payload.agent_name?.trim() || payload.agent_id;
+          let nomeReal = payload.agent_name?.trim();
+          if (!nomeReal || nomeReal === payload.agent_id) {
+            try {
+              const ag = await buscarAgenteElevenLabs({
+                apiKey: app.config.ELEVENLABS_API_KEY,
+                baseUrl: app.config.ELEVENLABS_BASE_URL,
+                agentId: payload.agent_id,
+                esperaMs: 5_000
+              });
+              if (ag?.name?.trim()) {
+                nomeReal = ag.name.trim();
+              }
+            } catch {
+              // fallback
+            }
+          }
+          nomeReal = nomeReal || payload.agent_id;
           const dedicada = administradoraNoNomeDoAgente(nomeReal);
           await app.atendimentos.atualizarAgenteDoAtendimento(
             item.id,
@@ -468,6 +487,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
           );
           item.agenteId = payload.agent_id;
           item.agente = nomeReal;
+          if (dedicada && !item.administradora) {
+            item.administradora = dedicada;
+          }
         }
 
         if (precisaReleitura && !conversasSemChamadaEstruturada.has(item.conversa)) {
@@ -521,7 +543,14 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       await app.sincronizarAgentesPendentes();
     }
 
-    const agentes = await app.atendimentos.listarAgentes();
+    let agentes = await app.atendimentos.listarAgentes();
+    if (
+      agentes.some((ag) => ag.nome === ag.id || ag.nome.startsWith('agent_')) &&
+      app.sincronizarAgentesPendentes
+    ) {
+      await app.sincronizarAgentesPendentes(true);
+      agentes = await app.atendimentos.listarAgentes();
+    }
     return catalogoAgentesResponseSchema.parse(agentes);
   };
 

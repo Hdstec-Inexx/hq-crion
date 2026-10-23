@@ -4,8 +4,10 @@ import { buildApp } from '../../apps/api/src/app.js';
 import { avaliacaoDaIaTemVeredito } from '../../apps/api/src/modules/atendimentos/registro.js';
 import {
   atendimentoDaFonteElevenLabs,
+  buscarAgenteElevenLabs,
   coletarAtendimentosElevenLabs,
   leituraAoVivoDaFonte,
+  listarAgentesElevenLabs,
   listarConversasElevenLabs,
   transcricaoPrecisaDeReleitura,
   transcricaoRelida
@@ -945,6 +947,75 @@ test('listagem da fonte segue a próxima página mesmo só com concluídos', asy
   assert.equal(conversas[0]?.conversation_id, 'conv-feita');
   assert.equal(conversas[1]?.conversation_id, 'conv-tarde');
   assert.equal(chamadas.length, 2);
+});
+
+test('listarAgentesElevenLabs percorre paginação e retorna agentes com agent_id e name', async () => {
+  const chamadas: string[] = [];
+  const fetchImpl = (async (url: string | URL | Request) => {
+    chamadas.push(url.toString());
+    const urlStr = url.toString();
+    if (urlStr.includes('cursor=pag-2')) {
+      return new Response(
+        JSON.stringify({
+          agents: [
+            { agent_id: 'agent_2', name: 'Clara Alter Atendimento' }
+          ],
+          has_more: false
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        agents: [
+          { agent_id: 'agent_1', name: 'Clara Affix Central' }
+        ],
+        has_more: true,
+        next_cursor: 'pag-2'
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  const agentes = await listarAgentesElevenLabs({
+    apiKey: 'test-key',
+    baseUrl: 'https://api.elevenlabs.io',
+    fetchImpl
+  });
+
+  assert.equal(agentes.length, 2);
+  assert.equal(agentes[0]?.agent_id, 'agent_1');
+  assert.equal(agentes[0]?.name, 'Clara Affix Central');
+  assert.equal(agentes[1]?.agent_id, 'agent_2');
+  assert.equal(agentes[1]?.name, 'Clara Alter Atendimento');
+  assert.equal(chamadas.length, 2);
+});
+
+test('buscarAgenteElevenLabs busca agente específico por id', async () => {
+  const fetchImpl = (async (url: string | URL | Request) => {
+    const urlStr = url.toString();
+    if (urlStr.includes('/v1/convai/agents/agent_123')) {
+      return new Response(
+        JSON.stringify({
+          agent_id: 'agent_123',
+          name: 'Clara - Conecta Plan -skill'
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    }
+    return new Response('Not Found', { status: 404 });
+  }) as typeof fetch;
+
+  const agente = await buscarAgenteElevenLabs({
+    apiKey: 'test-key',
+    baseUrl: 'https://api.elevenlabs.io',
+    agentId: 'agent_123',
+    fetchImpl
+  });
+
+  assert.ok(agente);
+  assert.equal(agente?.agent_id, 'agent_123');
+  assert.equal(agente?.name, 'Clara - Conecta Plan -skill');
 });
 
 test('releitura troca colchetes pelo Detalhe quando a fonte tem a chamada estruturada', () => {

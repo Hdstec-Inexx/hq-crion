@@ -10,6 +10,8 @@ import {
 import { buildApp } from '../../apps/api/src/app.js';
 import {
   atendimentoDaFonteElevenLabs,
+  buscarAgenteElevenLabs,
+  listarAgentesElevenLabs,
   type PayloadElevenLabs
 } from '../../apps/api/src/modules/ingestao/elevenlabs.js';
 import { sincronizarAgentesDosAtendimentos } from '../../apps/api/src/modules/ingestao/sincronizacao-agentes.js';
@@ -228,8 +230,8 @@ test('agentes de atendimentos salvos aparecem no catálogo dinâmico mesmo na pr
       (atendimentos as any[]).push({
         id: 'atend-affix-salvo',
         administradora: 'Affix' as const,
-        agente: 'Clara Affix 0800',
-        agenteId: 'affix-0800',
+        agente: 'Clara Affix Especial',
+        agenteId: 'affix-especial-salvo',
         conversa: 'conv-affix-salvo',
         status: 'Concluído',
         iniciadoEm: agoraIso,
@@ -267,10 +269,86 @@ test('agentes de atendimentos salvos aparecem no catálogo dinâmico mesmo na pr
     assert.equal(res.statusCode, 200);
     const lista = res.json();
     const ids = lista.map((item: any) => item.id);
-    assert.ok(ids.includes('affix-0800'), 'agente salvo affix-0800 deve constar no catálogo');
+    assert.ok(ids.includes('affix-especial-salvo'), 'agente salvo affix-especial-salvo deve constar no catálogo');
     assert.ok(ids.includes('conecta-plan-skill-id'), 'agente novo conecta-plan-skill-id deve constar no catálogo');
+    assert.ok(!ids.includes('affix-0800'), 'agente semente padrão affix-0800 deve ser ocultado na presença de agentes reais');
     const conectaSkill = lista.find((item: any) => item.id === 'conecta-plan-skill-id');
     assert.equal(conectaSkill.administradora, 'Conectaplan');
+  } finally {
+    await app.close();
+  }
+});
+
+test('sincronização via ElevenLabs atualiza agentes que estão com ID em vez do nome e oculta agentes padrão', async () => {
+  const app = await buildApp();
+
+  try {
+    const agoraIso = new Date().toISOString();
+    const listaRegistros = (app.atendimentos as any).listar;
+    if (listaRegistros) {
+      const atendimentos = await app.atendimentos.listar();
+      // Atendimento cujo agente foi salvo apenas com o id (ex.: agent_0101kn4pk9d4efet4ka1nt92e5mp)
+      (atendimentos as any[]).push({
+        id: 'atend-com-id-apenas',
+        administradora: null,
+        agente: 'agent_0101kn4pk9d4efet4ka1nt92e5mp',
+        agenteId: 'agent_0101kn4pk9d4efet4ka1nt92e5mp',
+        conversa: 'conv-com-id-apenas',
+        status: 'Concluído',
+        iniciadoEm: agoraIso,
+        motivo: 'Boleto',
+        nota: 8,
+        notaIa: 8,
+        notaCurador: null,
+        curadoria: false,
+        transcricao: []
+      });
+    }
+
+    const fetchMock = async (url: string | URL | Request) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/v1/convai/agents')) {
+        return new Response(
+          JSON.stringify({
+            agents: [
+              {
+                agent_id: 'agent_0101kn4pk9d4efet4ka1nt92e5mp',
+                name: 'Clara - Affix - Atendimento WhatsApp'
+              }
+            ],
+            has_more: false
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response('Not Found', { status: 404 });
+    };
+
+    await sincronizarAgentesDosAtendimentos({
+      apiKey: 'test-api-key',
+      baseUrl: 'https://api.elevenlabs.io',
+      fetchImpl: fetchMock as any,
+      atendimentos: app.atendimentos,
+      force: true
+    });
+
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const res = await app.inject({
+      method: 'GET',
+      url: '/agentes',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(res.statusCode, 200);
+    const lista = res.json();
+    const agenteAtualizado = lista.find((ag: any) => ag.id === 'agent_0101kn4pk9d4efet4ka1nt92e5mp');
+    assert.ok(agenteAtualizado, 'agente deve constar no catálogo');
+    assert.equal(agenteAtualizado.nome, 'Clara - Affix - Atendimento WhatsApp');
+    assert.equal(agenteAtualizado.administradora, 'Affix');
+    // Agentes padrão devem ser ocultados pois temos agente real
+    const ids = lista.map((item: any) => item.id);
+    assert.ok(!ids.includes('affix-0800'), 'agente semente não deve aparecer');
+    assert.ok(!ids.includes('alter-1'), 'agente semente não deve aparecer');
   } finally {
     await app.close();
   }

@@ -440,7 +440,8 @@ export function transcricaoRelida(
 }
 
 export function atendimentoDaFonteElevenLabs(
-  payload: PayloadElevenLabs & { administradora?: Administradora }
+  payload: PayloadElevenLabs & { administradora?: Administradora },
+  mapaAgentes?: Map<string, string>
 ): RegistroDeAtendimento | undefined {
   if (!payload.conversation_id || !payload.agent_id?.trim()) {
     return undefined;
@@ -464,7 +465,7 @@ export function atendimentoDaFonteElevenLabs(
   const custo = custoDaFonte(payload);
 
   const agenteConhecido = agentesDeVoz.find((item) => item.id === payload.agent_id);
-  const nomeDaFonte = payload.agent_name?.trim();
+  const nomeDaFonte = payload.agent_name?.trim() || mapaAgentes?.get(payload.agent_id);
   const nome = nomeDaFonte || agenteConhecido?.nome || payload.agent_id;
   const dedicada = administradoraNoNomeDoAgente(nome);
   const administradora =
@@ -642,6 +643,91 @@ function buscaCancelada(signal?: AbortSignal) {
   throw error;
 }
 
+export type AgenteElevenLabs = {
+  agent_id: string;
+  name: string;
+};
+
+type ListaAgentesElevenLabs = {
+  agents?: AgenteElevenLabs[];
+  has_more?: boolean;
+  next_cursor?: string;
+};
+
+export async function listarAgentesElevenLabs(input: {
+  apiKey: string;
+  baseUrl: string;
+  fetchImpl?: typeof fetch;
+  maxPaginas?: number;
+  signal?: AbortSignal;
+  esperaMs?: number;
+}): Promise<AgenteElevenLabs[]> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const agentes: AgenteElevenLabs[] = [];
+  let cursor: string | undefined;
+  const maxPaginas = input.maxPaginas ?? limiteDePaginas;
+
+  for (let pagina = 0; pagina < maxPaginas; pagina += 1) {
+    buscaCancelada(input.signal);
+    const params = new URLSearchParams({ page_size: '100' });
+    if (cursor) {
+      params.set('cursor', cursor);
+    }
+    const caminho = `/v1/convai/agents?${params.toString()}`;
+    const corpo = (await buscarJson(
+      fetchImpl,
+      urlDaFonte(input.baseUrl, caminho),
+      input.apiKey,
+      input.signal,
+      input.esperaMs
+    )) as ListaAgentesElevenLabs | undefined;
+
+    if (!corpo) {
+      break;
+    }
+
+    if (Array.isArray(corpo.agents)) {
+      agentes.push(...corpo.agents);
+    }
+
+    if (!corpo.has_more || !corpo.next_cursor || corpo.next_cursor === cursor) {
+      break;
+    }
+
+    cursor = corpo.next_cursor;
+  }
+
+  return agentes;
+}
+
+export async function buscarAgenteElevenLabs(input: {
+  apiKey: string;
+  baseUrl: string;
+  agentId: string;
+  fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+  esperaMs?: number;
+}): Promise<AgenteElevenLabs | undefined> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const caminho = `/v1/convai/agents/${encodeURIComponent(input.agentId)}`;
+  const corpo = (await buscarJson(
+    fetchImpl,
+    urlDaFonte(input.baseUrl, caminho),
+    input.apiKey,
+    input.signal,
+    input.esperaMs
+  )) as { agent_id?: string; name?: string } | undefined;
+
+  if (!corpo || !corpo.agent_id || !corpo.name) {
+    return undefined;
+  }
+
+  return {
+    agent_id: corpo.agent_id,
+    name: corpo.name
+  };
+}
+
 export async function listarConversasElevenLabs(input: {
   apiKey: string;
   baseUrl: string;
@@ -760,11 +846,22 @@ export async function coletarAtendimentosElevenLabs(input: {
   fetchImpl?: typeof fetch;
 }): Promise<AtendimentoColetado[]> {
   const conversas = await listarConversasElevenLabs(input);
+  const mapaAgentes = new Map<string, string>();
+  try {
+    const agentes = await listarAgentesElevenLabs(input);
+    for (const ag of agentes) {
+      if (ag.agent_id && ag.name?.trim()) {
+        mapaAgentes.set(ag.agent_id, ag.name.trim());
+      }
+    }
+  } catch {
+    // segue sem mapa de agentes se falhar
+  }
   const coletados: AtendimentoColetado[] = [];
 
   for (const item of conversas) {
     const payload = await payloadComTranscricao(item, input);
-    const atendimento = atendimentoDaFonteElevenLabs(payload);
+    const atendimento = atendimentoDaFonteElevenLabs(payload, mapaAgentes);
 
     if (!atendimento) {
       continue;

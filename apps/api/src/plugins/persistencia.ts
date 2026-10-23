@@ -50,7 +50,7 @@ import { sincronizarAgentesDosAtendimentos } from '../modules/ingestao/sincroniz
 declare module 'fastify' {
   interface FastifyInstance {
     atendimentos: PortaDeAtendimentos;
-    sincronizarAgentesPendentes?: () => Promise<void>;
+    sincronizarAgentesPendentes?: (force?: boolean) => Promise<void>;
   }
 }
 
@@ -268,12 +268,13 @@ export default fp(
       );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);
-      app.decorate('sincronizarAgentesPendentes', () =>
+      app.decorate('sincronizarAgentesPendentes', (force?: boolean) =>
         sincronizarAgentesDosAtendimentos({
           apiKey: app.config.ELEVENLABS_API_KEY,
           baseUrl: app.config.ELEVENLABS_BASE_URL,
           atendimentos: app.atendimentos,
-          log: app.log
+          log: app.log,
+          force
         })
       );
       return;
@@ -327,13 +328,14 @@ export default fp(
       );
       app.decorate('lerMidia', resolvedor.lerMidia);
       app.decorate('descobrirMidia', resolvedor.descobrirMidia);
-      app.decorate('sincronizarAgentesPendentes', () =>
+      app.decorate('sincronizarAgentesPendentes', (force?: boolean) =>
         sincronizarAgentesDosAtendimentos({
           apiKey: app.config.ELEVENLABS_API_KEY,
           baseUrl: app.config.ELEVENLABS_BASE_URL,
           atendimentos: app.atendimentos,
           pool,
-          log: app.log
+          log: app.log,
+          force
         })
       );
       if (app.config.ELEVENLABS_API_KEY) {

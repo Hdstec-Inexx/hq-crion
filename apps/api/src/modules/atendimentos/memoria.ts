@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   administradoraNoNomeDoAgente,
   agentesDeVoz,
+  idsSementeAgentes,
   type Administradora,
   type AgenteDeVoz
 } from '@hq-crion/contracts/recorte';
@@ -584,20 +585,28 @@ export function repositorioEmMemoria(
         administradorasAtendidas: [...e.administradorasAtendidas].sort()
       }));
 
-      if (lista.length === 0) {
+      const temAgentesReais = lista.some((item) => !idsSementeAgentes.has(item.id));
+      const filtrados = temAgentesReais
+        ? lista.filter((item) => !idsSementeAgentes.has(item.id))
+        : lista;
+
+      if (filtrados.length === 0) {
         return agentesDeVoz.map((ag) => ({
           ...ag,
           administradorasAtendidas: ag.administradora ? [ag.administradora] : []
         }));
       }
 
-      return lista.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      return filtrados.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
     },
     async atualizarAgenteDoAtendimento(atendimentoId, agenteId, agenteNome, _administradoraDedicada) {
       const atendimento = registros.find((r) => r.id === atendimentoId);
       if (atendimento) {
         atendimento.agenteId = agenteId;
         atendimento.agente = agenteNome;
+        if (_administradoraDedicada && !atendimento.administradora) {
+          atendimento.administradora = _administradoraDedicada;
+        }
       }
     }
   };
