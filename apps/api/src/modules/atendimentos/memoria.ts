@@ -3,6 +3,7 @@ import {
   administradoraNoNomeDoAgente,
   agentesDeVoz,
   idsSementeAgentes,
+  nomeDeAgenteEstaResolvido,
   type Administradora,
   type AgenteDeVoz
 } from '@hq-crion/contracts/recorte';
@@ -24,6 +25,7 @@ import type { FavoritosDoAtendimento, PortaDeAtendimentos } from './porta.js';
 import { resolverDiagnosticoParaAvaliacao } from '../cancelamentos/heuristica.js';
 import {
   aprovacaoDaAvaliacao,
+  atendimentoEstaAvaliado,
   autorDaConferencia,
   avaliacaoDaIaTemVeredito,
   camposDeMidia,
@@ -561,20 +563,24 @@ export function repositorioEmMemoria(
 
       for (const r of registros) {
         if (!r.agenteId) continue;
+        if (!atendimentoEstaAvaliado(r)) continue;
+        if (!nomeDeAgenteEstaResolvido(r.agenteId, r.agente)) continue;
+
         let entry = mapa.get(r.agenteId);
         if (!entry) {
           const dedicada = administradoraNoNomeDoAgente(r.agente);
           const agenteSemente = agentesDeVoz.find((a) => a.id === r.agenteId);
           entry = {
             id: r.agenteId,
-            nome: r.agente,
+            nome: r.agente.trim(),
             administradora: dedicada ?? agenteSemente?.administradora ?? null,
             administradorasAtendidas: new Set<Administradora>()
           };
           mapa.set(r.agenteId, entry);
         }
-        if (r.administradora) {
-          entry.administradorasAtendidas.add(r.administradora);
+        const adminDoAtendimento = r.administradora ?? entry.administradora;
+        if (adminDoAtendimento) {
+          entry.administradorasAtendidas.add(adminDoAtendimento);
         }
       }
 

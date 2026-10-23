@@ -85,7 +85,7 @@ export async function sincronizarAgentesDosAtendimentos(input: {
 
         // Verifica agentes em hq_agente_de_voz cujo nome é o id ou começa com agent_
         const semNomeRes = await input.pool.query(
-          `SELECT id FROM hq_agente_de_voz WHERE nome = id OR nome LIKE 'agent_%'`
+          `SELECT id FROM hq_agente_de_voz WHERE TRIM(COALESCE(nome, '')) = '' OR LOWER(TRIM(nome)) = LOWER(TRIM(id)) OR LOWER(TRIM(nome)) LIKE 'agent\\_%' ESCAPE '\\'`
         );
         for (const row of semNomeRes.rows as Array<{ id: string }>) {
           let nome = mapaAgentes.get(row.id);
