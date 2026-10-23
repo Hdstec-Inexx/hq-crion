@@ -7,6 +7,11 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
+import {
+  deveAbrirAtendimentoPeloClique,
+  deveAbrirAtendimentoPeloTeclado,
+  useNavegacaoLinha
+} from './acaoLinhaListagem';
 import { buscarAtendimentos } from './api';
 import { BadgeFavoritos } from './BadgeFavoritos';
 import { BarraDeFiltrosDaListagem } from './BarraDeFiltrosDaListagem';
@@ -32,6 +37,7 @@ function destinoDoDetalhe(id: string, search: string, lista: string) {
 export function FavoritosPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
+  const navigate = useNavegacaoLinha();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listagem, setListagem] = useState<ListagemResponse | null>(null);
   const [erro, setErro] = useState<'recorte-invalido' | 'listagem' | null>(null);
@@ -95,6 +101,10 @@ export function FavoritosPage() {
     });
   }
 
+  function abrirAtendimento(id: string) {
+    navigate(destinoDoDetalhe(id, location.search, location.pathname));
+  }
+
   return (
     <div>
       <div className="pagina-head">
@@ -128,7 +138,31 @@ export function FavoritosPage() {
               <p>Nenhum Atendimento favorito encontrado.</p>
             ) : (
               listagem.itens.map((item) => (
-                <article className="listagem-linha" key={item.id}>
+                <article
+                  className="listagem-linha"
+                  key={item.id}
+                  tabIndex={0}
+                  aria-label={`Abrir detalhes do atendimento ${item.id}`}
+                  onClick={(e) => {
+                    const selecao = window.getSelection?.();
+                    const temSelecao = Boolean(
+                      selecao && selecao.toString().trim().length > 0
+                    );
+                    if (!deveAbrirAtendimentoPeloClique(e.target, temSelecao)) {
+                      return;
+                    }
+                    abrirAtendimento(item.id);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!deveAbrirAtendimentoPeloTeclado(e)) {
+                      return;
+                    }
+                    if (e.key === ' ' || e.key === 'Spacebar') {
+                      e.preventDefault();
+                    }
+                    abrirAtendimento(item.id);
+                  }}
+                >
                   <div>
                     <Link
                       className="listagem-link"
