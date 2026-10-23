@@ -2,11 +2,15 @@ import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { BotaoFavorito } from '../atendimentos/BotaoFavorito';
-import { deveAbrirAtendimentoPeloClique, deveAbrirAtendimentoPeloTeclado } from '../atendimentos/acaoLinhaListagem';
+import {
+  deveAbrirAtendimentoPeloClique,
+  deveAbrirAtendimentoPeloTeclado,
+  useNavegacaoLinha
+} from '../atendimentos/acaoLinhaListagem';
 import { useListaAoVivo } from './listaAoVivo';
 import { mensagemDaListaAoVivo, textoDaLinhaAoVivo } from './pulso';
 
@@ -21,7 +25,7 @@ function destinoDoDetalhe(id: string, search: string) {
 export function MonitoramentoPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate = useNavegacaoLinha();
   const [searchParams, setSearchParams] = useSearchParams();
   const estado = useListaAoVivo(searchParams);
   const [favoritosLocais, setFavoritosLocais] = useState<Record<string, boolean>>({});

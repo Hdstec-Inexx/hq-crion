@@ -54,6 +54,12 @@ test('Abertura do Atendimento ao clicar na linha inteira nas listagens operacion
   // Clique direto no botão Marcar Resolvido (Fila de Manutenção) não dispara a abertura da linha
   assert.equal(deveAbrirAtendimentoPeloClique(botaoMarcarResolvido, false), false);
 
+  // Clique direto no badge de favoritos (Gestão/Admin) não dispara a abertura da linha
+  const badgeFavoritosElement = {
+    closest: (sel: string) => (sel.includes('.badge-favoritos') ? badgeFavoritosElement : null)
+  };
+  assert.equal(deveAbrirAtendimentoPeloClique(badgeFavoritosElement, false), false);
+
   // Clique no link textual principal não dispara ação duplicada na linha
   assert.equal(deveAbrirAtendimentoPeloClique(linkTextualPrincipal, false), false);
 
@@ -168,7 +174,7 @@ test('Abertura do Atendimento ao clicar na linha inteira nas listagens operacion
     join(raiz, 'apps/web/src/features/atendimentos/ListagemAtendimentos.tsx'),
     'utf8'
   );
-  assert.match(listagemTsx, /useNavigate/);
+  assert.match(listagemTsx, /useNavegacaoLinha/);
   assert.match(
     listagemTsx,
     /<article[\s\S]*?className="listagem-linha"[\s\S]*?tabIndex=\{0\}/
@@ -187,7 +193,7 @@ test('Abertura do Atendimento ao clicar na linha inteira nas listagens operacion
     join(raiz, 'apps/web/src/features/atendimentos/FavoritosPage.tsx'),
     'utf8'
   );
-  assert.match(favoritosTsx, /useNavigate/);
+  assert.match(favoritosTsx, /useNavegacaoLinha/);
   assert.match(
     favoritosTsx,
     /<article[\s\S]*?className="listagem-linha"[\s\S]*?tabIndex=\{0\}/
@@ -225,7 +231,7 @@ test('Abertura do Atendimento ao clicar na linha inteira nas listagens operacion
     join(raiz, 'apps/web/src/features/monitoramento/MonitoramentoPage.tsx'),
     'utf8'
   );
-  assert.match(monitoramentoTsx, /useNavigate/);
+  assert.match(monitoramentoTsx, /useNavegacaoLinha/);
   assert.match(
     monitoramentoTsx,
     /<article[\s\S]*?className="listagem-linha listagem-linha-monitoramento"[\s\S]*?tabIndex=\{0\}/

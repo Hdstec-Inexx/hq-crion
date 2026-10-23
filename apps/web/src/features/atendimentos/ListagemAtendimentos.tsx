@@ -4,10 +4,14 @@ import { formatarCpf } from '@hq-crion/contracts/cpf';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
-import { deveAbrirAtendimentoPeloClique, deveAbrirAtendimentoPeloTeclado } from './acaoLinhaListagem';
+import {
+  deveAbrirAtendimentoPeloClique,
+  deveAbrirAtendimentoPeloTeclado,
+  useNavegacaoLinha
+} from './acaoLinhaListagem';
 import { buscarAtendimentos } from './api';
 import { BarraDeFiltrosDaListagem } from './BarraDeFiltrosDaListagem';
 import { BadgeFavoritos } from './BadgeFavoritos';
@@ -37,7 +41,7 @@ export function ListagemAtendimentos({
 }) {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate = useNavegacaoLinha();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listagem, setListagem] = useState<ListagemResponse | null>(null);
   const [erro, setErro] = useState<'recorte-invalido' | 'periodo-invalido' | 'listagem' | null>(

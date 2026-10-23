@@ -34,9 +34,10 @@ export function deveAbrirAtendimentoPeloClique(
     return true;
   }
 
-  // Se o clique foi disparado em um link ou botão (ex: badge da Administradora, botão Favorito,
+  // Se o clique foi disparado em um link, botão ou controle interativo interno
+  // (ex: badge da Administradora, botão Favorito, badge de favoritos,
   // botão Marcar Resolvido ou link principal), a linha não deve disparar navegação conflitante.
-  if (elemento.closest('a, button')) {
+  if (elemento.closest('a, button, .badge-favoritos')) {
     return false;
   }
 
