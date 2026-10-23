@@ -1,9 +1,11 @@
+import { administradoraNoNomeDoAgente } from '@hq-crion/contracts/recorte';
 import type { AppConfig } from '../../plugins/config.js';
 import type { ExecutorSql } from '../atendimentos/postgres.js';
 import { inserirAtendimentoSeAusente } from '../atendimentos/postgres.js';
 import { gravarMidia, guardarMidiaLocal } from '../midia/deposito.js';
 import {
   coletarAtendimentosElevenLabs,
+  listarAgentesElevenLabs,
   type AtendimentoColetado
 } from './elevenlabs.js';
 
@@ -36,6 +38,30 @@ export async function ingerirElevenLabs(
   config: AppConfig,
   log: { warn: (obj: unknown, msg?: string) => void }
 ) {
+  if (config.ELEVENLABS_API_KEY) {
+    try {
+      const agentes = await listarAgentesElevenLabs({
+        apiKey: config.ELEVENLABS_API_KEY,
+        baseUrl: config.ELEVENLABS_BASE_URL
+      });
+      for (const ag of agentes) {
+        if (!ag.agent_id || !ag.name?.trim()) continue;
+        const nomeReal = ag.name.trim();
+        const dedicada = administradoraNoNomeDoAgente(nomeReal);
+        await cliente.query(
+          `INSERT INTO hq_agente_de_voz (id, nome, administradora)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (id) DO UPDATE SET
+             nome = EXCLUDED.nome,
+             administradora = EXCLUDED.administradora`,
+          [ag.agent_id, nomeReal, dedicada]
+        );
+      }
+    } catch (error) {
+      log.warn({ err: error }, 'Ingestão prévia de catálogo de agentes falhou');
+    }
+  }
+
   const atendimentos = await coletarDaFonte(config, log);
 
   for (const atendimento of atendimentos) {

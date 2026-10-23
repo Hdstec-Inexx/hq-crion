@@ -19,7 +19,9 @@ No entanto:
 
 ### 1. Seletor de Agente de Voz Sempre Ativo (`RecorteCascata`)
 - O componente `RecorteCascata` remove qualquer atributo `disabled` do seletor de **Agente de Voz**, mantendo-o sempre habilitado, inclusive quando **Administradora** estiver em `"Todas"` (`""`).
-- O seletor consome dinamicamente a API de catálogo de agentes (`GET /agentes`), populando-se com todos os agentes que possuem atendimentos registrados no banco (tanto operacionais dinâmicos quanto sementes que possuam atendimentos salvos) e recorrendo à lista semente apenas como fallback preventivo quando a base estiver vazia.
+- O seletor consome dinamicamente a API de catálogo de agentes (`GET /agentes`), populando-se exclusivamente com os agentes que possuam simultaneamente nome próprio resolvido (excluindo identificadores técnicos brutos com prefixo `agent_` ou `nome = id`) e ao menos um Atendimento avaliado no HQ (com Avaliação da IA Avaliadora ou do Curador).
+- A lista de `administradorasAtendidas` de cada agente no catálogo reflete as Administradoras dos seus atendimentos avaliados.
+- Os agentes fictícios da semente permanecem ocultos quando houver agentes reais avaliados e nomeados, servindo como fallback apenas caso nenhum agente no repositório cumpra os critérios.
 
 ### 2. Filtragem Contextual por Administradora
 - **Administradora em `"Todas"`**: O seletor de Agente de Voz lista todos os agentes avaliados da operação (dedicados e compartilhados). Selecionar um agente atualiza a URL para `?agente=<id>` e filtra a leitura consolidada da operação por aquele agente.

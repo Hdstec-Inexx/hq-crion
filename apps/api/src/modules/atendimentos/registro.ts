@@ -178,6 +178,24 @@ export function avaliacaoDaIaTemVeredito(
   );
 }
 
+export function atendimentoEstaAvaliado(
+  item: Partial<
+    Pick<
+      RegistroDeAtendimento,
+      'nota' | 'notaIa' | 'notaCurador' | 'curadoria' | 'avaliacaoDaIa' | 'avaliacaoDoCurador'
+    >
+  >
+): boolean {
+  const temVereditoIa =
+    Boolean(item.avaliacaoDaIa) ||
+    (typeof item.notaIa === 'number' && item.notaIa > 0);
+  const temCuradoria =
+    item.curadoria === true ||
+    Boolean(item.avaliacaoDoCurador) ||
+    (typeof item.notaCurador === 'number' && item.notaCurador > 0);
+  return temVereditoIa || temCuradoria;
+}
+
 export function autorDaConferencia(
   entrada: { curador: CuradorDaRevisao; papel?: Papel },
   curadorExistente?: CuradorDaRevisao

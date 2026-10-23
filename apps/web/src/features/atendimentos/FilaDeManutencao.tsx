@@ -7,6 +7,11 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
+import {
+  deveAbrirAtendimentoPeloClique,
+  deveAbrirAtendimentoPeloTeclado,
+  useNavegacaoLinha
+} from './acaoLinhaListagem';
 import { buscarFilaDeManutencao, marcarComentarioResolvido } from './api';
 import { PaginacaoCompacta } from './PaginacaoCompacta';
 import { formatarQuando } from './formatar-quando';
@@ -22,6 +27,7 @@ function destinoDoDetalhe(id: string, search: string) {
 export function FilaDeManutencao() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
+  const navegar = useNavegacaoLinha();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listagem, setListagem] = useState<FilaDeManutencaoResponse | null>(null);
   const [erro, setErro] = useState<
@@ -137,6 +143,10 @@ export function FilaDeManutencao() {
     }
   }
 
+  function abrirAtendimento(atendimentoId: string) {
+    navegar(destinoDoDetalhe(atendimentoId, location.search));
+  }
+
   const inicioNaQuery = searchParams.get('inicio') ?? '';
   const fimNaQuery = searchParams.get('fim') ?? '';
   const [inicioRascunho, setInicioRascunho] = useState(inicioNaQuery);
@@ -233,7 +243,31 @@ export function FilaDeManutencao() {
               <p>Nenhum Comentário neste Recorte.</p>
             ) : (
               listagem.itens.map((item) => (
-                <article className="listagem-linha listagem-linha-manutencao" key={item.id}>
+                <article
+                  className="listagem-linha listagem-linha-manutencao"
+                  key={item.id}
+                  tabIndex={0}
+                  aria-label={`Abrir detalhes do atendimento ${item.atendimentoId}`}
+                  onClick={(e) => {
+                    const selecao = window.getSelection?.();
+                    const temSelecao = Boolean(
+                      selecao && selecao.toString().trim().length > 0
+                    );
+                    if (!deveAbrirAtendimentoPeloClique(e.target, temSelecao)) {
+                      return;
+                    }
+                    abrirAtendimento(item.atendimentoId);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!deveAbrirAtendimentoPeloTeclado(e)) {
+                      return;
+                    }
+                    if (e.key === ' ' || e.key === 'Spacebar') {
+                      e.preventDefault();
+                    }
+                    abrirAtendimento(item.atendimentoId);
+                  }}
+                >
                   <div>
                     <Link
                       className="listagem-link"

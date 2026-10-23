@@ -4,6 +4,7 @@ import { extrairCpf, normalizarCpf } from '@hq-crion/contracts/cpf';
 import type { Papel } from '@hq-crion/contracts/perfil';
 import {
   agentesDeVoz,
+  idsSementeAgentes,
   type Administradora,
   type AgenteDeVoz,
   type Recorte
@@ -1369,6 +1370,13 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT COALESCE(a.administradora, ag.administradora)), NULL) AS administradoras_atendidas
         FROM hq_agente_de_voz ag
         JOIN hq_atendimento a ON a.agente_id = ag.id
+        WHERE TRIM(COALESCE(ag.nome, '')) <> ''
+          AND LOWER(TRIM(ag.nome)) <> LOWER(TRIM(ag.id))
+          AND LOWER(TRIM(ag.nome)) NOT LIKE 'agent\_%' ESCAPE '\'
+          AND (
+            EXISTS (SELECT 1 FROM hq_avaliacao_da_ia ia WHERE ia.atendimento_id = a.id)
+            OR EXISTS (SELECT 1 FROM hq_avaliacao_do_curador cur WHERE cur.atendimento_id = a.id)
+          )
         GROUP BY ag.id, ag.nome, ag.administradora
         ORDER BY ag.nome ASC
       `);
@@ -1380,18 +1388,23 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         administradoras_atendidas: Administradora[];
       }>;
 
-      if (linhas.length === 0) {
+      const temAgentesReais = linhas.some((l) => !idsSementeAgentes.has(l.id));
+      const selecionadas = temAgentesReais
+        ? linhas.filter((l) => !idsSementeAgentes.has(l.id))
+        : linhas;
+
+      if (selecionadas.length === 0) {
         return agentesDeVoz.map((ag) => ({
           ...ag,
           administradorasAtendidas: ag.administradora ? [ag.administradora] : []
         }));
       }
 
-      return linhas.map((l) => ({
+      return selecionadas.map((l) => ({
         id: l.id,
-        nome: l.nome,
+        nome: l.nome.trim(),
         administradora: l.administradora ?? null,
-        administradorasAtendidas: l.administradoras_atendidas ?? []
+        administradorasAtendidas: (l.administradoras_atendidas ?? []).sort()
       }));
     },
     async atualizarAgenteDoAtendimento(
@@ -1404,7 +1417,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         `INSERT INTO hq_agente_de_voz (id, nome, administradora)
          VALUES ($1, $2, $3)
          ON CONFLICT (id) DO UPDATE SET
-           nome = EXCLUDED.nome,
+           nome = CASE WHEN EXCLUDED.nome IS NOT NULL AND EXCLUDED.nome <> EXCLUDED.id THEN EXCLUDED.nome ELSE hq_agente_de_voz.nome END,
            administradora = EXCLUDED.administradora`,
         [agenteId, agenteNome, administradoraDedicada]
       );

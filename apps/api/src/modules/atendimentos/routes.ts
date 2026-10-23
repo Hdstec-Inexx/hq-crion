@@ -23,6 +23,7 @@ import {
 } from '@hq-crion/contracts/recorte';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
+  buscarAgenteElevenLabs,
   buscarConversaElevenLabs,
   transcricaoPrecisaDeReleitura,
   transcricaoRelida
@@ -440,7 +441,9 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       transcricaoPrecisaDeReleitura(item.transcricao);
     const precisaSincronizarAgente =
       !conversasComAgenteVerificado.has(item.conversa) &&
-      idsSementeAgentes.has(item.agenteId);
+      (idsSementeAgentes.has(item.agenteId) ||
+        item.agente === item.agenteId ||
+        item.agente.startsWith('agent_'));
 
     if (
       app.config.ELEVENLABS_API_KEY &&
@@ -457,17 +460,37 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
         registrarConversaVerificada(item.conversa);
 
-        if (payload?.agent_id && (payload.agent_id !== item.agenteId || precisaSincronizarAgente)) {
-          const nomeReal = payload.agent_name?.trim() || payload.agent_id;
+        const targetAgentId = payload?.agent_id || item.agenteId;
+        if (targetAgentId && (targetAgentId !== item.agenteId || precisaSincronizarAgente)) {
+          let nomeReal = payload?.agent_name?.trim();
+          if (!nomeReal || nomeReal === targetAgentId) {
+            try {
+              const ag = await buscarAgenteElevenLabs({
+                apiKey: app.config.ELEVENLABS_API_KEY,
+                baseUrl: app.config.ELEVENLABS_BASE_URL,
+                agentId: targetAgentId,
+                esperaMs: 5_000
+              });
+              if (ag?.name?.trim()) {
+                nomeReal = ag.name.trim();
+              }
+            } catch {
+              // fallback
+            }
+          }
+          nomeReal = nomeReal || targetAgentId;
           const dedicada = administradoraNoNomeDoAgente(nomeReal);
           await app.atendimentos.atualizarAgenteDoAtendimento(
             item.id,
-            payload.agent_id,
+            targetAgentId,
             nomeReal,
             dedicada
           );
-          item.agenteId = payload.agent_id;
+          item.agenteId = targetAgentId;
           item.agente = nomeReal;
+          if (dedicada && !item.administradora) {
+            item.administradora = dedicada;
+          }
         }
 
         if (precisaReleitura && !conversasSemChamadaEstruturada.has(item.conversa)) {

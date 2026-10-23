@@ -43,6 +43,23 @@ export function administradoraNoNomeDoAgente(nome: string): Administradora | nul
   return null;
 }
 
+export function nomeDeAgenteEstaResolvido(id: string, nome?: string | null): boolean {
+  if (!id || !nome) {
+    return false;
+  }
+  const limpo = nome.trim();
+  if (limpo.length === 0) {
+    return false;
+  }
+  if (limpo.toLowerCase() === id.trim().toLowerCase()) {
+    return false;
+  }
+  if (limpo.toLowerCase().startsWith('agent_')) {
+    return false;
+  }
+  return true;
+}
+
 export const agentesDeVoz: AgenteDeVoz[] = [
   { id: 'affix-0800', administradora: 'Affix', nome: 'Clara Affix 0800' },
   { id: 'affix-wa', administradora: 'Affix', nome: 'Clara Affix WhatsApp' },

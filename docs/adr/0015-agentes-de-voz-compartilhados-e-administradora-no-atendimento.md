@@ -37,7 +37,7 @@ Na operação real de produção com a ElevenLabs:
 
 ### 4. Sincronização Automática em Background e Catálogo Dinâmico
 - Rotina em background e sob demanda (`sincronizarAgentesDosAtendimentos`) consulta a API da ElevenLabs para atualizar atendimentos que possuam identificadores de semente para seus `agent_id` e `agent_name` reais, com debounce para proteção contra chamadas concorrentes.
-- A API expõe `GET /agentes` e `GET /api/agentes`, retornando o catálogo dinâmico de agentes dos atendimentos presentes no banco (com `id`, `nome`, `administradora` e `administradorasAtendidas`). Agentes fictícios da semente estrutural só são exibidos quando possuem atendimentos salvos ou como fallback quando não há nenhum atendimento registrado.
+- A API expõe `GET /agentes` e `GET /api/agentes`, retornando o catálogo dinâmico de agentes dos atendimentos presentes no banco (com `id`, `nome`, `administradora` e `administradorasAtendidas`), sincronizando nomes reais diretamente da ElevenLabs e ocultando os agentes fictícios da semente quando há agentes reais avaliados.
 
 ---
 
