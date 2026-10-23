@@ -5,8 +5,10 @@ import {
   administradoraNoNomeDoAgente,
   agentesDeVoz,
   escreverRecorteNaQuery,
-  lerRecorte
+  lerRecorte,
+  nomeDeAgenteEstaResolvido
 } from '../../packages/contracts/src/recorte.js';
+import { atendimentoEstaAvaliado } from '../../apps/api/src/modules/atendimentos/registro.js';
 import { buildApp } from '../../apps/api/src/app.js';
 import {
   atendimentoDaFonteElevenLabs,
@@ -463,4 +465,305 @@ test('ADR 0015 documenta agentes compartilhados, administradora no atendimento e
   assert.match(conteudo, /hq_atendimento\.administradora/i);
   assert.match(conteudo, /019_administradora_no_atendimento_e_agentes_compartilhados\.sql/i);
   assert.match(conteudo, /salva-atendimento\.sql/i);
+});
+
+test('nomeDeAgenteEstaResolvido valida critérios de nome próprio resolvido', () => {
+  // Inválidos: nulos ou vazios
+  assert.equal(nomeDeAgenteEstaResolvido('agent_1', null), false);
+  assert.equal(nomeDeAgenteEstaResolvido('agent_1', undefined), false);
+  assert.equal(nomeDeAgenteEstaResolvido('agent_1', ''), false);
+  assert.equal(nomeDeAgenteEstaResolvido('agent_1', '   '), false);
+  assert.equal(nomeDeAgenteEstaResolvido('', 'Clara Teste'), false);
+
+  // Inválidos: nome igual ao id (case-insensitive)
+  assert.equal(nomeDeAgenteEstaResolvido('agent_abc', 'agent_abc'), false);
+  assert.equal(nomeDeAgenteEstaResolvido('AGENT_ABC', 'agent_abc'), false);
+  assert.equal(nomeDeAgenteEstaResolvido('agent_abc', 'AGENT_ABC'), false);
+  assert.equal(nomeDeAgenteEstaResolvido('roteador-1', 'roteador-1'), false);
+  assert.equal(nomeDeAgenteEstaResolvido('roteador-1', 'ROTEADOR-1'), false);
+  assert.equal(nomeDeAgenteEstaResolvido('roteador-1', '  roteador-1  '), false);
+
+  // Inválidos: iniciados pelo prefixo técnico agent_ (case-insensitive)
+  assert.equal(nomeDeAgenteEstaResolvido('id-qualquer', 'agent_0101kn4pk9d4efet4ka1nt92e5mp'), false);
+  assert.equal(nomeDeAgenteEstaResolvido('id-qualquer', 'Agent_0101kn4pk9d4efet4ka1nt92e5mp'), false);
+  assert.equal(nomeDeAgenteEstaResolvido('id-qualquer', 'AGENT_0101kn4pk9d4efet4ka1nt92e5mp'), false);
+  assert.equal(nomeDeAgenteEstaResolvido('id-qualquer', '  agent_teste'), false);
+
+  // Válidos: nomes humanos resolvidos
+  assert.equal(nomeDeAgenteEstaResolvido('affix-0800', 'Clara Affix 0800'), true);
+  assert.equal(nomeDeAgenteEstaResolvido('agent_0101kn4pk9d4efet4ka1nt92e5mp', 'Clara Central Router'), true);
+  assert.equal(nomeDeAgenteEstaResolvido('roteador-geral', 'Clara Roteador Geral'), true);
+});
+
+test('atendimentoEstaAvaliado reconhece avaliações da IA e do Curador', () => {
+  // Não avaliado: recém-ingerido da fonte com nota 0 e sem veredito
+  assert.equal(
+    atendimentoEstaAvaliado({
+      nota: 0,
+      notaIa: 0,
+      notaCurador: null,
+      curadoria: false,
+      avaliacaoDaIa: undefined,
+      avaliacaoDoCurador: undefined
+    }),
+    false
+  );
+
+  // Avaliado pela IA com critérios/veredito
+  assert.equal(
+    atendimentoEstaAvaliado({
+      nota: 8.5,
+      notaIa: 8.5,
+      notaCurador: null,
+      curadoria: false,
+      avaliacaoDaIa: {
+        nota: 8.5,
+        aprovacao: 'Aprovado',
+        criterios: [
+          { nome: 'Resolução da demanda', estado: 'Atendido', pontos: 1.5, critico: true }
+        ]
+      }
+    }),
+    true
+  );
+
+  // Avaliado com notaIa positiva mesmo sem objeto completo
+  assert.equal(
+    atendimentoEstaAvaliado({
+      nota: 8.0,
+      notaIa: 8.0,
+      curadoria: false
+    }),
+    true
+  );
+
+  // Avaliado pelo Curador (curadoria true)
+  assert.equal(
+    atendimentoEstaAvaliado({
+      nota: 7.0,
+      notaIa: 0,
+      notaCurador: 7.0,
+      curadoria: true
+    }),
+    true
+  );
+
+  // Avaliado com objeto avaliacaoDoCurador
+  assert.equal(
+    atendimentoEstaAvaliado({
+      nota: 0,
+      curadoria: false,
+      avaliacaoDoCurador: {
+        nota: 6.0,
+        notaDaAvaliacaoDaIa: 0,
+        curador: 'Curador Humano',
+        aprovacao: 'Reprovado',
+        criterios: []
+      } as any
+    }),
+    true
+  );
+});
+
+test('listarAgentes exclui agentes com ID bruto ou sem Atendimento avaliado e inclui após resolução e avaliação', async () => {
+  const app = await buildApp();
+
+  try {
+    const agoraIso = new Date().toISOString();
+    const listaRegistros = (app.atendimentos as any).listar;
+    assert.ok(listaRegistros, 'repositório em memória deve expor listar');
+    const atendimentos = await app.atendimentos.listar();
+
+    // 1. Agente com ID bruto (agent_...) mesmo com atendimento avaliado (nota 8) deve ser EXCLUÍDO
+    (atendimentos as any[]).push({
+      id: 'atend-bruto-avaliado',
+      administradora: 'Affix' as const,
+      agente: 'agent_0101kn4pk9d4efet4ka1nt92e5mp',
+      agenteId: 'agent_0101kn4pk9d4efet4ka1nt92e5mp',
+      conversa: 'conv-bruto-avaliado',
+      status: 'Concluído',
+      iniciadoEm: agoraIso,
+      motivo: 'Boleto',
+      nota: 8,
+      notaIa: 8,
+      notaCurador: null,
+      curadoria: false,
+      transcricao: []
+    });
+
+    // 2. Agente cujo nome é igual ao próprio id (case-insensitive) mesmo com atendimento avaliado deve ser EXCLUÍDO
+    (atendimentos as any[]).push({
+      id: 'atend-nome-igual-id',
+      administradora: 'Alter' as const,
+      agente: 'clara-sem-resolucao',
+      agenteId: 'CLARA-SEM-RESOLUCAO',
+      conversa: 'conv-nome-igual-id',
+      status: 'Concluído',
+      iniciadoEm: agoraIso,
+      motivo: 'Boleto',
+      nota: 8,
+      notaIa: 8,
+      notaCurador: null,
+      curadoria: false,
+      transcricao: []
+    });
+
+    // 3. Agente com nome resolvido, mas cujos atendimentos NÃO foram avaliados (nota 0, sem IA nem curadoria) deve ser EXCLUÍDO
+    (atendimentos as any[]).push({
+      id: 'atend-nome-resolvido-sem-avaliacao',
+      administradora: 'Conectaplan' as const,
+      agente: 'Clara Conectaplan Nova',
+      agenteId: 'conecta-nova-sem-avaliacao',
+      conversa: 'conv-sem-avaliacao',
+      status: 'Concluído',
+      iniciadoEm: agoraIso,
+      motivo: 'Boleto',
+      nota: 0,
+      notaIa: 0,
+      notaCurador: null,
+      curadoria: false,
+      transcricao: []
+    });
+
+    // 4. Agente compartilhado resolvido com atendimentos avaliados em Affix e NÃO avaliados em Alter
+    // Deve refletir administradorasAtendidas = ['Affix']
+    (atendimentos as any[]).push({
+      id: 'atend-comp-avaliado-affix',
+      administradora: 'Affix' as const,
+      agente: 'Clara Roteador Híbrido',
+      agenteId: 'roteador-hibrido-id',
+      conversa: 'conv-comp-affix-av',
+      status: 'Concluído',
+      iniciadoEm: agoraIso,
+      motivo: 'Boleto',
+      nota: 8.5,
+      notaIa: 8.5,
+      notaCurador: null,
+      curadoria: false,
+      transcricao: []
+    });
+    (atendimentos as any[]).push({
+      id: 'atend-comp-nao-avaliado-alter',
+      administradora: 'Alter' as const,
+      agente: 'Clara Roteador Híbrido',
+      agenteId: 'roteador-hibrido-id',
+      conversa: 'conv-comp-alter-sem-av',
+      status: 'Em andamento',
+      iniciadoEm: agoraIso,
+      motivo: 'Boleto',
+      nota: 0,
+      notaIa: 0,
+      notaCurador: null,
+      curadoria: false,
+      transcricao: []
+    });
+
+    const sessao = await sessaoDe(app, 'ana.souza@crion');
+    const res = await app.inject({
+      method: 'GET',
+      url: '/agentes',
+      headers: { authorization: `Bearer ${sessao}` }
+    });
+
+    assert.equal(res.statusCode, 200);
+    const catalogo = res.json();
+    const ids = catalogo.map((ag: any) => ag.id);
+
+    // Exclusões verificadas:
+    assert.equal(ids.includes('agent_0101kn4pk9d4efet4ka1nt92e5mp'), false, 'agente com id técnico deve ser excluído');
+    assert.equal(ids.includes('CLARA-SEM-RESOLUCAO'), false, 'agente com nome igual ao id deve ser excluído');
+    assert.equal(ids.includes('conecta-nova-sem-avaliacao'), false, 'agente sem atendimento avaliado deve ser excluído');
+
+    // Inclusão verificada:
+    assert.equal(ids.includes('roteador-hibrido-id'), true, 'agente nomeado e avaliado deve estar no catálogo');
+    const agenteHibrido = catalogo.find((ag: any) => ag.id === 'roteador-hibrido-id');
+    assert.equal(agenteHibrido.nome, 'Clara Roteador Híbrido');
+    assert.deepEqual(agenteHibrido.administradorasAtendidas, ['Affix'], 'administradorasAtendidas deve incluir apenas atendimentos avaliados');
+
+    // Agentes padrão da semente devem ser ocultados na presença do agente real
+    assert.equal(ids.includes('affix-0800'), false);
+    assert.equal(ids.includes('alter-1'), false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('listarAgentes retorna fallback da semente quando nenhum agente cumprir os critérios de avaliação e nome', async () => {
+  const { repositorioEmMemoria } = await import('../../apps/api/src/modules/atendimentos/memoria.js');
+
+  // 1. Repositório vazio: retorna semente padrão
+  const repoVazio = repositorioEmMemoria([]);
+  const catalogoVazio = await repoVazio.listarAgentes();
+  assert.equal(catalogoVazio.length, 4);
+  const idsVazio = catalogoVazio.map((a) => a.id);
+  assert.ok(idsVazio.includes('affix-0800'));
+  assert.ok(idsVazio.includes('affix-wa'));
+  assert.ok(idsVazio.includes('alter-1'));
+  assert.ok(idsVazio.includes('conecta-1'));
+
+  // 2. Repositório contendo apenas agentes com id técnico ou não avaliados: deve acionar fallback
+  const agoraIso = new Date().toISOString();
+  const repoComAgentesInvalidos = repositorioEmMemoria([
+    {
+      id: 'atend-nao-avaliado',
+      administradora: 'Affix',
+      agente: 'Clara Affix Especial',
+      agenteId: 'affix-especial-sem-av',
+      conversa: 'conv-1',
+      status: 'Concluído',
+      iniciadoEm: agoraIso,
+      motivo: 'Boleto',
+      nota: 0,
+      notaIa: 0,
+      notaCurador: null,
+      curadoria: false,
+      transcricao: []
+    },
+    {
+      id: 'atend-com-id-tecnico',
+      administradora: 'Alter',
+      agente: 'agent_0101kn4pk9d4efet4ka1nt92e5mp',
+      agenteId: 'agent_0101kn4pk9d4efet4ka1nt92e5mp',
+      conversa: 'conv-2',
+      status: 'Concluído',
+      iniciadoEm: agoraIso,
+      motivo: 'Boleto',
+      nota: 8.5,
+      notaIa: 8.5,
+      notaCurador: null,
+      curadoria: false,
+      transcricao: []
+    }
+  ]);
+
+  const catalogoFallback = await repoComAgentesInvalidos.listarAgentes();
+  assert.equal(catalogoFallback.length, 4, 'deve retornar fallback da semente com 4 agentes');
+  const idsFallback = catalogoFallback.map((a) => a.id);
+  assert.ok(idsFallback.includes('affix-0800'));
+  assert.ok(idsFallback.includes('alter-1'));
+
+  // 3. Assim que um agente válido (nome resolvido e atendimento avaliado) é inserido, semente é ocultada
+  const atendimentos = (await repoComAgentesInvalidos.listar()) as any[];
+  atendimentos.push({
+    id: 'atend-valido',
+    administradora: 'Conectaplan',
+    agente: 'Clara Conectaplan Oficial',
+    agenteId: 'conecta-oficial-id',
+    conversa: 'conv-valida',
+    status: 'Concluído',
+    iniciadoEm: agoraIso,
+    motivo: 'Dúvida',
+    nota: 9,
+    notaIa: 9,
+    notaCurador: null,
+    curadoria: false,
+    transcricao: []
+  });
+
+  const catalogoComValido = await repoComAgentesInvalidos.listarAgentes();
+  assert.equal(catalogoComValido.length, 1, 'deve retornar exclusivamente o agente válido');
+  assert.equal(catalogoComValido[0].id, 'conecta-oficial-id');
+  assert.equal(catalogoComValido[0].nome, 'Clara Conectaplan Oficial');
+  assert.equal(catalogoComValido[0].administradora, 'Conectaplan');
+  assert.deepEqual(catalogoComValido[0].administradorasAtendidas, ['Conectaplan']);
 });

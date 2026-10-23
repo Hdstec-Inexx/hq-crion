@@ -1370,6 +1370,13 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT COALESCE(a.administradora, ag.administradora)), NULL) AS administradoras_atendidas
         FROM hq_agente_de_voz ag
         JOIN hq_atendimento a ON a.agente_id = ag.id
+        WHERE TRIM(COALESCE(ag.nome, '')) <> ''
+          AND LOWER(TRIM(ag.nome)) <> LOWER(TRIM(ag.id))
+          AND LOWER(TRIM(ag.nome)) NOT LIKE 'agent_%'
+          AND (
+            EXISTS (SELECT 1 FROM hq_avaliacao_da_ia ia WHERE ia.atendimento_id = a.id)
+            OR EXISTS (SELECT 1 FROM hq_avaliacao_do_curador cur WHERE cur.atendimento_id = a.id)
+          )
         GROUP BY ag.id, ag.nome, ag.administradora
         ORDER BY ag.nome ASC
       `);
