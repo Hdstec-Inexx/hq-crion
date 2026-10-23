@@ -756,7 +756,7 @@ test('repositorioPostgres implementa listarAgentes e atualizarAgenteDoAtendiment
   assert.ok(consultaAgentes, 'deve executar query de agentes');
   assert.match(consultaAgentes.sql, /COALESCE\(a\.administradora,\s*ag\.administradora\)/i);
   assert.match(consultaAgentes.sql, /LOWER\s*\(\s*TRIM\s*\(\s*ag\.nome\s*\)\s*\)\s*<>\s*LOWER\s*\(\s*TRIM\s*\(\s*ag\.id\s*\)\s*\)/i, 'deve excluir agentes cujo nome seja igual ao id');
-  assert.match(consultaAgentes.sql, /agent_%/i, 'deve excluir agentes com prefixo agent_');
+  assert.match(consultaAgentes.sql, /agent\\?_%/i, 'deve excluir agentes com prefixo agent_');
   assert.match(consultaAgentes.sql, /EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+hq_avaliacao_da_ia/i, 'deve exigir atendimento com avaliacao da IA');
   assert.match(consultaAgentes.sql, /EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+hq_avaliacao_do_curador/i, 'deve aceitar atendimento com avaliacao do Curador');
 

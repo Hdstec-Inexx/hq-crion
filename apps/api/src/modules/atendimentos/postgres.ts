@@ -1372,7 +1372,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
         JOIN hq_atendimento a ON a.agente_id = ag.id
         WHERE TRIM(COALESCE(ag.nome, '')) <> ''
           AND LOWER(TRIM(ag.nome)) <> LOWER(TRIM(ag.id))
-          AND LOWER(TRIM(ag.nome)) NOT LIKE 'agent_%'
+          AND LOWER(TRIM(ag.nome)) NOT LIKE 'agent\_%' ESCAPE '\'
           AND (
             EXISTS (SELECT 1 FROM hq_avaliacao_da_ia ia WHERE ia.atendimento_id = a.id)
             OR EXISTS (SELECT 1 FROM hq_avaliacao_do_curador cur WHERE cur.atendimento_id = a.id)
