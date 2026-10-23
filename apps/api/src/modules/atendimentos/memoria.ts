@@ -599,13 +599,13 @@ export function repositorioEmMemoria(
 
       return filtrados.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
     },
-    async atualizarAgenteDoAtendimento(atendimentoId, agenteId, agenteNome, _administradoraDedicada) {
+    async atualizarAgenteDoAtendimento(atendimentoId, agenteId, agenteNome, administradoraDedicada) {
       const atendimento = registros.find((r) => r.id === atendimentoId);
       if (atendimento) {
         atendimento.agenteId = agenteId;
         atendimento.agente = agenteNome;
-        if (_administradoraDedicada && !atendimento.administradora) {
-          atendimento.administradora = _administradoraDedicada;
+        if (administradoraDedicada && !atendimento.administradora) {
+          atendimento.administradora = administradoraDedicada;
         }
       }
     }

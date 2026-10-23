@@ -70,7 +70,7 @@ export async function sincronizarAgentesDosAtendimentos(input: {
              VALUES ($1, $2, $3)
              ON CONFLICT (id) DO UPDATE SET
                nome = EXCLUDED.nome,
-               administradora = COALESCE(EXCLUDED.administradora, hq_agente_de_voz.administradora)`,
+               administradora = EXCLUDED.administradora`,
             [agentId, nome, dedicada]
           );
           if (dedicada) {
@@ -108,7 +108,7 @@ export async function sincronizarAgentesDosAtendimentos(input: {
           if (nome) {
             const dedicada = administradoraNoNomeDoAgente(nome);
             await input.pool.query(
-              `UPDATE hq_agente_de_voz SET nome = $2, administradora = COALESCE(administradora, $3) WHERE id = $1`,
+              `UPDATE hq_agente_de_voz SET nome = $2, administradora = $3 WHERE id = $1`,
               [row.id, nome, dedicada]
             );
             if (dedicada) {

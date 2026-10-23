@@ -53,7 +53,7 @@ export async function ingerirElevenLabs(
            VALUES ($1, $2, $3)
            ON CONFLICT (id) DO UPDATE SET
              nome = EXCLUDED.nome,
-             administradora = COALESCE(EXCLUDED.administradora, hq_agente_de_voz.administradora)`,
+             administradora = EXCLUDED.administradora`,
           [ag.agent_id, nomeReal, dedicada]
         );
       }

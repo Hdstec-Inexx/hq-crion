@@ -1411,7 +1411,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
          VALUES ($1, $2, $3)
          ON CONFLICT (id) DO UPDATE SET
            nome = CASE WHEN EXCLUDED.nome IS NOT NULL AND EXCLUDED.nome <> EXCLUDED.id THEN EXCLUDED.nome ELSE hq_agente_de_voz.nome END,
-           administradora = COALESCE(EXCLUDED.administradora, hq_agente_de_voz.administradora)`,
+           administradora = EXCLUDED.administradora`,
         [agenteId, agenteNome, administradoraDedicada]
       );
       await pool.query(

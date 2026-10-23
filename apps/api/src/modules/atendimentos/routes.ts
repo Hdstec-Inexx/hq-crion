@@ -460,14 +460,15 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
 
         registrarConversaVerificada(item.conversa);
 
-        if (payload?.agent_id && (payload.agent_id !== item.agenteId || precisaSincronizarAgente)) {
-          let nomeReal = payload.agent_name?.trim();
-          if (!nomeReal || nomeReal === payload.agent_id) {
+        const targetAgentId = payload?.agent_id || item.agenteId;
+        if (targetAgentId && (targetAgentId !== item.agenteId || precisaSincronizarAgente)) {
+          let nomeReal = payload?.agent_name?.trim();
+          if (!nomeReal || nomeReal === targetAgentId) {
             try {
               const ag = await buscarAgenteElevenLabs({
                 apiKey: app.config.ELEVENLABS_API_KEY,
                 baseUrl: app.config.ELEVENLABS_BASE_URL,
-                agentId: payload.agent_id,
+                agentId: targetAgentId,
                 esperaMs: 5_000
               });
               if (ag?.name?.trim()) {
@@ -477,15 +478,15 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
               // fallback
             }
           }
-          nomeReal = nomeReal || payload.agent_id;
+          nomeReal = nomeReal || targetAgentId;
           const dedicada = administradoraNoNomeDoAgente(nomeReal);
           await app.atendimentos.atualizarAgenteDoAtendimento(
             item.id,
-            payload.agent_id,
+            targetAgentId,
             nomeReal,
             dedicada
           );
-          item.agenteId = payload.agent_id;
+          item.agenteId = targetAgentId;
           item.agente = nomeReal;
           if (dedicada && !item.administradora) {
             item.administradora = dedicada;
@@ -543,14 +544,7 @@ const atendimentoRoutes: FastifyPluginAsync = async (app) => {
       await app.sincronizarAgentesPendentes();
     }
 
-    let agentes = await app.atendimentos.listarAgentes();
-    if (
-      agentes.some((ag) => ag.nome === ag.id || ag.nome.startsWith('agent_')) &&
-      app.sincronizarAgentesPendentes
-    ) {
-      await app.sincronizarAgentesPendentes(true);
-      agentes = await app.atendimentos.listarAgentes();
-    }
+    const agentes = await app.atendimentos.listarAgentes();
     return catalogoAgentesResponseSchema.parse(agentes);
   };
 
