@@ -30,6 +30,10 @@ import {
   executarPesquisaIa
 } from '../../apps/api/src/modules/cancelamentos/openrouter.js';
 import { parseAppConfig } from '../../apps/api/src/plugins/config.js';
+import {
+  deveAbrirAtendimentoPeloClique,
+  deveAbrirAtendimentoPeloTeclado
+} from '../../apps/web/src/features/cancelamentos/acaoLinhaTabela.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -1174,5 +1178,221 @@ test('Filtragem interativa pelos cards de KPI na aba de Cancelamentos (Issue #17
   } finally {
     await app.close();
   }
+});
+
+test('Rolagem até Atendimentos e abertura de Atendimento pela linha da tabela (Issue #185)', () => {
+  // 1. Lógica isolada de acionamento por clique (deveAbrirAtendimentoPeloClique)
+  const celulaGenerica = {
+    closest: (sel: string) => (sel.includes('td') ? {} : null)
+  };
+  const paragrafoDiagnostico = {
+    closest: (sel: string) => null
+  };
+  const badgeLink = {
+    closest: (sel: string) => (sel.includes('a') ? badgeLink : null)
+  };
+  const textoDentroDoBadge = {
+    parentElement: badgeLink
+  };
+  const botaoAbrirLink = {
+    closest: (sel: string) => (sel.includes('a') ? botaoAbrirLink : null)
+  };
+  const botaoInterno = {
+    closest: (sel: string) => (sel.includes('button') ? botaoInterno : null)
+  };
+
+  // Clique em qualquer célula ou texto da linha deve abrir o atendimento
+  assert.equal(deveAbrirAtendimentoPeloClique(celulaGenerica, false), true);
+  assert.equal(deveAbrirAtendimentoPeloClique(paragrafoDiagnostico, false), true);
+
+  // Não deve abrir o atendimento se o usuário realizou seleção de texto na linha
+  assert.equal(deveAbrirAtendimentoPeloClique(celulaGenerica, true), false);
+  assert.equal(deveAbrirAtendimentoPeloClique(paragrafoDiagnostico, true), false);
+
+  // Clique direto no badge de Administradora (ou em seus nós internos) não dispara a linha
+  assert.equal(deveAbrirAtendimentoPeloClique(badgeLink, false), false);
+  assert.equal(deveAbrirAtendimentoPeloClique(textoDentroDoBadge, false), false);
+
+  // Clique no botão "Abrir" ou outro botão não dispara a ação da linha duplicadamente
+  assert.equal(deveAbrirAtendimentoPeloClique(botaoAbrirLink, false), false);
+  assert.equal(deveAbrirAtendimentoPeloClique(botaoInterno, false), false);
+
+  // 2. Lógica isolada de acionamento por teclado (deveAbrirAtendimentoPeloTeclado)
+  const linhaContainer = {
+    closest: (sel: string) => linhaContainer
+  };
+
+  // Teclas Enter e Espaço na linha focada disparam a abertura
+  assert.equal(
+    deveAbrirAtendimentoPeloTeclado({
+      key: 'Enter',
+      target: linhaContainer,
+      currentTarget: linhaContainer
+    }),
+    true
+  );
+  assert.equal(
+    deveAbrirAtendimentoPeloTeclado({
+      key: ' ',
+      target: linhaContainer,
+      currentTarget: linhaContainer
+    }),
+    true
+  );
+  assert.equal(
+    deveAbrirAtendimentoPeloTeclado({
+      key: 'Spacebar',
+      target: linhaContainer,
+      currentTarget: linhaContainer
+    }),
+    true
+  );
+
+  // Outras teclas (Tab, ArrowDown, Escape) não disparam a abertura
+  assert.equal(
+    deveAbrirAtendimentoPeloTeclado({
+      key: 'Tab',
+      target: linhaContainer,
+      currentTarget: linhaContainer
+    }),
+    false
+  );
+  assert.equal(
+    deveAbrirAtendimentoPeloTeclado({
+      key: 'ArrowDown',
+      target: linhaContainer,
+      currentTarget: linhaContainer
+    }),
+    false
+  );
+  assert.equal(
+    deveAbrirAtendimentoPeloTeclado({
+      key: 'Escape',
+      target: linhaContainer,
+      currentTarget: linhaContainer
+    }),
+    false
+  );
+
+  // Foco no badge de Administradora com tecla Enter não intercepta a navegação do badge
+  assert.equal(
+    deveAbrirAtendimentoPeloTeclado({
+      key: 'Enter',
+      target: badgeLink,
+      currentTarget: linhaContainer
+    }),
+    false
+  );
+  assert.equal(
+    deveAbrirAtendimentoPeloTeclado({
+      key: 'Enter',
+      target: botaoAbrirLink,
+      currentTarget: linhaContainer
+    }),
+    false
+  );
+
+  // 3. Verificação no código-fonte de CancelamentosPage.tsx
+  const raiz = join(dirname(fileURLToPath(import.meta.url)), '../..');
+  const cancelamentosPageTsx = readFileSync(
+    join(raiz, 'apps/web/src/features/cancelamentos/CancelamentosPage.tsx'),
+    'utf8'
+  );
+
+  // Rolagem suave com scrollIntoView na listagem de cancelamentos
+  assert.match(
+    cancelamentosPageTsx,
+    /function rolarParaAtendimentos\(\)\s*\{[\s\S]*?secaoAtendimentosRef\.current\?\.scrollIntoView\?\.\({\s*behavior:\s*'smooth'\s*}\);/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /<section[\s\S]*?ref=\{secaoAtendimentosRef\}[\s\S]*?className="cancelamentos-listagem-secao"/
+  );
+
+  // Os 3 cards de KPI devem acionar a rolagem suave
+  assert.match(
+    cancelamentosPageTsx,
+    /function aoClicarCardCancelamentos\(\)\s*\{[\s\S]*?limparFiltrosListagem\(\);[\s\S]*?rolarParaAtendimentos\(\);/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /<button[\s\S]*?onClick=\{aoClicarCardCancelamentos\}[\s\S]*?Cancelamentos Identificados/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /function alternarCardVendaMalFeita\(\)\s*\{[\s\S]*?rolarParaAtendimentos\(\);/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /function alternarCardMigracao\(\)\s*\{[\s\S]*?rolarParaAtendimentos\(\);/
+  );
+
+  // Gráficos de Causas e Concorrentes devem acionar a rolagem suave
+  assert.match(
+    cancelamentosPageTsx,
+    /function alternarFiltroCausa\(causa:\s*string\)\s*\{[\s\S]*?rolarParaAtendimentos\(\);/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /function alternarFiltroConcorrente\(concorrente:\s*string\)\s*\{[\s\S]*?rolarParaAtendimentos\(\);/
+  );
+
+  // Navegação da linha preservando Recorte, Período e lista=/cancelamentos
+  assert.match(
+    cancelamentosPageTsx,
+    /function abrirAtendimento\(id:\s*string\)\s*\{[\s\S]*?navigate\(destinoDoDetalhe\(id,\s*location\.search,\s*'\/cancelamentos'\)\);/
+  );
+
+  // Linhas da tabela com tabIndex={0}, onClick e onKeyDown
+  assert.match(
+    cancelamentosPageTsx,
+    /<tr[\s\S]*?className="cancelamentos-tabela-linha"[\s\S]*?tabIndex=\{0\}/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /deveAbrirAtendimentoPeloClique\(e\.target,\s*temSelecao\)/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /deveAbrirAtendimentoPeloTeclado\(e\)/
+  );
+  assert.match(
+    cancelamentosPageTsx,
+    /e\.preventDefault\(\);[\s\S]*?abrirAtendimento\(item\.id\);/
+  );
+
+  // Badge da Administradora continua presente com lista="/cancelamentos"
+  assert.match(
+    cancelamentosPageTsx,
+    /<BadgeAdministradora[\s\S]*?administradora=\{item\.administradora\}[\s\S]*?lista="\/cancelamentos"/
+  );
+
+  // Botão "Abrir" continua presente na coluna de ações
+  assert.match(
+    cancelamentosPageTsx,
+    /<td className="cancelamentos-col-acoes">[\s\S]*?<Link[\s\S]*?className="cancelamentos-btn-abrir"[\s\S]*?>\s*Abrir\s*<\/Link>/
+  );
+
+  // 4. Verificação de estilos CSS em dashboard.css
+  const dashboardCss = readFileSync(
+    join(raiz, 'apps/web/src/styles/dashboard.css'),
+    'utf8'
+  );
+  assert.match(
+    dashboardCss,
+    /\.cancelamentos-tabela-linha\s*\{[\s\S]*?cursor:\s*pointer;/
+  );
+  assert.match(
+    dashboardCss,
+    /\.cancelamentos-tabela-linha:hover\s*\{[\s\S]*?background-color:\s*#f7faf9;/
+  );
+  assert.match(
+    dashboardCss,
+    /\.cancelamentos-tabela-linha:focus-visible\s*\{[\s\S]*?outline:\s*2px\s+solid\s+var\(--cyan\);/
+  );
+  assert.match(
+    dashboardCss,
+    /\.cancelamentos-tabela-linha:hover\s+\.cancelamentos-btn-abrir[\s\S]*?border-color:\s*var\(--cyan\);/
+  );
 });
 

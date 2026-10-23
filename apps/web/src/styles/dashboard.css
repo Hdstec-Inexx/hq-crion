@@ -1131,6 +1131,26 @@ button.dashboard-kpi {
   border-bottom: 0;
 }
 
+.cancelamentos-tabela-linha {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.cancelamentos-tabela-linha:hover {
+  background-color: #f7faf9;
+}
+
+.cancelamentos-tabela-linha:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -2px;
+}
+
+.cancelamentos-tabela-linha:hover .cancelamentos-btn-abrir,
+.cancelamentos-tabela-linha:focus-visible .cancelamentos-btn-abrir {
+  border-color: var(--cyan);
+  background: rgb(94 196 190 / 10%);
+}
+
 .cancelamentos-col-agente {
   font-weight: 600;
   white-space: nowrap;
