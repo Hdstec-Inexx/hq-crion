@@ -2,10 +2,11 @@ import { tituloDaPagina } from '@hq-crion/contracts/casca';
 import type { Perfil } from '@hq-crion/contracts/perfil';
 import { escreverRecorteNaQuery } from '@hq-crion/contracts/recorte';
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { BotaoFavorito } from '../atendimentos/BotaoFavorito';
+import { deveAbrirAtendimentoPeloClique, deveAbrirAtendimentoPeloTeclado } from '../atendimentos/acaoLinhaListagem';
 import { useListaAoVivo } from './listaAoVivo';
 import { mensagemDaListaAoVivo, textoDaLinhaAoVivo } from './pulso';
 
@@ -20,6 +21,7 @@ function destinoDoDetalhe(id: string, search: string) {
 export function MonitoramentoPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const estado = useListaAoVivo(searchParams);
   const [favoritosLocais, setFavoritosLocais] = useState<Record<string, boolean>>({});
@@ -50,6 +52,10 @@ export function MonitoramentoPage() {
     });
   }
 
+  function abrirMonitoramento(id: string) {
+    navigate(destinoDoDetalhe(id, location.search));
+  }
+
   const aviso = estado.status === 'ready' ? mensagemDaListaAoVivo(estado.data) : null;
 
   return (
@@ -78,7 +84,31 @@ export function MonitoramentoPage() {
             <p>{aviso}</p>
           ) : (
             estado.data.itens.map((item) => (
-              <article className="listagem-linha listagem-linha-monitoramento" key={item.id}>
+              <article
+                className="listagem-linha listagem-linha-monitoramento"
+                key={item.id}
+                tabIndex={0}
+                aria-label={`Abrir monitoramento ao vivo do atendimento ${item.id}`}
+                onClick={(e) => {
+                  const selecao = window.getSelection?.();
+                  const temSelecao = Boolean(
+                    selecao && selecao.toString().trim().length > 0
+                  );
+                  if (!deveAbrirAtendimentoPeloClique(e.target, temSelecao)) {
+                    return;
+                  }
+                  abrirMonitoramento(item.id);
+                }}
+                onKeyDown={(e) => {
+                  if (!deveAbrirAtendimentoPeloTeclado(e)) {
+                    return;
+                  }
+                  if (e.key === ' ' || e.key === 'Spacebar') {
+                    e.preventDefault();
+                  }
+                  abrirMonitoramento(item.id);
+                }}
+              >
                 <div>
                   <Link
                     className="listagem-link"
