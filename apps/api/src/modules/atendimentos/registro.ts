@@ -187,14 +187,13 @@ export function atendimentoEstaAvaliado(
   >
 ): boolean {
   const temVereditoIa =
-    avaliacaoDaIaTemVeredito(item as RegistroDeAtendimento) ||
-    (typeof item.notaIa === 'number' && item.notaIa > 0) ||
-    (typeof item.nota === 'number' && item.nota > 0 && item.avaliacaoDaIa !== undefined);
+    Boolean(item.avaliacaoDaIa) ||
+    (typeof item.notaIa === 'number' && item.notaIa > 0);
   const temCuradoria =
     item.curadoria === true ||
-    item.avaliacaoDoCurador !== undefined ||
+    Boolean(item.avaliacaoDoCurador) ||
     (typeof item.notaCurador === 'number' && item.notaCurador > 0);
-  return Boolean(temVereditoIa || temCuradoria);
+  return temVereditoIa || temCuradoria;
 }
 
 export function autorDaConferencia(

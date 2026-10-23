@@ -527,6 +527,24 @@ test('atendimentoEstaAvaliado reconhece avaliações da IA e do Curador', () => 
     true
   );
 
+  // Avaliado pela IA mesmo com nota 0 (reprovado em todos os critérios)
+  assert.equal(
+    atendimentoEstaAvaliado({
+      nota: 0,
+      notaIa: 0,
+      notaCurador: null,
+      curadoria: false,
+      avaliacaoDaIa: {
+        nota: 0,
+        aprovacao: 'Reprovado',
+        criterios: [
+          { nome: 'Resolução da demanda', estado: 'Não atendido', pontos: 0, critico: true }
+        ]
+      }
+    }),
+    true
+  );
+
   // Avaliado com notaIa positiva mesmo sem objeto completo
   assert.equal(
     atendimentoEstaAvaliado({
