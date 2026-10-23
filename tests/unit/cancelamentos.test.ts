@@ -1299,10 +1299,10 @@ test('Rolagem até Atendimentos e abertura de Atendimento pela linha da tabela (
     'utf8'
   );
 
-  // Rolagem suave com scrollIntoView na listagem de cancelamentos
+  // Rolagem suave com scrollIntoView na listagem de cancelamentos (com respeito a prefers-reduced-motion)
   assert.match(
     cancelamentosPageTsx,
-    /function rolarParaAtendimentos\(\)\s*\{[\s\S]*?secaoAtendimentosRef\.current\?\.scrollIntoView\?\.\({\s*behavior:\s*'smooth'\s*}\);/
+    /function rolarParaAtendimentos\(\)\s*\{[\s\S]*?secaoAtendimentosRef\.current\?\.scrollIntoView\?\.\({\s*behavior:\s*prefereReducaoMovimento\s*\?\s*'auto'\s*:\s*'smooth'\s*}\);/
   );
   assert.match(
     cancelamentosPageTsx,

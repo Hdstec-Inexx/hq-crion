@@ -122,7 +122,13 @@ export function CancelamentosPage() {
   const secaoAtendimentosRef = useRef<HTMLElement | null>(null);
 
   function rolarParaAtendimentos() {
-    secaoAtendimentosRef.current?.scrollIntoView?.({ behavior: 'smooth' });
+    const prefereReducaoMovimento =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
+    secaoAtendimentosRef.current?.scrollIntoView?.({
+      behavior: prefereReducaoMovimento ? 'auto' : 'smooth'
+    });
   }
 
   function abrirAtendimento(id: string) {
