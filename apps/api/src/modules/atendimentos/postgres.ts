@@ -1402,7 +1402,7 @@ export function repositorioPostgres(pool: PoolSql): PortaDeAtendimentos {
 
       return selecionadas.map((l) => ({
         id: l.id,
-        nome: l.nome,
+        nome: l.nome.trim(),
         administradora: l.administradora ?? null,
         administradorasAtendidas: (l.administradoras_atendidas ?? []).sort()
       }));

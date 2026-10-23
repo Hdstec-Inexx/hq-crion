@@ -572,7 +572,7 @@ export function repositorioEmMemoria(
           const agenteSemente = agentesDeVoz.find((a) => a.id === r.agenteId);
           entry = {
             id: r.agenteId,
-            nome: r.agente,
+            nome: r.agente.trim(),
             administradora: dedicada ?? agenteSemente?.administradora ?? null,
             administradorasAtendidas: new Set<Administradora>()
           };
