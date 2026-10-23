@@ -11,12 +11,16 @@ import {
   periodoAteHoje,
   periodoDoDashboard
 } from '@hq-crion/contracts/recorte';
-import { type FormEvent, useEffect, useState } from 'react';
-import { Link, useLocation, useRouteLoaderData, useSearchParams } from 'react-router-dom';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useRouteLoaderData, useSearchParams } from 'react-router-dom';
 import { BadgeAdministradora } from '../recorte/BadgeAdministradora';
 import { RecorteCascata } from '../recorte/RecorteCascata';
 import { PaginacaoCompacta } from '../atendimentos/PaginacaoCompacta';
 import { formatarQuando } from '../atendimentos/formatar-quando';
+import {
+  deveAbrirAtendimentoPeloClique,
+  deveAbrirAtendimentoPeloTeclado
+} from './acaoLinhaTabela';
 import {
   analisarPassivoDeCancelamentos,
   buscarPainelDeCancelamentos,
@@ -113,7 +117,23 @@ function RespostaExecutivaFormatada({ texto }: { texto: string }) {
 export function CancelamentosPage() {
   const perfil = useRouteLoaderData('casca') as Perfil;
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const secaoAtendimentosRef = useRef<HTMLElement | null>(null);
+
+  function rolarParaAtendimentos() {
+    const prefereReducaoMovimento =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
+    secaoAtendimentosRef.current?.scrollIntoView?.({
+      behavior: prefereReducaoMovimento ? 'auto' : 'smooth'
+    });
+  }
+
+  function abrirAtendimento(id: string) {
+    navigate(destinoDoDetalhe(id, location.search, '/cancelamentos'));
+  }
 
   const [painel, setPainel] = useState<PainelDeCancelamentosResponse | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -308,6 +328,7 @@ export function CancelamentosPage() {
     } else {
       atualizarFiltro('causa', causa);
     }
+    rolarParaAtendimentos();
   }
 
   function alternarFiltroConcorrente(concorrente: string) {
@@ -316,6 +337,7 @@ export function CancelamentosPage() {
     } else {
       atualizarFiltro('concorrente', concorrente);
     }
+    rolarParaAtendimentos();
   }
 
   function alternarCardVendaMalFeita() {
@@ -331,6 +353,7 @@ export function CancelamentosPage() {
       proxima.set('vendaMalFeita', 'sim');
     }
     setSearchParams(proxima, { replace: true });
+    rolarParaAtendimentos();
   }
 
   function alternarCardMigracao() {
@@ -346,6 +369,7 @@ export function CancelamentosPage() {
       proxima.set('comConcorrente', 'sim');
     }
     setSearchParams(proxima, { replace: true });
+    rolarParaAtendimentos();
   }
 
   function limparFiltrosListagem() {
@@ -359,6 +383,11 @@ export function CancelamentosPage() {
     setConcorrenteRascunho('');
     setBuscaRascunho('');
     setSearchParams(proxima, { replace: true });
+  }
+
+  function aoClicarCardCancelamentos() {
+    limparFiltrosListagem();
+    rolarParaAtendimentos();
   }
 
   const temFiltroListagemAtivo = Boolean(
@@ -513,7 +542,7 @@ export function CancelamentosPage() {
             <button
               type="button"
               className={`dashboard-kpi cancelamentos-kpi-clicavel ${isCancelamentosAtivo ? 'is-ativo' : ''}`}
-              onClick={limparFiltrosListagem}
+              onClick={aoClicarCardCancelamentos}
               aria-pressed={isCancelamentosAtivo}
             >
               <small>Cancelamentos Identificados</small>
@@ -855,6 +884,7 @@ export function CancelamentosPage() {
 
           {/* BLOCO 4 — Listagem Filtrável de Atendimentos de Cancelamento */}
           <section
+            ref={secaoAtendimentosRef}
             className="cancelamentos-listagem-secao"
             aria-label="Listagem de Cancelamentos"
           >
@@ -945,7 +975,31 @@ export function CancelamentosPage() {
                     </thead>
                     <tbody>
                       {itensPaginados.map((item) => (
-                        <tr key={item.id} className="cancelamentos-tabela-linha">
+                        <tr
+                          key={item.id}
+                          className="cancelamentos-tabela-linha"
+                          tabIndex={0}
+                          aria-label={`Abrir detalhes do atendimento ${item.id}`}
+                          onClick={(e) => {
+                            const selecao = window.getSelection?.();
+                            const temSelecao = Boolean(
+                              selecao && selecao.toString().trim().length > 0
+                            );
+                            if (!deveAbrirAtendimentoPeloClique(e.target, temSelecao)) {
+                              return;
+                            }
+                            abrirAtendimento(item.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (!deveAbrirAtendimentoPeloTeclado(e)) {
+                              return;
+                            }
+                            if (e.key === ' ' || e.key === 'Spacebar') {
+                              e.preventDefault();
+                            }
+                            abrirAtendimento(item.id);
+                          }}
+                        >
                           <td>
                             <BadgeAdministradora
                               administradora={item.administradora}
