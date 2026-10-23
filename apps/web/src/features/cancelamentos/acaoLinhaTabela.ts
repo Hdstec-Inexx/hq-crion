@@ -1,5 +1,5 @@
 export {
   deveAbrirAtendimentoPeloClique,
   deveAbrirAtendimentoPeloTeclado
-} from '../atendimentos/acaoLinhaListagem';
+} from '../atendimentos/acaoLinhaListagem.js';
 
